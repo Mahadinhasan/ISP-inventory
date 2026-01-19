@@ -1,0 +1,121 @@
+{% extends 'inventory/base.html' %}
+{% block title %}Tasks{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-4xl font-bold text-gray-900">Task Management</h1>
+            <p class="text-gray-600">Manage installation and maintenance jobs</p>
+        </div>
+        {% if role != 'Technician' %}
+        <button onclick="document.getElementById('createTaskModal').classList.remove('hidden')"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition">
+            <i class="fas fa-plus mr-2"></i>Create Task
+        </button>
+        {% endif %}
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for task in tasks %}
+        <div class="bg-white rounded-xl shadow-lg p-6 card-hover">
+            <div class="flex justify-between items-start mb-4">
+                <h3 class="text-lg font-bold text-gray-900">{{ task.title }}</h3>
+                <span class="px-3 py-1 text-xs font-semibold rounded-full
+                    {% if task.status == 'Pending' %}bg-yellow-100 text-yellow-800
+                    {% elif task.status == 'In Progress' %}bg-blue-100 text-blue-800
+                    {% else %}bg-green-100 text-green-800{% endif %}">
+                    {{ task.status }}
+                </span>
+            </div>
+            <div class="space-y-2 text-sm text-gray-600">
+                <p><i class="fas fa-user mr-2 text-indigo-600"></i>{{ task.customer }}</p>
+                <p><i class="fas fa-map-marker-alt mr-2 text-red-600"></i>{{ task.address|truncatechars:40 }}</p>
+                <p><i class="fas fa-wrench mr-2 text-purple-600"></i>{{
+                    task.technician.get_full_name|default:task.technician.username }}</p>
+                <p><i class="fas fa-calendar mr-2 text-green-600"></i>{{ task.created_at|date:"M d, Y" }}</p>
+            </div>
+            <div class="mt-6 flex space-x-2">
+                {% if task.status == 'Pending' %}
+                <form method="post" class="flex-1">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update_status">
+                    <input type="hidden" name="task_id" value="{{ task.id }}">
+                    <input type="hidden" name="status" value="In Progress">
+                    <button type="submit"
+                        class="w-full text-center bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-sm transition">Start
+                        Task</button>
+                </form>
+                {% elif task.status == 'In Progress' %}
+                <form method="post" class="flex-1">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update_status">
+                    <input type="hidden" name="task_id" value="{{ task.id }}">
+                    <input type="hidden" name="status" value="Completed">
+                    <button type="submit"
+                        class="w-full text-center bg-green-600 hover:bg-green-700 text-white py-2 rounded text-sm transition">Complete</button>
+                </form>
+                {% endif %}
+
+                {% if role == 'Admin' %}
+                <form method="post" class="flex-none" onsubmit="return confirm('Delete this task?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="task_id" value="{{ task.id }}">
+                    <button type="submit"
+                        class="px-3 py-2 bg-gray-200 hover:bg-red-100 text-gray-600 hover:text-red-600 rounded text-sm transition"
+                        title="Delete">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-span-3 text-center py-12">
+            <i class="fas fa-tasks text-6xl text-gray-300 mb-4"></i>
+            <p class="text-xl text-gray-500">No tasks yet</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Create Task Modal -->
+<div id="createTaskModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-2xl p-8 w-full max-w-lg">
+        <h3 class="text-2xl font-bold mb-6">Create New Task</h3>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Title</label>
+                    <input type="text" name="title" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Customer Name</label>
+                    <input type="text" name="customer" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Address</label>
+                    <textarea name="address" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+                        rows="3"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Assign Technician</label>
+                    {{ form.technician }}
+                </div>
+            </div>
+            <div class="flex justify-end space-x-4 mt-6">
+                <button type="button" onclick="this.closest('#createTaskModal').classList.add('hidden')"
+                    class="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                <button type="submit" class="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Create
+                    Task</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

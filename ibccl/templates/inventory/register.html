@@ -1,0 +1,49 @@
+<!-- templates/inventory/register.html -->
+{% extends 'inventory/base.html' %}
+{% block content %}
+<div class="min-h-screen flex items-center justify-center py-12 px-4">
+    <div class="max-w-md w-full space-y-8">
+        <div class="text-center">
+            <h2 class="text-3xl font-extrabold text-gray-900">Create Your Account</h2>
+            <p class="mt-2 text-sm text-gray-600">Join the ISP Inventory System</p>
+        </div>
+
+        <form method="post" class="mt-8 space-y-6">
+            {% csrf_token %}
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Full Name</label>
+                    <input name="name" type="text" required class="mt-1 block w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Username</label>
+                    <input name="username" type="text" required class="mt-1 block w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Password</label>
+                    <input name="password" type="password" required class="mt-1 block w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    {% if role == 'Admin' %}
+                    <label class="block text-sm font-medium text-gray-700">Role</label>
+                    <select name="role" required class="mt-1 block w-full px-3 py-2 border rounded-lg">
+                        <option value="">Choose role</option>
+                        <option value="Admin">Admin</option>
+                        <option value="Technician">Technician</option>
+                        <option value="Storekeeper">Storekeeper</option>
+                    </select>
+                    {% endif %}
+                </div>
+            </div>
+
+            <button type="submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">
+                <i class="fas fa-user-plus mr-2"></i> Create Account
+            </button>
+
+            <p class="text-center text-sm text-gray-600">
+                Already have an account? <a href="{% url 'login' %}" class="text-indigo-600 font-medium">Sign in</a>
+            </p>
+        </form>
+    </div>
+</div>
+{% endblock %}
