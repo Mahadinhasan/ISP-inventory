@@ -109,15 +109,7 @@ def dashboard(request):
     all_requests = MaterialRequest.objects.all().order_by('-requested_at')
     all_used_materials = UsedMaterial.objects.all().select_related('technician', 'material').order_by('-added_at')
 
-    # If Technician, filter own views where applicable?
-    # Usually dashboard overview shows global stats for Admin/Store, but maybe filtered for Teac?
-    # "Teac will show the material data as role."
-    # For now, I'll pass everything, template can filter or hide if needed. 
-    # Or strict filtering:
     if role == 'Technician':
-        # Technicians might only see their own tasks ??
-        # The prompt didn't specify strict dashboard visibility vs global.
-        # "Teac will show the material data as role."
         pass
 
     return render(request, 'inventory/dashboard.html', {
