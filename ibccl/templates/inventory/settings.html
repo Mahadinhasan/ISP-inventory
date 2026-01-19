@@ -1,0 +1,138 @@
+<!-- templates/inventory/settings.html -->
+{% extends 'inventory/base.html' %}
+{% block title %}Settings{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto p-8 bg-white rounded-3xl shadow-2xl">
+    <h1 class="text-4xl font-extrabold text-indigo-900 mb-8">Admin Settings</h1>
+
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <!-- Sidebar -->
+        <div class="col-span-1">
+            <div class="sticky top-8 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-3xl shadow-xl p-6">
+                <h3 class="text-2xl font-bold text-indigo-800 mb-6">Menu</h3>
+                <div class="space-y-4">
+                    <button onclick="showTab('users')" class="w-full text-left px-6 py-4 bg-white rounded-2xl shadow-md font-bold text-indigo-700 hover:bg-indigo-100 transition">
+                        <i class="fas fa-users mr-3"></i>User Management
+                    </button>
+                    <!-- Other buttons... -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="col-span-3">
+            <div id="usersTab" class="bg-white rounded-3xl shadow-xl p-8">
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-3xl font-bold text-indigo-900">User Management</h2>
+                    <button onclick="openCreateModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-bold shadow-lg transition">
+                        <i class="fas fa-user-plus mr-2"></i>Create User
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-indigo-100">
+                        <thead class="bg-indigo-50">
+                            <tr>
+                                <th class="px-8 py-4 text-left text-sm font-bold text-indigo-700 uppercase">User</th>
+                                <th class="px-8 py-4 text-left text-sm font-bold text-indigo-700 uppercase">Role</th>
+                                <th class="px-8 py-4 text-left text-sm font-bold text-indigo-700 uppercase">Status</th>
+                                <th class="px-8 py-4 text-center text-sm font-bold text-indigo-700 uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-indigo-100">
+                            {% for u in users %}
+                            <tr class="hover:bg-indigo-50 transition">
+                                <td class="px-8 py-6">
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-12 h-12 bg-indigo-200 rounded-full flex items-center justify-center text-indigo-700 font-bold text-xl">
+                                            {{ u.username|slice:":1"|upper }}
+                                        </div>
+                                        <div>
+                                            <p class="font-bold text-gray-900">{{ u.get_full_name|default:u.username }}</p>
+                                            <p class="text-sm text-gray-500">{{ u.email }}</p>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-8 py-6">
+                                    <form method="post">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="change_role">
+                                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                                        <select name="role" onchange="this.form.submit()" class="px-4 py-2 bg-white border border-indigo-300 rounded-xl font-medium text-indigo-700 focus:ring-2 focus:ring-indigo-500">
+                                            <option value="Admin" {% if u.userprofile.role == 'Admin' %}selected{% endif %}>Admin</option>
+                                            <option value="Storekeeper" {% if u.userprofile.role == 'Storekeeper' %}selected{% endif %}>Storekeeper</option>
+                                            <option value="Technician" {% if u.userprofile.role == 'Technician' %}selected{% endif %}>Technician</option>
+                                        </select>
+                                    </form>
+                                </td>
+                                <td class="px-8 py-6">
+                                    <span class="px-4 py-2 rounded-full text-xs font-bold {% if u.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                        {% if u.is_active %}Active{% else %}Inactive{% endif %}
+                                    </span>
+                                </td>
+                                <td class="px-8 py-6 text-center space-x-4">
+                                   <form method="post" class="inline">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="toggle_status">
+                                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                                        <button type="submit" class="text-blue-600 hover:text-blue-800 font-bold">
+                                            {% if u.is_active %}Deactivate{% else %}Activate{% endif %}
+                                        </button>
+                                    </form>
+                                    <form method="post" class="inline">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="delete">
+                                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                                        <button type="submit" onclick="return confirm('Delete user?')" class="text-red-600 hover:text-red-800 font-bold">Delete</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Create User Modal -->
+<div id="createModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-lg">
+        <h3 class="text-3xl font-bold text-indigo-900 mb-6">Create New User</h3>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create_user">
+            <div class="space-y-6">
+                <input type="text" name="username" placeholder="Username" required class="w-full px-6 py-4 border-2 border-indigo-200 rounded-2xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">
+                <input type="email" name="email" placeholder="Email" class="w-full px-6 py-4 border-2 border-indigo-200 rounded-2xl focus:border-indigo-500">
+                <input type="password" name="password" placeholder="Password" required class="w-full px-6 py-4 border-2 border-indigo-200 rounded-2xl focus:border-indigo-500">
+                <select name="role" class="w-full px-6 py-4 border-2 border-indigo-200 rounded-2xl focus:border-indigo-500">
+                    <option value="Technician">Technician</option>
+                    <option value="Storekeeper">Storekeeper</option>
+                    <option value="Admin">Admin</option>
+                </select>
+            </div>
+            <div class="mt-8 flex justify-end gap-4">
+                <button type="button" onclick="closeModal()" class="px-8 py-4 border-2 border-indigo-200 rounded-2xl hover:bg-indigo-50 font-bold text-indigo-700">
+                    Cancel
+                </button>
+                <button type="submit" class="px-8 py-4 bg-gradient-to-r from-indigo-600 to-indigo-800 text-white rounded-2xl font-bold hover:shadow-xl transition">
+                    Create User
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+            <!-- Other tabs (Vendors, System, Notifications, Backup) -->
+            <!-- Use the same structure as previous messages -->
+            <!-- I can send full code if needed -->
+<script>
+function openCreateModal() {
+    document.getElementById('createModal').classList.remove('hidden');
+}
+function closeModal() {
+    document.getElementById('createModal').classList.add('hidden');
+}
+</script>
+{% endblock %}

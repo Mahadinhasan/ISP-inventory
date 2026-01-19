@@ -1,0 +1,54 @@
+{% extends 'inventory/base.html' %}
+{% block content %}
+<div class="min-h-screen flex items-center justify-center py-12 px-4">
+    <div class="max-w-md w-full space-y-8">
+        <div class="text-center">
+            <div class="mx-auto h-16 w-16 bg-indigo-600 rounded-full flex items-center justify-center">
+                <i class="fas fa-network-wired text-white text-2xl"></i>
+            </div>
+            <h2 class="mt-6 text-3xl font-extrabold text-gray-900">ISP Inventory System</h2>
+            <p class="mt-2 text-sm text-gray-600">Sign in to continue</p>
+        </div>
+
+        <form method="post" class="mt-8 space-y-6">
+            {% csrf_token %}
+            <div class="rounded-md shadow-sm space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Username</label>
+                    <input name="username" type="text" required autocomplete="username"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+                           placeholder="Enter your username">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Password</label>
+                    <input name="password" type="password" required autocomplete="current-password"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+                           placeholder="Enter your password">
+                </div>
+            </div>
+            <div class="flex items-center justify-between">
+                <label class="flex items-center">
+                    <input type="checkbox" name="remember_me" class="h-4 w-4 text-indigo-600 rounded border-gray-300">
+                    <span class="ml-2 text-sm text-gray-600">Remember me</span>
+                </label>
+            </div>
+            <button type="submit" class="w-full flex justify-center py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition">
+                <i class="fas fa-sign-in-alt mr-2"></i> Sign In
+            </button>
+        </form>
+
+        <div class="text-center mt-6">
+            <p class="text-sm text-gray-600">
+                Don't have an account?
+                <a href="{% url 'register' %}" class="font-medium text-indigo-600 hover:text-indigo-500">Create one now</a>
+            </p>
+        </div>
+
+        {% if messages %}
+            {% for message in messages %}
+                <script>showToast("{{ message }}", "error");</script>
+            {% endfor %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

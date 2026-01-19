@@ -1,0 +1,296 @@
+{% extends 'inventory/base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="fade-in">
+    <div class="mb-8">
+        <h1 class="text-4xl font-bold text-gray-900">Dashboard</h1>
+        <p class="mt-2 text-lg text-gray-600">Welcome back, {{ user.get_full_name|default:user.username }}!</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
+        <!-- Materials Card -->
+        <div onclick="document.getElementById('materialsModal').classList.remove('hidden')"
+            class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            <div class="flex items-center">
+                <div class="p-4 bg-blue-100 rounded-full">
+                    <i class="fas fa-boxes text-3xl text-blue-600"></i>
+                </div>
+                <div class="ml-6">
+                    <p class="text-sm font-medium text-gray-600">Total Materials</p>
+                    <p class="text-4xl font-bold text-gray-900">{{ total_materials }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tasks Card -->
+        <div onclick="document.getElementById('tasksModal').classList.remove('hidden')"
+            class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            <div class="flex items-center">
+                <div class="p-4 bg-green-100 rounded-full">
+                    <i class="fas fa-tasks text-3xl text-green-600"></i>
+                </div>
+                <div class="ml-6">
+                    <p class="text-sm font-medium text-gray-600">Active Tasks</p>
+                    <p class="text-4xl font-bold text-gray-900">{{ active_tasks }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Requests Card -->
+        <div onclick="document.getElementById('requestsModal').classList.remove('hidden')"
+            class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            <div class="flex items-center">
+                <div class="p-4 bg-yellow-100 rounded-full">
+                    <i class="fas fa-clock text-3xl text-yellow-600"></i>
+                </div>
+                <div class="ml-6">
+                    <p class="text-sm font-medium text-gray-600">Pending Requests</p>
+                    <p class="text-4xl font-bold text-gray-900">{{ pending_requests }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Used Materials Card -->
+        <div onclick="document.getElementById('usedModelsModal').classList.remove('hidden')"
+            class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            <div class="flex items-center">
+                <div class="p-4 bg-purple-100 rounded-full">
+                    <i class="fas fa-history text-3xl text-purple-600"></i>
+                </div>
+                <div class="ml-6">
+                    <p class="text-sm font-medium text-gray-600">Used Materials</p>
+                    <p class="text-lg font-bold text-gray-500">View Log</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+
+    <!-- Materials Modal -->
+    <div id="materialsModal"
+        class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+        onclick="if(event.target === this) this.classList.add('hidden')">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
+            <div class="p-6 border-b flex justify-between items-center">
+                <h3 class="text-xl font-bold text-gray-900">Materials Overview</h3>
+                <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'materialsTable')"
+                    class="border rounded px-2 py-1 ml-4 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                <button onclick="document.getElementById('materialsModal').classList.add('hidden')"
+                    class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <table id="materialsTable" class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        {% for mat in all_materials %}
+                        <tr>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ mat.name }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-500">{{ mat.category }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-900 font-bold">{{ mat.quantity}}</td>
+                            <td class="px-6 py-4 text-sm">
+                                <span class="px-2 py-1 rounded-full text-xs font-semibold
+                                    {% if mat.status == 'Normal' %}bg-green-100 text-green-800
+                                    {% elif mat.status == 'Low Stock' %}bg-yellow-100 text-yellow-800
+                                    {% else %}bg-red-100 text-red-800{% endif %}">
+                                    {{ mat.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Requests Modal -->
+    <div id="requestsModal"
+        class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+        onclick="if(event.target === this) this.classList.add('hidden')">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
+            <div class="p-6 border-b flex justify-between items-center">
+                <h3 class="text-xl font-bold text-gray-900">Material Requests</h3>
+                <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'requestsTable')"
+                    class="border rounded px-2 py-1 ml-4 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                <button onclick="document.getElementById('requestsModal').classList.add('hidden')"
+                    class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <table id="requestsTable" class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Requester</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Material</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            {% if role == 'Admin' %}
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        {% for req in all_requests %}
+                        <tr>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ req.requester.username }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-500">{{ req.material.name }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-900 font-bold">{{ req.quantity }}</td>
+                            <td class="px-6 py-4 text-sm">
+                                <span class="px-2 py-1 rounded-full text-xs font-semibold
+                                    {% if req.status == 'Approved' %}bg-green-100 text-green-800
+                                    {% elif req.status == 'Rejected' %}bg-red-100 text-red-800
+                                    {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                    {{ req.status }}
+                                </span>
+                            </td>
+                            {% if role == 'Admin' %}
+                            <td class="px-6 py-4 text-sm flex space-x-2">
+                                <form method="POST" action="{% url 'requests' %}" class="inline">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="req_id" value="{{ req.id }}">
+                                    {% if req.status == 'Pending' %}
+                                    <button name="action" value="accept" class="text-green-600 hover:text-green-900"
+                                        title="Approve"><i class="fas fa-check"></i></button>
+                                    <button name="action" value="reject" class="text-red-600 hover:text-red-900"
+                                        title="Reject"><i class="fas fa-times"></i></button>
+                                    {% endif %}
+                                    <button name="action" value="delete" class="text-gray-500 hover:text-red-700"
+                                        title="Delete" onclick="return confirm('Delete this request?');"><i
+                                            class="fas fa-trash"></i></button>
+                                </form>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="mt-4 text-right">
+                    <a href="{% url 'requests' %}" class="text-indigo-600 hover:text-indigo-900 font-medium">Go to Full
+                        Requests Page &rarr;</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tasks Modal -->
+    <div id="tasksModal"
+        class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+        onclick="if(event.target === this) this.classList.add('hidden')">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
+            <div class="p-6 border-b flex justify-between items-center">
+                <h3 class="text-xl font-bold text-gray-900">Recent Tasks</h3>
+                <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'tasksTable')"
+                    class="border rounded px-2 py-1 ml-4 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                <button onclick="document.getElementById('tasksModal').classList.add('hidden')"
+                    class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <table id="tasksTable" class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Technician</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        {% for task in all_tasks %}
+                        <tr>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ task.title }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-500">{{ task.customer }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-500">{{ task.technician.username }}</td>
+                            <td class="px-6 py-4 text-sm">
+                                <span class="px-2 py-1 rounded-full text-xs font-semibold
+                                    {% if task.status == 'Completed' %}bg-green-100 text-green-800
+                                    {% elif task.status == 'In Progress' %}bg-blue-100 text-blue-800
+                                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                    {{ task.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Used Models Modal -->
+    <div id="usedModelsModal"
+        class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+        onclick="if(event.target === this) this.classList.add('hidden')">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
+            <div class="p-6 border-b flex justify-between items-center">
+                <h3 class="text-xl font-bold text-gray-900">Used Materials Log</h3>
+                <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'usedModelsTable')"
+                    class="border rounded px-2 py-1 ml-4 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                <button onclick="document.getElementById('usedModelsModal').classList.add('hidden')"
+                    class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <table id="usedModelsTable" class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Technician</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Material</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        {% for item in all_used_materials %}
+                        <tr>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900 flex items-center">
+                                <i class="fas fa-user-circle mr-2 text-indigo-500"></i> {{ item.technician.username }}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-500">{{ item.material.name }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-900 font-bold bg-gray-50 rounded-md text-center">{{
+                                item.quantity }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-400">{{ item.added_at|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center py-4 text-gray-500">No records found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="mt-4 text-right">
+                    <a href="{% url 'used_materials' %}" class="text-indigo-600 hover:text-indigo-900 font-medium">Go to
+                        Full Page &rarr;</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    function filterTable(input, tableId) {
+        var filter = input.value.toUpperCase();
+        var table = document.getElementById(tableId);
+        var tr = table.getElementsByTagName("tr");
+
+        for (var i = 1; i < tr.length; i++) { // Start from 1 to skip header
+            var visible = false;
+            var tds = tr[i].getElementsByTagName("td");
+            for (var j = 0; j < tds.length; j++) {
+                if (tds[j] && tds[j].innerText.toUpperCase().indexOf(filter) > -1) {
+                    visible = true;
+                    break;
+                }
+            }
+            tr[i].style.display = visible ? "" : "none";
+        }
+    }
+</script>
+{% endblock %}

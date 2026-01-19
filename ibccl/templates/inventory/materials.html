@@ -1,0 +1,193 @@
+<!-- templates/inventory/materials.html -->
+{% extends 'inventory/base.html' %}
+{% block title %}Materials{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <h1 class="text-4xl font-bold text-gray-900 mb-8">Materials Management</h1>
+
+    {% if role == 'Storekeeper' %}
+    <button onclick="document.getElementById('materialModal').classList.remove('hidden')"
+        class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium mb-6">
+        <i class="fas fa-plus mr-2"></i>Add Material
+    </button>
+    {% endif %}
+
+    <!-- Filters -->
+    <form method="get" class="mb-8 grid grid-cols-1 md:grid-cols-4 gap-4">
+        <input type="text" name="search" value="{{ search }}" placeholder="Search..."
+            class="px-4 py-3 border rounded-lg">
+        <select name="category" class="px-4 py-3 border rounded-lg">
+            <option value="">All Categories</option>
+            <option value="Internet" {% if category == 'Internet' %}selected{% endif %}>Internet</option>
+            <option value="Dish" {% if category == 'Dish' %}selected{% endif %}>Dish</option>
+        </select>
+        <select name="stock_status" class="px-4 py-3 border rounded-lg">
+            <option value="">All Stock</option>
+            <option value="low" {% if stock_status == 'low' %}selected{% endif %}>Low Stock</option>
+            <option value="normal" {% if stock_status == 'normal' %}selected{% endif %}>Normal Stock</option>
+        </select>
+        <button type="submit" class="bg-indigo-600 text-white px-4 py-3 rounded-lg font-medium">Filter</button>
+    </form>
+
+    <!-- Active filters summary -->
+    <div class="mb-4 text-sm text-gray-600">
+        {% if search %}
+        <span class="mr-3">Search: "{{ search }}"</span>
+        {% endif %}
+        {% if category %}
+        <span class="mr-3">Category: {{ category }}</span>
+        {% endif %}
+        {% if stock_status %}
+        <span class="mr-3">Stock: {{ stock_status|capfirst }}</span>
+        {% endif %}
+        {% if search or category or stock_status %}
+        <a href="?" class="text-indigo-600 hover:underline">Clear filters</a>
+        {% endif %}
+    </div>
+
+    <!-- Table -->
+    <div class="overflow-x-auto bg-white rounded-lg shadow">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Min Level</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Added By</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Added At</th>
+                    {% if role != 'Admin' %}
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {% for material in materials %}
+                <tr {% if material.stock_status == 'Low Stock' %}class="bg-red-50" {% endif %}>
+                    <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ material.name }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ material.category }}</td>
+                    <td
+                        class="px-6 py-4 whitespace-nowrap {% if material.stock_status == 'Low Stock' %}text-red-600 font-semibold{% endif %}">
+                        {{ material.quantity }}
+                        {% if material.stock_status == 'Low Stock' %}
+                        <span
+                            class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs bg-red-100 text-red-800">Low</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ material.min_stock_level }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ material.added_by_display }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ material.added_at|date:"Y-m-d H:i" }}</td>
+                    {% if role != 'Admin' %}
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if role == 'Storekeeper' or material.added_by == request.user.username %}
+                        <button onclick="editMaterial({{ material.id }})" class="text-indigo-600 hover:text-indigo-900 mr-4">Edit</button>
+                        <form method="post" class="inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="material_id" value="{{ material.id }}">
+                            <button type="submit" onclick="return confirm('Delete?')"
+                                class="text-red-600 hover:text-red-900">Delete</button>
+                        </form>
+                        {% endif %}
+                        {# Technicians can 'use' materials via a small inline form #}
+                        {% if role == 'Technician' %}
+                        <form method="post" class="inline" style="margin-left:0.75rem">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="use_material">
+                            <input type="hidden" name="material_id" value="{{ material.id }}">
+                            <input type="number" name="use_quantity" min="1" max="{{ material.quantity }}"
+                                placeholder="Qty" style="width:70px;padding:4px;margin-right:6px" required>
+                            <button type="submit" class="text-green-600 hover:text-green-900">Use</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <!-- Material Modal (Add/Edit) -->
+    <div id="materialModal"
+        class="fixed inset-0 bg-gray-500 bg-opacity-75 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <h2 id="modalTitle" class="text-2xl font-bold mb-6">Add Material</h2>
+            <form method="post" id="materialForm">
+                {% csrf_token %}
+                <input type="hidden" name="material_id" id="materialId">
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {% for field in form %}
+                    <div class="form-group">
+                        <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                            {{ field.label }}
+                        </label>
+                        {% if field.field.widget.input_type == 'textarea' %}
+                        <textarea name="{{ field.name }}" id="{{ field.id_for_label }}"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            rows="3">{{ field.value|default:'' }}</textarea>
+                        {% elif field.field.widget.input_type == 'datetime' %}
+                        <input type="datetime-local" name="{{ field.name }}" id="{{ field.id_for_label }}"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            value="{{ field.value|date:'Y-m-d\THH:mm'|default:'' }}">
+                        {% elif field.field.widget.input_type == 'date' %}
+                        <input type="date" name="{{ field.name }}" id="{{ field.id_for_label }}"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            value="{{ field.value|date:'Y-m-d'|default:'' }}">
+                        {% else %}
+                        {{ field }}
+                        {% endif %}
+                        {% if field.errors %}
+                        <p class="text-red-600 text-sm mt-1">{{ field.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% if role == 'Admin' %}
+                <p class="text-red-600 mt-6 text-center">Admins can only view</p>
+                {% else %}
+                <div class="mt-8 flex justify-end gap-3">
+                    <button type="button" onclick="document.getElementById('materialModal').classList.add('hidden')"
+                        class="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300">Cancel</button>
+                    <button type="submit"
+                        class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Save</button>
+                </div>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function editMaterial(id) {
+        document.getElementById('materialModal').classList.remove('hidden');
+        document.getElementById('modalTitle').textContent = 'Edit Material';
+        // Fetch material data and populate the form fields
+        fetch(`/materials/${id}/json/`, { credentials: 'same-origin' })
+            .then(resp => {
+                if (!resp.ok) throw resp;
+                return resp.json();
+            })
+            .then(data => {
+                document.getElementById('materialId').value = data.id;
+                const setIf = (elid, val) => {
+                    const el = document.getElementById(elid);
+                    if (el) el.value = val;
+                };
+                setIf('id_name', data.name);
+                setIf('id_category', data.category);
+                setIf('id_quantity', data.quantity);
+                setIf('id_min_stock_level', data.min_stock_level);
+                setIf('id_notes', data.notes);
+                setIf('id_added_by', data.added_by);
+            })
+            .catch(err => {
+                console.error('Failed to load material data', err);
+                alert('Unable to load material data for editing.');
+                document.getElementById('materialModal').classList.add('hidden');
+            });
+    }
+</script>
+{% endblock %}
