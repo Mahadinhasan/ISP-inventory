@@ -12,6 +12,14 @@
         <i class="fas fa-plus mr-2"></i>Add Material
     </button>
     {% endif %}
+    <!--Materials count normal/Low stock/Out of stock-->
+    <div class="mb-4 text-sm text-gray-600">
+        {% if role == 'Admin' or role == 'Storekeeper' %}
+        <span class="mr-3">Total Normal Stock: {{ total_normal_stock }}</span>
+        <span class="mr-3">Total Low Stock: {{ total_low_stock }}</span>
+        <span class="mr-3">Total Out of Stock: {{ total_out_of_stock }}</span>
+        {% endif %}
+    </div>  
 
     <!--Filter-->
     <form method="get" class="mb-8 grid grid-cols-1 md:grid-cols-4 gap-4">
