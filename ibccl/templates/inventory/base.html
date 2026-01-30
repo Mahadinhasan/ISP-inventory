@@ -65,10 +65,12 @@
                         </a>
                         {% endif %}
                         <!--Task-->
+                        {% if user.userprofile.role != 'Admin' and user.userprofile.role != 'Storekeeper' %}
                         <a href="{% url 'tasks' %}"
                             class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                             <i class="fas fa-tasks mr-2"></i>Task
                         </a>
+                        {% endif %}
                         <!--Request-->
                         <a href="{% url 'requests' %}"
                             class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
@@ -89,7 +91,7 @@
                             class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                             <i class="fas fa-bell mr-2"></i>Notification
                         </a>
-                        {% if user.userprofile.role != 'Technician' %}
+                        {% if user.userprofile.role != 'Technician' and user.userprofile.role != 'Storekeeper' %}
                         {% if user.is_superuser %}
                         <!--Settings (Admin only)-->
                         <a href="{% url 'settings' %}"
@@ -133,8 +135,10 @@
                 <a href="{% url 'materials' %}"
                     class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Materials</a>
                 {% endif %}
+                {% if user.userprofile.role != 'Admin' and user.userprofile.role != 'Storekeeper' %}
                 <a href="{% url 'tasks' %}"
                     class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Task</a>
+                {% endif %}
                 <a href="{% url 'requests' %}"
                     class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Request</a>
                 <a href="{% url 'reports' %}"
@@ -144,7 +148,7 @@
                     Log</a>
                 <a href="#"
                     class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Notification</a>
-                {% if user.userprofile.role != 'Technician' %}
+                {% if user.userprofile.role != 'Technician' and user.userprofile.role != 'Storekeeper' %}
                 {% if user.is_superuser %}
                 <a href="{% url 'settings' %}"
                     class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Settings</a>

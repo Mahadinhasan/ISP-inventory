@@ -100,12 +100,14 @@ def dashboard(request):
     role = profile.role if profile else 'Technician'
 
     # Role-specific total materials count
+    # Request send by technician materials approved by admin and auto update total materials count unique materials False
     if role == 'Technician':
-        # For Technician: Count of unique materials they have been approved for
+        # For Technician: Count all approved requests with Normal stock status (not unique materials)
         total_materials = MaterialRequest.objects.filter(
             requester=request.user, 
-            status='Approved'
-        ).values('material').distinct().count()
+            status='Approved',
+            material__status='Normal'  # Only count materials with Normal stock status
+        ).count()  # Count all approved requests, not distinct materials
     else:
         # For Admin & Storekeeper: Total count of all materials in system
         total_materials = Material.objects.count()
@@ -113,11 +115,25 @@ def dashboard(request):
     active_tasks = Task.objects.filter(status='In Progress').count()
     pending_requests = MaterialRequest.objects.filter(status='Pending').count()
     
-    # Data for dashboard modals
-    all_materials = Material.objects.all().order_by('-added_at')
+    # Data for dashboard modals - Role-specific
     all_tasks = Task.objects.all().order_by('-created_at')
     all_requests = MaterialRequest.objects.all().order_by('-requested_at')
     all_used_materials = UsedMaterial.objects.all().select_related('technician', 'material').order_by('-added_at')
+    
+    # Role-specific material data for the materials modal
+    technician_approved_materials = None
+    all_materials = None
+    
+    if role == 'Technician':
+        # For Technicians: Get approved MaterialRequest objects with Normal stock status only
+        technician_approved_materials = MaterialRequest.objects.filter(
+            requester=request.user,
+            status='Approved',
+            material__status='Normal'  # Only show materials with Normal stock status
+        ).select_related('material').order_by('-requested_at')
+    else:
+        # For Admin & Storekeeper: Get all materials
+        all_materials = Material.objects.all().order_by('-added_at')
     
     # Technician specific stats
     my_stock_count = 0
@@ -132,11 +148,17 @@ def dashboard(request):
         used_materials_count = UsedMaterial.objects.filter(technician=request.user).count()
         used_material_form = UsedMaterialForm(user=request.user)
 
+    # Admin specific stats
+    total_users = 0
+    if role == 'Admin':
+        total_users = User.objects.count()
+
     return render(request, 'inventory/dashboard.html', {
         'total_materials': total_materials,
         'active_tasks': active_tasks,
         'pending_requests': pending_requests,
         'all_materials': all_materials,
+        'technician_approved_materials': technician_approved_materials,
         'all_tasks': all_tasks,
         'all_requests': all_requests,
         'all_used_materials': all_used_materials,
@@ -145,6 +167,7 @@ def dashboard(request):
         'my_stock_count': my_stock_count,
         'used_materials_count': used_materials_count,
         'used_material_form': used_material_form,
+        'total_users': total_users,
     })
 
 
@@ -152,6 +175,10 @@ def dashboard(request):
 def materials_view(request):
     # Base queryset
     materials = Material.objects.all()
+    # Materials count normal/Low stock/Out of stock
+    total_normal_stock = Material.objects.filter(status='Normal').count()
+    total_low_stock = Material.objects.filter(status='Low Stock').count()
+    total_out_of_stock = Material.objects.filter(status='Out of Stock').count()
 
     # Ensure a UserProfile exists and read role
     profile = ensure_userprofile(request.user)
@@ -238,6 +265,7 @@ def materials_view(request):
 
         # Add/edit material
         # Material model duplicate name not allowed massages show
+        
         instance = None
         if material_id and material_id != 'undefined' and material_id.isdigit():
             instance = get_object_or_404(Material, id=material_id)
@@ -270,6 +298,9 @@ def materials_view(request):
     form = MaterialForm(user=request.user)
     context = {
         'category': category,
+        'total_normal_stock': total_normal_stock,
+        'total_low_stock': total_low_stock,
+        'total_out_of_stock': total_out_of_stock,
         'stock_status': stock_status,
         'materials': materials,
         'form': form,
@@ -368,6 +399,10 @@ def tasks_view(request):
 @login_required
 def requests_view(request):
     requests = MaterialRequest.objects.all().order_by('-requested_at')
+    #Request count approved/pending/reject
+    approved_count = requests.filter(status='Approved').count()
+    pending_count = requests.filter(status='Pending').count()
+    reject_count = requests.filter(status='Rejected').count()
     
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Technician'

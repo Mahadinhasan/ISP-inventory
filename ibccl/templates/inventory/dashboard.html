@@ -9,6 +9,7 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
         <!-- 1. Total Materials Card -->
+        {% if user.userprofile.role != 'Admin' %}
         <div onclick="document.getElementById('materialsModal').classList.remove('hidden')"
             class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
@@ -21,8 +22,24 @@
                 </div>
             </div>
         </div>
-
-        <!-- 2. Active Task Card -->
+        {% endif %}
+        <!-- 2. Total User Card -->
+        {% if user.userprofile.role == 'Admin' %}
+        <div onclick="document.getElementById('materialsModal').classList.remove('hidden')"
+            class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            <div class="flex items-center">
+                <div class="p-4 bg-blue-100 rounded-full">
+                    <i class="fas fa-box text-3xl text-blue-600"></i>
+                </div>
+                <div class="ml-6">
+                    <p class="text-sm font-medium text-gray-600">Total User</p>
+                    <p class="text-4xl font-bold text-gray-900">{{ total_users }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        <!-- 3. Active Task Card -->
+        {% if user.userprofile.role != 'Storekeeper' %}
         <div onclick="document.getElementById('tasksModal').classList.remove('hidden')"
             class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
@@ -35,8 +52,9 @@
                 </div>
             </div>
         </div>
-
-        <!-- 3. Advance Materials Card (Technician Stock) -->
+        {% endif %}
+        <!-- 4. Advance Materials Card (Technician Stock) -->
+        <!--Advance materials request send by technician-->
         <div onclick="document.getElementById('advanceMaterialsModal').classList.remove('hidden')"
             class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
@@ -49,8 +67,7 @@
                 </div>
             </div>
         </div>
-
-        <!-- 4. Pending Request Card -->
+        <!-- 5. Pending Request Card -->
         <div onclick="document.getElementById('requestsModal').classList.remove('hidden')"
             class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
@@ -64,7 +81,7 @@
             </div>
         </div>
 
-        <!-- 5. Used Materials Card -->
+        <!-- 6. Used Materials Card -->
         <div onclick="document.getElementById('usedModelsModal').classList.remove('hidden')"
             class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
@@ -78,7 +95,7 @@
             </div>
         </div>
 
-        <!-- 6. Reports Card -->
+        <!-- 7. Reports Card -->
         <div data-redirect="{% url 'reports' %}"
             class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
@@ -92,7 +109,7 @@
             </div>
         </div>
 
-        <!-- 7. Internal Communication Card -->
+        <!-- 8. Internal Communication Card -->
         <div onclick="document.getElementById('internalCommModal').classList.remove('hidden')"
             class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
@@ -106,7 +123,7 @@
             </div>
         </div>
 
-        <!-- 8. Destroy Materials Card -->
+        <!-- 9. Destroy Materials Card -->
         <div onclick="document.getElementById('destroyMaterialsModal').classList.remove('hidden')"
             class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
@@ -122,13 +139,20 @@
     </div>
     <!-- Modals -->
 
+
     <!-- Materials Modal -->
     <div id="materialsModal"
         class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
         onclick="if(event.target === this) this.classList.add('hidden')">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
             <div class="p-6 border-b flex justify-between items-center">
-                <h3 class="text-xl font-bold text-gray-900">Materials Overview</h3>
+                <h3 class="text-xl font-bold text-gray-900">
+                    {% if user.userprofile.role == 'Technician' %}
+                    My Approved Materials
+                    {% else %}
+                    Materials Overview
+                    {% endif %}
+                </h3>
                 <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'materialsTable')"
                     class="border rounded px-2 py-1 ml-4 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                 <button onclick="document.getElementById('materialsModal').classList.add('hidden')"
@@ -138,28 +162,55 @@
                 <table id="materialsTable" class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Material Name
+                            </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock Status
+                            </th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
+                        {% if user.userprofile.role == 'Technician' %}
+                        {% for req in technician_approved_materials %}
+                        <tr>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ req.material.name }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-900 font-bold">{{ req.quantity }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-500">{{ req.requested_at|date:"Y-m-d" }}</td>
+                            <td class="px-6 py-4 text-sm">
+                                <span class="px-2 py-1 rounded-full text-xs font-semibold
+                                        {% if req.material.status == 'Normal' %}bg-green-100 text-green-800
+                                        {% elif req.material.status == 'Low Stock' %}bg-yellow-100 text-yellow-800
+                                        {% else %}bg-red-100 text-red-800{% endif %}">
+                                    {{ req.material.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="px-6 py-8 text-center text-gray-500">
+                                <i class="fas fa-inbox text-4xl mb-2 text-gray-300"></i><br>
+                                No approved materials yet
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% else %}
                         {% for mat in all_materials %}
                         <tr>
                             <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ mat.name }}</td>
-                            <td class="px-6 py-4 text-sm text-gray-500">{{ mat.category }}</td>
-                            <td class="px-6 py-4 text-sm text-gray-900 font-bold">{{ mat.quantity}}</td>
+                            <td class="px-6 py-4 text-sm text-gray-900 font-bold">{{ mat.quantity }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-500">{{ mat.added_at|date:"Y-m-d" }}</td>
                             <td class="px-6 py-4 text-sm">
                                 <span class="px-2 py-1 rounded-full text-xs font-semibold
-                                    {% if mat.status == 'Normal' %}bg-green-100 text-green-800
-                                    {% elif mat.status == 'Low Stock' %}bg-yellow-100 text-yellow-800
-                                    {% else %}bg-red-100 text-red-800{% endif %}">
+                                        {% if mat.status == 'Normal' %}bg-green-100 text-green-800
+                                        {% elif mat.status == 'Low Stock' %}bg-yellow-100 text-yellow-800
+                                        {% else %}bg-red-100 text-red-800{% endif %}">
                                     {{ mat.status }}
                                 </span>
                             </td>
                         </tr>
                         {% endfor %}
+                        {% endif %}
                     </tbody>
                 </table>
             </div>
@@ -464,61 +515,64 @@
 <!--Recent Used Materials-->
 <!--Everyday on used Materials section, admin and staff can see this-->
 {% if user.userprofile.role != 'Technician' %}
-    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
-        <div class="px-8 py-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-gray-200">
-            <h3 class="text-2xl font-bold text-gray-900 flex items-center">
-                <i class="fas fa-history mr-3 text-indigo-600"></i>
-                Recent Used Materials ({{ recent_requests|length }})
-            </h3>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Technician</th>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Material</th>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    {% for req in recent_requests %}
-                    <tr class="hover:bg-gray-50 transition">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {{ req.requested_at|date:"d M Y" }}
-                        </td>
-                        <td class="px-6 py-4 text-sm text-gray-700">
-                            {{ req.requester.get_full_name|default:req.requester.username }}
-                        </td>
-                        <td class="px-6 py-4 text-sm font-medium text-gray-900">
-                            {{ req.material.name }}
-                        </td>
-                        <td class="px-6 py-4 text-sm font-bold text-indigo-600">
-                            {{ req.quantity }}
-                        </td>
-                        <td class="px-6 py-4">
-                            <span class="px-4 py-2 inline-flex text-xs leading-5 font-semibold rounded-full
+<div class="bg-white rounded-xl shadow-lg overflow-hidden">
+    <div class="px-8 py-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-gray-200">
+        <h3 class="text-2xl font-bold text-gray-900 flex items-center">
+            <i class="fas fa-history mr-3 text-indigo-600"></i>
+            Recent Used Materials ({{ recent_requests|length }})
+        </h3>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Technician</th>
+                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Material
+                    </th>
+                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
+                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for req in recent_requests %}
+                <tr class="hover:bg-gray-50 transition">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ req.requested_at|date:"d M Y" }}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-700">
+                        {{ req.requester.get_full_name|default:req.requester.username }}
+                    </td>
+                    <td class="px-6 py-4 text-sm font-medium text-gray-900">
+                        {{ req.material.name }}
+                    </td>
+                    <td class="px-6 py-4 text-sm font-bold text-indigo-600">
+                        {{ req.quantity }}
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="px-4 py-2 inline-flex text-xs leading-5 font-semibold rounded-full
                                 {% if req.status == 'Approved' %}bg-green-100 text-green-800
                                 {% elif req.status == 'Pending' %}bg-yellow-100 text-yellow-800
                                 {% else %}bg-red-100 text-red-800{% endif %}">
-                                {{ req.status }}
-                            </span>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="5" class="px-6 py-16 text-center text-gray-500 text-lg">
-                            <i class="fas fa-inbox text-6xl mb-4 text-gray-300"></i><br>
-                            No requests in selected date range
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+                            {{ req.status }}
+                        </span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="px-6 py-16 text-center text-gray-500 text-lg">
+                        <i class="fas fa-inbox text-6xl mb-4 text-gray-300"></i><br>
+                        No requests in selected date range
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
-    {% endif %}
+</div>
+{% endif %}
 
 <script>
     function filterTable(input, tableId) {
