@@ -19,7 +19,7 @@ class Material(models.Model):
         ('Internet', 'Internet'),
         ('Dish', 'Dish'),
     ]
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, unique=True)#can't allow duplicate name 
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
     quantity = models.IntegerField(default=0)
     min_stock_level = models.IntegerField(default=10)
@@ -32,12 +32,11 @@ class Material(models.Model):
         ('Deprecated', 'Deprecated'),
     ]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Normal')
-    added_by = models.TextField(blank=True)
+    added_by = models.CharField(max_length=100)
     added_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.name
-    
     @property
     def added_by_display(self):
         """Return a friendly display for `added_by`.
@@ -56,6 +55,14 @@ class Material(models.Model):
         except Exception:
             pass
         return self.added_by
+
+    @property
+    def stock_status(self):
+        """Map the display status to a code used for filtering/styling."""
+        if self.status == 'Low Stock': return 'low'
+        if self.status == 'Normal': return 'normal'
+        if self.status == 'Out of Stock': return 'out_of_stock'
+        return 'normal'
 
     def save(self, *args, **kwargs):
         """Synchronize `status` with `quantity` vs `min_stock_level`.
@@ -97,13 +104,14 @@ class MaterialRequest(models.Model):
     material = models.ForeignKey(Material, on_delete=models.CASCADE)
     requester = models.ForeignKey(User, on_delete=models.CASCADE)
     quantity = models.IntegerField()
-    notes = models.TextField(blank=True)
+    notes = models.TextField(blank=True) # Deprecated logic potentially, but keeping for compatibility
+    user_note = models.TextField(blank=True) # Explicit User Note
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
-    admin_note = models.TextField(blank=True)
+    admin_note = models.CharField(max_length=200, blank=True) #material quantity update note
     requested_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.requester} - {self.material.name}"
+        return f"{self.requester} - {self.material.name}"  
     
 class Vendor(models.Model):
     name = models.CharField(max_length=100)
@@ -141,6 +149,8 @@ class UsedMaterial(models.Model):
     technician = models.ForeignKey(User, on_delete=models.CASCADE)
     material = models.ForeignKey(Material, on_delete=models.CASCADE)
     quantity = models.IntegerField()
+    address = models.TextField(blank=True)
+    issue = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
     admin_note = models.TextField(blank=True)
     added_at = models.DateTimeField(auto_now_add=True)

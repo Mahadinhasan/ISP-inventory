@@ -57,26 +57,46 @@
                             class="nav-link border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                             <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
                         </a>
+                        {% if user.userprofile.role != 'Technician' %}
+                        <!--Materials (Hidden for Technicians)-->
                         <a href="{% url 'materials' %}"
                             class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                             <i class="fas fa-boxes mr-2"></i>Materials
                         </a>
+                        {% endif %}
+                        <!--Task-->
                         <a href="{% url 'tasks' %}"
                             class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            <i class="fas fa-tasks mr-2"></i>Tasks
+                            <i class="fas fa-tasks mr-2"></i>Task
                         </a>
+                        <!--Request-->
                         <a href="{% url 'requests' %}"
                             class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            <i class="fas fa-clipboard-list mr-2"></i>Requests
+                            <i class="fas fa-clipboard-list mr-2"></i>Request
                         </a>
+                        <!--Report-->
                         <a href="{% url 'reports' %}"
-                            class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"><i
-                                class="fas fa-chart-bar mr-2"></i>Reports</a>
+                            class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <i class="fas fa-file-alt mr-2"></i>Report
+                        </a>
+                        <!--Views Log-->
+                        <a href="{% url 'used_materials' %}"
+                            class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <i class="fas fa-history mr-2"></i>Views Log
+                        </a>
+                        <!--Notification-->
+                        <a href="#"
+                            class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <i class="fas fa-bell mr-2"></i>Notification
+                        </a>
+                        {% if user.userprofile.role != 'Technician' %}
                         {% if user.is_superuser %}
+                        <!--Settings (Admin only)-->
                         <a href="{% url 'settings' %}"
                             class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                             <i class="fas fa-cog mr-2"></i>Settings
                         </a>
+                        {% endif %}
                         {% endif %}
                     </div>
                 </div>
@@ -89,6 +109,7 @@
                             <i class="fas fa-sign-out-alt mr-2 group-hover:rotate-12 transition-transform"></i>Logout
                         </a>
                     </div>
+
                     <!-- Mobile Menu Button -->
                     <div class="-mr-2 flex items-center md:hidden">
                         <button type="button"
@@ -108,17 +129,26 @@
             <div class="pt-2 pb-3 space-y-1">
                 <a href="{% url 'dashboard' %}"
                     class="block pl-3 pr-4 py-2 border-l-4 border-indigo-500 text-base font-medium text-indigo-700 bg-indigo-50">Dashboard</a>
+                {% if user.userprofile.role != 'Technician' %}
                 <a href="{% url 'materials' %}"
                     class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Materials</a>
+                {% endif %}
                 <a href="{% url 'tasks' %}"
-                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Tasks</a>
+                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Task</a>
                 <a href="{% url 'requests' %}"
-                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Requests</a>
+                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Request</a>
                 <a href="{% url 'reports' %}"
-                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Reports</a>
+                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Report</a>
+                <a href="{% url 'used_materials' %}"
+                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Views
+                    Log</a>
+                <a href="#"
+                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Notification</a>
+                {% if user.userprofile.role != 'Technician' %}
                 {% if user.is_superuser %}
                 <a href="{% url 'settings' %}"
                     class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Settings</a>
+                {% endif %}
                 {% endif %}
                 <a href="{% url 'logout' %}"
                     class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-red-600 hover:bg-red-50 hover:border-red-300">Logout</a>

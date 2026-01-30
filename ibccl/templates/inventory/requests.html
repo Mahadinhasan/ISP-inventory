@@ -3,17 +3,27 @@
 
 {% block content %}
 <div class="fade-in">
-    <div class="flex justify-between items-center mb-8">
+    <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div>
             <h1 class="text-4xl font-bold text-gray-900">Material Requests</h1>
             <p class="text-gray-600">Manage technician material requests</p>
         </div>
-        {% if role == 'Technician' %}
-        <button onclick="document.getElementById('requestModal').classList.remove('hidden')"
-            class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition shadow-lg hover:shadow-xl transform hover:-translate-y-1">
-            <i class="fas fa-plus mr-2"></i>Request Material
-        </button>
-        {% endif %}
+        <div class="flex gap-2">
+            <form method="get" class="flex items-center">
+                <input type="text" name="search" placeholder="Search..." value="{{ request.GET.search }}"
+                    class="border rounded-l-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64">
+                <button type="submit"
+                    class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-3 rounded-r-lg border-l border-gray-300">
+                    <i class="fas fa-search"></i>
+                </button>
+            </form>
+            {% if role == 'Technician' %}
+            <button onclick="document.getElementById('requestModal').classList.remove('hidden')"
+                class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition shadow-lg hover:shadow-xl transform hover:-translate-y-1">
+                <i class="fas fa-plus mr-2"></i>Request Material
+            </button>
+            {% endif %}
+        </div>
     </div>
 
     <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
@@ -24,9 +34,9 @@
                         ID</th>
                     <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requester
                     </th>
+                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User
+                        Note</th>
                     <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Material
-                    </th>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Available
                     </th>
                     <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
                     <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
@@ -49,12 +59,12 @@
                         </div>
                         {{ req.requester.get_full_name|default:req.requester.username }}
                     </td>
-                    <td class="px-6 py-4 text-sm text-gray-900">{{ req.material.name }}</td>
-                    <td class="px-6 py-4 text-sm font-medium text-gray-500">
-                        {{ req.material.quantity }}
+                    <td class="px-6 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.user_note|default:"-" }}
                     </td>
-                    <td class="px-material6 py-4 text-sm font-bold text-gray-900 bg-gray-50 rounded text-center">{{ req.quantity}}</td>
-                    <td class="px-6 py-4 text-sm text-gray-600">{{ req.requested_at|date:"M d, H:i" }}</td>
+                    <td class="px-6 py-4 text-sm text-gray-900">{{ req.material.name }}</td>
+                    <td class="px-material6 py-4 text-sm font-bold text-gray-900 bg-gray-50 rounded text-center">
+                        {{req.quantity}}</td>
+                    <td class="px-6 py-4 text-sm text-gray-600">{{ req.requested_at|date:"Y-M-d,H:s" }}</td>
                     <td class="px-6 py-4">
                         <span class="px-3 py-1 text-xs font-semibold rounded-full border 
                             {% if req.status == 'Pending' %}bg-yellow-100 text-yellow-800 border-yellow-200
@@ -68,7 +78,8 @@
                     </td>
                     <td class="px-6 py-4 text-sm">
                         {% if role == 'Admin' %}
-                        <button onclick="openAdminModal('{{ req.id }}', '{{ req.admin_note|escapejs }}')"
+                        <button
+                            onclick="openAdminModal('{{ req.id }}', '{{ req.admin_note|escapejs }}', '{{ req.quantity }}')"
                             class="text-indigo-600 hover:text-indigo-900 font-medium bg-indigo-50 px-3 py-1 rounded hover:bg-indigo-100 transition">
                             Manage
                         </button>
@@ -79,7 +90,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="8" class="px-6 py-12 text-center text-gray-500 text-xl">
+                    <td colspan="10" class="px-6 py-12 text-center text-gray-500 text-xl">
                         <i class="fas fa-inbox text-4xl mb-3 text-gray-300"></i><br>
                         No requests found
                     </td>
@@ -113,7 +124,7 @@
                 </div>
                 <div class="form-group">
                     <label class="block text-sm font-medium text-gray-700 mb-1">User Notes</label>
-                    <textarea name="notes" rows="3"
+                    <textarea name="user_note" rows="3"
                         class="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2"></textarea>
                 </div>
             </div>
@@ -138,11 +149,17 @@
 
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Admin Note/Response</label>
-                <textarea name="note" id="adminNote" rows="4"
-                    class="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-3"
-                    placeholder="Enter reason or comments..."></textarea>
+                <input type="text" name="admin_note" id="adminNote"
+                    class="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2"
+                    placeholder="Enter reason or comments...">
             </div>
-
+            <!--request quantity Input (-) materials quantity value-->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+                <input type="text" name="quantity" id="adminQuantity"
+                    class="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2"
+                    placeholder="Enter quantity...">
+            </div>
             <div class="grid grid-cols-2 gap-3 mb-3">
                 <button type="submit" name="action" value="accept"
                     class="flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition">
@@ -179,9 +196,10 @@
         });
     });
 
-    function openAdminModal(id, note) {
+    function openAdminModal(id, note, quantity) {
         document.getElementById('adminReqId').value = id;
         document.getElementById('adminNote').value = note;
+        document.getElementById('adminQuantity').value = quantity;
         document.getElementById('adminModal').classList.remove('hidden');
     }
 

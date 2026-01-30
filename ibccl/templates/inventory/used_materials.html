@@ -17,29 +17,29 @@
         <form method="POST" action="{% url 'used_materials' %}">
             {% csrf_token %}
             <input type="hidden" name="action" value="create">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Material (Name/Code)</label>
                     {{ form.material }}
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Address</label>
-                    <input type="text" name="address"
-                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-2 px-3 border"
-                        required>
+                    {{ form.address }}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Technical Issue</label>
+                    {{ form.issue }}
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Quantity (Q.)</label>
-                    <input type="number" name="quantity"
-                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-2 px-3 border"
-                        required>
+                    {{ form.quantity }}
                 </div>
-                <div class="flex items-end">
-                    <button type="submit"
-                        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 ease-in-out transform hover:-translate-y-1 shadow-md">
-                        <i class="fas fa-paper-plane mr-2"></i>Submit Report
-                    </button>
-                </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button type="submit"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-md transition duration-300 ease-in-out transform hover:-translate-y-1 shadow-md">
+                    <i class="fas fa-paper-plane mr-2"></i>Submit Report
+                </button>
             </div>
         </form>
     </div>
@@ -56,7 +56,13 @@
                             Technician</th>
                         <th scope="col"
                             class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Material (Name/Code)</th>
+                            Material</th>
+                        <th scope="col"
+                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Address</th>
+                        <th scope="col"
+                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Issue</th>
                         <th scope="col"
                             class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Q.
                         </th>
@@ -74,23 +80,21 @@
                     {% for item in used_materials %}
                     <tr class="hover:bg-gray-50 transition duration-150">
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
-                            <div
-                                class="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center mr-2 text-indigo-600">
-                                <i class="fas fa-user-circle"></i>
-                            </div>
-                            {{ item.technician.username }}
+                            <i class="fas fa-user-circle mr-2 text-indigo-500"></i> {{ item.technician.username }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ item.material.name }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">{{ item.address }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">{{ item.issue }}</td>
                         <td
                             class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-bold bg-gray-50 rounded-lg text-center">
-                            {{item.material.quantity}}</td>
+                            {{ item.quantity }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.added_at|date:"Y-m-d H:i"
                             }}</td>
 
                         {% if role == 'Technician' and item.technician == user %}
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <button
-                                onclick="openEditModal('{{ item.id }}', '{{ item.material.id }}', '{{ item.quantity }}')"
+                                onclick="openEditModal('{{ item.id }}', '{{ item.material.id }}', '{{ item.quantity }}', '{{ item.address|escapejs }}', '{{ item.issue|escapejs }}')"
                                 class="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-md transition">
                                 <i class="fas fa-edit mr-1"></i> Edit
                             </button>
@@ -101,7 +105,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="px-6 py-10 text-center text-gray-500 italic">
+                        <td colspan="7" class="px-6 py-10 text-center text-gray-500 italic">
                             <div class="flex flex-col items-center">
                                 <i class="fas fa-box-open text-gray-300 text-4xl mb-3"></i>
                                 <p>No used models reported yet.</p>
@@ -132,13 +136,15 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Address</label>
-                        <input type="text" name="address" id="editAddress"
-                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2">
+                        {{ form.address }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Report Issue</label>
+                        {{ form.issue }}
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Quantity</label>
-                        <input type="number" name="quantity" id="editQuantity"
-                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2">
+                        {{ form.quantity }}
                     </div>
                 </div>
                 <div class="items-center px-4 py-3 mt-6">
@@ -155,17 +161,27 @@
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         // Style Django form fields (Select inputs)
-        const selects = document.querySelectorAll('select');
+        const selects = document.querySelectorAll('select, input[type="text"], input[type="number"], textarea');
         selects.forEach(s => {
-            s.classList.add('mt-1', 'block', 'w-full', 'pl-3', 'pr-10', 'py-2', 'text-base', 'border-gray-300', 'focus:outline-none', 'focus:ring-indigo-500', 'focus:border-indigo-500', 'sm:text-sm', 'rounded-md', 'border', 'shadow-sm');
+            s.classList.add('mt-1', 'block', 'w-full', 'pl-3', 'pr-3', 'py-2', 'text-base', 'border-gray-300', 'focus:outline-none', 'focus:ring-indigo-500', 'focus:border-indigo-500', 'sm:text-sm', 'rounded-md', 'border', 'shadow-sm');
         });
     });
 
-    function openEditModal(id, materialId, quantity) {
+    function openEditModal(id, materialId, quantity, address, issue) {
         document.getElementById('editUmId').value = id;
-        document.getElementById('editQuantity').value = quantity;
+
+        const qtyInput = document.querySelector('#editModal input[name="quantity"]');
+        if (qtyInput) qtyInput.value = quantity;
+
+        const addrInput = document.querySelector('#editModal input[name="address"], #editModal textarea[name="address"]');
+        if (addrInput) addrInput.value = address || '';
+
+        const issueInput = document.querySelector('#editModal input[name="issue"], #editModal textarea[name="issue"]');
+        if (issueInput) issueInput.value = issue || '';
+
         const matSelect = document.querySelector('#editModal select[name="material"]');
         if (matSelect) matSelect.value = materialId;
+
         document.getElementById('editModal').classList.remove('hidden');
     }
 

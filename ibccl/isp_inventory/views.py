@@ -99,7 +99,17 @@ def dashboard(request):
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Technician'
 
-    total_materials = Material.objects.count()
+    # Role-specific total materials count
+    if role == 'Technician':
+        # For Technician: Count of unique materials they have been approved for
+        total_materials = MaterialRequest.objects.filter(
+            requester=request.user, 
+            status='Approved'
+        ).values('material').distinct().count()
+    else:
+        # For Admin & Storekeeper: Total count of all materials in system
+        total_materials = Material.objects.count()
+    
     active_tasks = Task.objects.filter(status='In Progress').count()
     pending_requests = MaterialRequest.objects.filter(status='Pending').count()
     
@@ -108,17 +118,19 @@ def dashboard(request):
     all_tasks = Task.objects.all().order_by('-created_at')
     all_requests = MaterialRequest.objects.all().order_by('-requested_at')
     all_used_materials = UsedMaterial.objects.all().select_related('technician', 'material').order_by('-added_at')
-
-    # If Technician, filter own views where applicable?
-    # Usually dashboard overview shows global stats for Admin/Store, but maybe filtered for Teac?
-    # "Teac will show the material data as role."
-    # For now, I'll pass everything, template can filter or hide if needed. 
-    # Or strict filtering:
+    
+    # Technician specific stats
+    my_stock_count = 0
+    used_materials_count = 0
+    used_material_form = None
+    
     if role == 'Technician':
-        # Technicians might only see their own tasks ??
-        # The prompt didn't specify strict dashboard visibility vs global.
-        # "Teac will show the material data as role."
-        pass
+        # Calculate stock: Approved Requests (In) - Used Materials (Out)
+        total_in = MaterialRequest.objects.filter(requester=request.user, status='Approved').aggregate(s=Sum('quantity'))['s'] or 0
+        total_out = UsedMaterial.objects.filter(technician=request.user).aggregate(s=Sum('quantity'))['s'] or 0
+        my_stock_count = total_in - total_out
+        used_materials_count = UsedMaterial.objects.filter(technician=request.user).count()
+        used_material_form = UsedMaterialForm(user=request.user)
 
     return render(request, 'inventory/dashboard.html', {
         'total_materials': total_materials,
@@ -130,7 +142,11 @@ def dashboard(request):
         'all_used_materials': all_used_materials,
         'role': role,
         'user': request.user,
+        'my_stock_count': my_stock_count,
+        'used_materials_count': used_materials_count,
+        'used_material_form': used_material_form,
     })
+
 
 @login_required
 def materials_view(request):
@@ -141,22 +157,28 @@ def materials_view(request):
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Technician'
 
-    # Search: name, category, notes, added_by
+    #search name,categoty,status
     search = request.GET.get('search', '').strip()
     if search:
         materials = materials.filter(
-            Q(name__icontains=search) | Q(category__icontains=search) | Q(notes__icontains=search) | Q(added_by__icontains=search)
+            Q(name__icontains=search) | Q(category__icontains=search) | Q(status__icontains=search)
         )
 
-    # Stock status filtering using F() expressions
-    stock_status = request.GET.get('stock_status')
-    if stock_status == 'low':
-        materials = materials.filter(quantity__lt=F('min_stock_level'))
-    elif stock_status == 'normal':
-        materials = materials.filter(quantity__gte=F('min_stock_level'))
-
-    # status field on model now captures low/normal/out-of-stock state
-
+    #Filter by category and stock_status    
+    category = request.GET.get('category', '')
+    stock_status = request.GET.get('stock_status', '')
+    if category:
+        materials = materials.filter(category=category)
+    if stock_status:
+        # Map user-friendly status values to DB values
+        status_map = {
+            'low': 'Low Stock',
+            'normal': 'Normal',
+            'out_of_stock': 'Out of Stock'
+        }
+        db_status = status_map.get(stock_status, stock_status)
+        materials = materials.filter(status=db_status)
+    
     # Technician: only see their own rows (added_by stored as username)
     if role == 'Technician':
         materials = materials.filter(added_by=request.user.username)
@@ -215,28 +237,40 @@ def materials_view(request):
                 return redirect('materials')
 
         # Add/edit material
-        form = MaterialForm(request.POST, user=request.user, instance=material_id and get_object_or_404(Material, id=material_id) or None)
+        # Material model duplicate name not allowed massages show
+        instance = None
+        if material_id and material_id != 'undefined' and material_id.isdigit():
+            instance = get_object_or_404(Material, id=material_id)
+        
+        form = MaterialForm(request.POST, user=request.user, instance=instance)
         if form.is_valid():
             material = form.save(commit=False)
             is_new = not material.id
+            
+            # Permission check: Only Storekeepers and Admins can add/edit
+            if role not in ['Storekeeper', 'Admin']:
+                messages.error(request, "Permission denied. Only Storekeepers can add or edit materials.")
+                return redirect('materials')
+
             if is_new:
-                if role != 'Storekeeper':
-                    messages.error(request, "Only Storekeepers can add materials!")
-                    return redirect('materials')
                 material.added_by = request.user.username
 
             # Storekeepers may only update their own materials
             if not is_new and role == 'Storekeeper' and material.added_by != request.user.username:
                 messages.error(request, "You can only update your own materials!")
                 return redirect('materials')
-
             material.save()
             messages.success(request, "Material saved!")
+            #Material model duplicate name not allowed massages show
             return redirect('materials')
-
+        else:
+            messages.error(request, "Material name already exists!")
+            return redirect('materials')
     # render
     form = MaterialForm(user=request.user)
     context = {
+        'category': category,
+        'stock_status': stock_status,
         'materials': materials,
         'form': form,
         'role': role,
@@ -338,6 +372,16 @@ def requests_view(request):
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Technician'
 
+    # Search Logic
+    search_query = request.GET.get('search', '').strip()
+    if search_query:
+        requests = requests.filter(
+            Q(material__name__icontains=search_query) | 
+            Q(user_note__icontains=search_query) | 
+            Q(notes__icontains=search_query) |
+            Q(requester__username__icontains=search_query)
+        )
+
     if request.method == 'POST':
         action = request.POST.get('action')
         
@@ -367,13 +411,27 @@ def requests_view(request):
             if action == 'delete':
                 try:
                     req = MaterialRequest.objects.get(pk=req_id)
-                    req.delete()
-                    messages.success(request, "Request deleted successfully.")
+                    if req.status == 'Approved':
+                        # Return stock before deleting
+                        try:
+                            with transaction.atomic():
+                                mat = Material.objects.select_for_update().get(pk=req.material.id)
+                                mat.quantity += req.quantity
+                                mat.save()
+                                req.delete()
+                                messages.success(request, f"Approved request deleted. {req.quantity} units returned to {mat.name}.")
+                        except Exception as e:
+                            messages.error(request, f"Internal error during stock return: {str(e)}")
+                    else:
+                        req.delete()
+                        messages.success(request, "Request deleted successfully.")
                 except MaterialRequest.DoesNotExist:
                     messages.error(request, "Request not found.")
                 return redirect('requests')
 
-            note = request.POST.get('note', '')
+            note = request.POST.get('admin_note', '')
+            admin_quantity = request.POST.get('quantity', '').strip()
+            
             try:
                 req = MaterialRequest.objects.get(pk=req_id)
                 
@@ -381,35 +439,69 @@ def requests_view(request):
                     if req.status == 'Approved':
                         messages.warning(request, "Request already approved.")
                         return redirect('requests')
-                        
-                    # Deduct Quantity Logic
-                    if req.quantity > req.material.quantity:
-                        messages.error(request, f"Insufficient stock for {req.material.name}. Available: {req.material.quantity}")
+                    
+                    # Get the quantity to approve (admin can override)
+                    try:
+                        if admin_quantity:
+                            approved_qty = int(admin_quantity)
+                            if approved_qty <= 0:
+                                messages.error(request, "Quantity must be greater than 0.")
+                                return redirect('requests')
+                        else:
+                            # Use requested quantity if admin didn't specify
+                            approved_qty = req.quantity
+                    except ValueError:
+                        messages.error(request, "Invalid quantity value.")
+                        return redirect('requests')
+                    
+                    # Check if sufficient stock available
+                    if approved_qty > req.material.quantity:
+                        messages.error(request, f"Insufficient stock for {req.material.name}. Available: {req.material.quantity}, Requested: {approved_qty}")
                         return redirect('requests')
                     
                     try:
                         with transaction.atomic():
                             # Refresh material to be safe
                             mat = Material.objects.select_for_update().get(pk=req.material.id)
-                            if mat.quantity < req.quantity:
+                            if mat.quantity < approved_qty:
                                 raise ValueError("Insufficient stock")
                             
-                            mat.quantity -= req.quantity
+                            # Deduct the approved quantity from material
+                            mat.quantity -= approved_qty
                             mat.save()
                             
+                            # Update request with approved quantity
+                            req.quantity = approved_qty
                             req.status = 'Approved'
                             req.admin_note = note
                             req.save()
-                            messages.success(request, f"Request approved. {req.quantity} units deducted from {mat.name}.")
+                            messages.success(request, f"Request approved. {approved_qty} units deducted from {mat.name}.")
                     except Exception as e:
                          messages.error(request, f"Transaction failed: {str(e)}")
                          return redirect('requests')
 
                 elif action == 'reject':
-                    req.status = 'Rejected'
-                    req.admin_note = note
-                    req.save()
-                    messages.success(request, "Request rejected.")
+                    if req.status == 'Approved':
+                        try:
+                            with transaction.atomic():
+                                # Return quantity to material stock
+                                mat = Material.objects.select_for_update().get(pk=req.material.id)
+                                mat.quantity += req.quantity
+                                mat.save()
+                                
+                                # Update request status
+                                req.status = 'Rejected'
+                                req.admin_note = note
+                                req.save()
+                                messages.success(request, f"Request rejected and {req.quantity} units returned to {mat.name}.")
+                        except Exception as e:
+                             messages.error(request, f"Failed to return stock: {str(e)}")
+                             return redirect('requests')
+                    else:
+                        req.status = 'Rejected'
+                        req.admin_note = note
+                        req.save()
+                        messages.success(request, "Request rejected.")
                 
                 elif action == 'save_note':
                      req.admin_note = note
@@ -661,9 +753,12 @@ def used_materials_view(request):
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Technician'
 
-    # Filter permissions? 
-    # "All these three types of users can see all the templates." (from initial prompt)
-    used_materials = UsedMaterial.objects.all().select_related('technician', 'material').order_by('-added_at')
+    # Strict permission: Only Technicians can access this page
+    if role != 'Technician':
+        messages.error(request, "Access restricted to Technicians only.")
+        return redirect('dashboard')
+
+    used_materials = UsedMaterial.objects.filter(technician=request.user).order_by('-added_at')
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -673,7 +768,7 @@ def used_materials_view(request):
                 messages.error(request, "Only Technicians can add Used Models.")
                 return redirect('used_materials')
             
-            form = UsedMaterialForm(request.POST)
+            form = UsedMaterialForm(request.POST, user=request.user)
             if form.is_valid():
                 um = form.save(commit=False)
                 um.technician = request.user
@@ -689,7 +784,7 @@ def used_materials_view(request):
                 um = UsedMaterial.objects.get(pk=um_id)
                 # "This Used Model can only be edited by Teac User."
                 if role == 'Technician' and um.technician == request.user:
-                     form = UsedMaterialForm(request.POST, instance=um)
+                     form = UsedMaterialForm(request.POST, instance=um, user=request.user)
                      if form.is_valid():
                          form.save()
                          messages.success(request, "Used Model updated.")
@@ -702,7 +797,7 @@ def used_materials_view(request):
             return redirect('used_materials')
 
     else:
-        form = UsedMaterialForm()
+        form = UsedMaterialForm(user=request.user)
 
     return render(request, 'inventory/used_materials.html', {
         'used_materials': used_materials,
