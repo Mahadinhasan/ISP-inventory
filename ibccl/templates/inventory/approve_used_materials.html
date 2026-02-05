@@ -1,0 +1,171 @@
+{% extends 'inventory/base.html' %}
+{% block title %}Approve Used Materials{% endblock %}
+{% block content %}
+<div class="fade-in">
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-4xl font-bold text-gray-900">Used Materials Approval</h1>
+            <p class="mt-2 text-gray-600">Review and approve/reject material usage requests</p>
+        </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-600">
+            <p class="text-sm text-gray-600 mb-1">Pending Approval</p>
+            <p class="text-3xl font-bold text-yellow-600">{{ total_pending }}</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-600">
+            <p class="text-sm text-gray-600 mb-1">Approved</p>
+            <p class="text-3xl font-bold text-green-600">{{ total_accepted }}</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-red-600">
+            <p class="text-sm text-gray-600 mb-1">Rejected</p>
+            <p class="text-3xl font-bold text-red-600">{{ total_rejected }}</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-indigo-600">
+            <p class="text-sm text-gray-600 mb-1">Total</p>
+            <p class="text-3xl font-bold text-indigo-600">{{ total_pending|add:total_accepted|add:total_rejected }}</p>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-lg shadow p-6 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Status Filter -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Status</label>
+                <select id="statusFilter" class="w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="">All Status</option>
+                    <option value="Pending" {% if status_filter == 'Pending' %}selected{% endif %}>Pending</option>
+                    <option value="Accepted" {% if status_filter == 'Accepted' %}selected{% endif %}>Approved</option>
+                    <option value="Rejected" {% if status_filter == 'Rejected' %}selected{% endif %}>Rejected</option>
+                </select>
+            </div>
+            
+            <!-- Search -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Search</label>
+                <input type="text" id="searchInput" placeholder="Material, client, technician..." 
+                    value="{{ search_query }}"
+                    class="w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+            
+            <div class="flex items-end gap-2">
+                <button onclick="applyFilters()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition flex-1">
+                    <i class="fas fa-search mr-2"></i>Search
+                </button>
+                <button onclick="clearFilters()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-6 py-2 rounded-lg font-medium transition">
+                    <i class="fas fa-times mr-2"></i>Clear
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Used Materials Table -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="px-6 py-4 bg-gray-50 border-b">
+            <h2 class="text-xl font-semibold text-gray-900">Used Materials for Review</h2>
+        </div>
+        
+        {% if used_materials %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Technician</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Material Name</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client Name</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client Address</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date/Time</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for um in used_materials %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-medium text-gray-900">{{ um.technician.get_full_name|default:um.technician.username }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ um.material.name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-3 py-1 rounded-full text-xs font-semibold 
+                                {% if um.material.category == 'Internet' %}bg-blue-100 text-blue-800
+                                {% elif um.material.category == 'Dish' %}bg-purple-100 text-purple-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ um.material.category }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-900">{{ um.client_name|default:"N/A" }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">
+                            <span class="line-clamp-1" title="{{ um.client_address }}">{{ um.client_address|default:"N/A"|truncatewords:5 }}</span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-900">{{ um.client_phone|default:"N/A" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-3 py-1 rounded-full text-sm font-semibold bg-indigo-100 text-indigo-800">
+                                {{ um.quantity }}x
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {{ um.added_at|date:"M d, Y H:i" }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-3 py-1 rounded-full text-xs font-semibold
+                                {% if um.status == 'Pending' %}bg-yellow-100 text-yellow-800
+                                {% elif um.status == 'Accepted' %}bg-green-100 text-green-800
+                                {% elif um.status == 'Rejected' %}bg-red-100 text-red-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ um.status }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            {% if um.status == 'Pending' %}
+                                <a href="{% url 'manage_used_material' um.id %}" class="text-indigo-600 hover:text-indigo-800 transition font-medium">
+                                    <i class="fas fa-check"></i> Review
+                                </a>
+                            {% else %}
+                                <a href="{% url 'manage_used_material' um.id %}" class="text-blue-600 hover:text-blue-800 transition">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="px-6 py-12 text-center">
+            <i class="fas fa-inbox text-5xl text-gray-300 mb-4"></i>
+            <p class="text-gray-500 text-lg">No used materials found.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function applyFilters() {
+    const status = document.getElementById('statusFilter').value;
+    const search = document.getElementById('searchInput').value;
+    
+    let url = "{% url 'approve_used_materials' %}?";
+    if (status) url += "status=" + encodeURIComponent(status) + "&";
+    if (search) url += "search=" + encodeURIComponent(search) + "&";
+    
+    window.location.href = url;
+}
+
+function clearFilters() {
+    window.location.href = "{% url 'approve_used_materials' %}";
+}
+
+// Allow Enter key in search
+document.getElementById('searchInput')?.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') applyFilters();
+});
+</script>
+{% endblock %}

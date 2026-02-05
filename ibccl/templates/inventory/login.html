@@ -37,13 +37,6 @@
             </button>
         </form>
 
-        <div class="text-center mt-6">
-            <p class="text-sm text-gray-600">
-                Don't have an account?
-                <a href="{% url 'register' %}" class="font-medium text-indigo-600 hover:text-indigo-500">Create one now</a>
-            </p>
-        </div>
-
         {% if messages %}
             {% for message in messages %}
                 <script>showToast("{{ message }}", "error");</script>

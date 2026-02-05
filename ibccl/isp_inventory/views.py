@@ -14,36 +14,6 @@ from django.http import HttpResponse, JsonResponse
 from django.core.management import call_command
 import json
 from io import StringIO
-from . Serializer import MaterialSerializer
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-
-@api_view(['GET', 'POST', 'PUT', 'DELETE'])
-def material_list_api(request):
-    materials = Material.objects.all()
-    serializer = MaterialSerializer(materials, many=True)
-    return Response(serializer.data)
-def material_detail_api(request, pk):
-    try:
-        material = Material.objects.get(pk=pk)
-    except Material.DoesNotExist:
-        return Response({'error': 'Material not found'}, status=404)
-
-    if request.method == 'GET':
-        serializer = MaterialSerializer(material)
-        return Response(serializer.data)
-
-    elif request.method == 'PUT':
-        data = json.loads(request.body)
-        serializer = MaterialSerializer(material, data=data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=400)
-
-    elif request.method == 'DELETE':
-        material.delete()
-        return Response(status=204)
 
 def register_view(request):
     if request.method == 'POST':
@@ -399,11 +369,6 @@ def tasks_view(request):
 @login_required
 def requests_view(request):
     requests = MaterialRequest.objects.all().order_by('-requested_at')
-    #Request count approved/pending/reject
-    approved_count = requests.filter(status='Approved').count()
-    pending_count = requests.filter(status='Pending').count()
-    reject_count = requests.filter(status='Rejected').count()
-    
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Technician'
 
@@ -792,7 +757,8 @@ def used_materials_view(request):
     if role != 'Technician':
         messages.error(request, "Access restricted to Technicians only.")
         return redirect('dashboard')
-
+    
+    # Fetch UsedMaterial records for this technician on approval data can import material request link
     used_materials = UsedMaterial.objects.filter(technician=request.user).order_by('-added_at')
 
     if request.method == 'POST':
@@ -800,47 +766,231 @@ def used_materials_view(request):
         
         if action == 'create':
             if role != 'Technician':
-                messages.error(request, "Only Technicians can add Used Models.")
+                messages.error(request, "Only Technicians can add Used Materials.")
                 return redirect('used_materials')
             
             form = UsedMaterialForm(request.POST, user=request.user)
             if form.is_valid():
-                um = form.save(commit=False)
-                um.technician = request.user
-                um.save()
-                messages.success(request, "Used Model added successfully!")
-                return redirect('used_materials')
+                # Additional security check: Verify material is approved for this technician
+                material = form.cleaned_data.get('material')
+                material_request = form.cleaned_data.get('material_request')
+                
+                approved_material_ids = MaterialRequest.objects.filter(
+                    requester=request.user,
+                    material_status='Normal'  # Ensure only Normal stock materials can be used
+                ).values_list('material', flat=True).distinct()
+                
+                if material and material.id in approved_material_ids:
+                    um = form.save(commit=False)
+                    um.technician = request.user
+                    # Link to material request if provided
+                    if material_request and material_request.requester == request.user:
+                        um.material_request = material_request
+                    um.save()
+                    messages.success(request, "Used Material recorded successfully!")
+                    return redirect('used_materials')
+                else:
+                    messages.error(request, "You can only record usage for approved materials.")
+                    return redirect('used_materials')
             else:
-                 messages.error(request, "Invalid data received.")
+                messages.error(request, "Invalid data received. Please check the form.")
                 
         elif action == 'edit':
             um_id = request.POST.get('um_id')
             try:
-                um = UsedMaterial.objects.get(pk=um_id)
-                # "This Used Model can only be edited by Teac User."
-                if role == 'Technician' and um.technician == request.user:
-                     form = UsedMaterialForm(request.POST, instance=um, user=request.user)
-                     if form.is_valid():
-                         form.save()
-                         messages.success(request, "Used Model updated.")
-                     else:
-                         messages.error(request, "Invalid data.")
+                um = UsedMaterial.objects.get(pk=um_id, technician=request.user)
+                form = UsedMaterialForm(request.POST, instance=um, user=request.user)
+                if form.is_valid():
+                    # Additional security check: Verify material is approved for this technician
+                    material = form.cleaned_data.get('material')
+                    material_request = form.cleaned_data.get('material_request')
+                    
+                    approved_material_ids = MaterialRequest.objects.filter(
+                        requester=request.user,
+                        material__status='Normal'  # Ensure only Normal stock materials can be used
+                    ).values_list('material', flat=True).distinct()
+                    
+                    if material and material.id in approved_material_ids:
+                        updated_um = form.save(commit=False)
+                        # Update material request link if provided
+                        if material_request and material_request.requester == request.user:
+                            updated_um.material_request = material_request
+                        else:
+                            updated_um.material_request = None
+                        updated_um.save()
+                        messages.success(request, "Used Material updated successfully.")
+                        return redirect('used_materials')
+                    else:
+                        messages.error(request, "You can only use approved materials.")
+                        return redirect('used_materials')
                 else:
-                     messages.error(request, "Permission denied.")
+                    messages.error(request, "Invalid data. Please check the form.")
             except UsedMaterial.DoesNotExist:
-                messages.error(request, "Record not found.")
+                messages.error(request, "Record not found or access denied.")
+            return redirect('used_materials')
+        
+        elif action == 'delete':
+            um_id = request.POST.get('um_id')
+            try:
+                um = UsedMaterial.objects.get(pk=um_id, technician=request.user)
+                um.delete()
+                messages.success(request, "Used Material deleted successfully.")
+            except UsedMaterial.DoesNotExist:
+                messages.error(request, "Record not found or access denied.")
             return redirect('used_materials')
 
     else:
         form = UsedMaterialForm(user=request.user)
 
-    return render(request, 'inventory/used_materials.html', {
+    return render(request, 'inventory/used_material.html', {
         'used_materials': used_materials,
         'form': form,
         'role': role
     })
 
 @login_required
+def approve_used_materials(request):
+    """Admin/Storekeeper view to manage pending used material approvals.
+    
+    Displays all used materials with Pending/Accepted/Rejected status
+    and allows bulk management.
+    """
+    profile = ensure_userprofile(request.user)
+    role = profile.role if profile else 'Technician'
+    
+    # Permission check
+    if role not in ['Admin', 'Storekeeper']:
+        messages.error(request, "Permission denied. Only Admin and Storekeeper can access this.")
+        return redirect('dashboard')
+    
+    # Fetch all used materials, ordered by status (Pending first) and date
+    used_materials = UsedMaterial.objects.all().select_related(
+        'material', 'technician', 'material_request'
+    ).order_by('status', '-added_at')
+    
+    # Optional: Filter by status
+    status_filter = request.GET.get('status', '')
+    if status_filter in ['Pending', 'Accepted', 'Rejected']:
+        used_materials = used_materials.filter(status=status_filter)
+    
+    # Optional: Search
+    search_query = request.GET.get('search', '').strip()
+    if search_query:
+        used_materials = used_materials.filter(
+            Q(material__name__icontains=search_query) |
+            Q(client_name__icontains=search_query) |
+            Q(technician__username__icontains=search_query) |
+            Q(technician__first_name__icontains=search_query) |
+            Q(technician__last_name__icontains=search_query)
+        )
+    
+    # Stats
+    total_pending = UsedMaterial.objects.filter(status='Pending').count()
+    total_accepted = UsedMaterial.objects.filter(status='Accepted').count()
+    total_rejected = UsedMaterial.objects.filter(status='Rejected').count()
+    
+    return render(request, 'inventory/approve_used_materials.html', {
+        'used_materials': used_materials,
+        'status_filter': status_filter,
+        'search_query': search_query,
+        'total_pending': total_pending,
+        'total_accepted': total_accepted,
+        'total_rejected': total_rejected,
+        'role': role,
+    })
+
+
+@login_required
 def manage_used_material(request, pk):
-    # Backward compatibility stub - logic removed as Admin no longer approves UsedModel
-    return redirect('used_materials')
+    """Admin approval view for used materials.
+    
+    Allows Admin/Storekeeper to:
+    - View pending used material records
+    - Approve them (deduct from material stock if Normal status)
+    - Reject them with notes
+    """
+    profile = ensure_userprofile(request.user)
+    role = profile.role if profile else 'Technician'
+    
+    # Permission check: Only Admin and Storekeeper can approve
+    if role not in ['Admin', 'Storekeeper']:
+        messages.error(request, "Permission denied. Only Admin and Storekeeper can approve used materials.")
+        return redirect('dashboard')
+    
+    try:
+        used_material = UsedMaterial.objects.get(pk=pk)
+    except UsedMaterial.DoesNotExist:
+        messages.error(request, "Record not found.")
+        return redirect('used_materials')
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        admin_note = request.POST.get('admin_note', '').strip()
+        
+        try:
+            if action == 'accept':
+                if used_material.status == 'Accepted':
+                    messages.warning(request, "This record is already approved.")
+                    return redirect('used_materials')
+                
+                # Perform atomic transaction for approval
+                try:
+                    with transaction.atomic():
+                        # Get material with lock to prevent race condition
+                        material = Material.objects.select_for_update().get(pk=used_material.material.id)
+                        
+                        # Only deduct from material if status is 'Normal'
+                        if material.status == 'Normal':
+                            if material.quantity < used_material.quantity:
+                                messages.error(
+                                    request, 
+                                    f"Insufficient stock. Available: {material.quantity}, Used: {used_material.quantity}"
+                                )
+                                return redirect('used_materials')
+                            
+                            # Deduct the quantity
+                            material.quantity -= used_material.quantity
+                            material.save()  # save() will update status if needed
+                            
+                            # Update used material status
+                            used_material.status = 'Accepted'
+                            used_material.admin_note = admin_note
+                            used_material.save()
+                            
+                            messages.success(
+                                request, 
+                                f"Used material approved. {used_material.quantity} units deducted from {material.name} ({material.status})."
+                            )
+                        else:
+                            # Material is Low Stock or Out of Stock - don't deduct but mark as accepted
+                            used_material.status = 'Accepted'
+                            used_material.admin_note = admin_note
+                            used_material.save()
+                            messages.warning(
+                                request, 
+                                f"Used material approved but NOT deducted (material status: {material.status})."
+                            )
+                except Exception as e:
+                    messages.error(request, f"Error during approval: {str(e)}")
+                    return redirect('used_materials')
+                    
+            elif action == 'reject':
+                if used_material.status == 'Rejected':
+                    messages.warning(request, "This record is already rejected.")
+                    return redirect('used_materials')
+                
+                used_material.status = 'Rejected'
+                used_material.admin_note = admin_note
+                used_material.save()
+                messages.success(request, "Used material rejected.")
+                
+        except Exception as e:
+            messages.error(request, f"An error occurred: {str(e)}")
+        
+        return redirect('used_materials')
+    
+    # GET request - show confirmation form
+    return render(request, 'inventory/manage_used_material.html', {
+        'used_material': used_material,
+        'role': role,
+    })

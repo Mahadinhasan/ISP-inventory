@@ -53,12 +53,21 @@
         {% if search or category or stock_status %}
         <a href="?" class="text-indigo-600 hover:underline">Clear filters</a>
         {% endif %}
+        <!--Select multiple materials storekeeper can delete them add delete button-->
+        {% if role != 'Admin' %}
+        <button type="submit" onclick="return confirm('Delete?')"
+                                class="bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg font-medium">Delete</button>
+        {% endif %}
     </div>
     <!-- Table -->
     <div class="overflow-x-auto bg-white rounded-lg shadow">
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
+                    <!--Add Checkbox-->
+                    {% if role != 'Admin' %}
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Select</th> 
+                    {% endif %}
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Materials Name</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock Status</th>
@@ -71,9 +80,16 @@
                     {% endif %}
                 </tr>
             </thead>
+            <!--Add Checkbox for select multiple materials-->
             <tbody class="divide-y divide-gray-200">
                 {% for material in materials %}
                 <tr {% if material.stock_status == 'low' %}class="bg-red-50" {% endif %}>
+                    <!--Add Checkbox-->
+                    {% if role != 'Admin' %}
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <input type="checkbox" name="material_ids" value="{{ material.id }}">
+                    </td>   
+                    {% endif %}
                     <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ material.name }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">{{ material.category }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">
@@ -84,8 +100,7 @@
                             {{ material.stock_status|capfirst }}
                         </span>
                     </td>
-                    <td
-                        class="px-6 py-4 whitespace-nowrap {% if material.stock_status == 'low' %}text-red-600 font-semibold{% endif %}">
+                    <td class="px-6 py-4 whitespace-nowrap {% if material.stock_status == 'low' %}text-red-600 font-semibold{% endif %}">
                         {{ material.quantity }}
                         {% if material.stock_status == 'low' %}
                         <span
@@ -106,17 +121,6 @@
                             <input type="hidden" name="material_id" value="{{ material.id }}">
                             <button type="submit" onclick="return confirm('Delete?')"
                                 class="text-red-600 hover:text-red-900">Delete</button>
-                        </form>
-                        {% endif %}
-                        {# Technicians can 'use' materials via a small inline form #}
-                        {% if role == 'Technician' %}
-                        <form method="post" class="inline" style="margin-left:0.75rem">
-                            {% csrf_token %}
-                            <input type="hidden" name="action" value="use_material">
-                            <input type="hidden" name="material_id" value="{{ material.id }}">
-                            <input type="number" name="use_quantity" min="1" max="{{ material.quantity }}"
-                                placeholder="Qty" style="width:70px;padding:4px;margin-right:6px" required>
-                            <button type="submit" class="text-green-600 hover:text-green-900">Use</button>
                         </form>
                         {% endif %}
                     </td>
@@ -177,14 +181,6 @@
         </div>
     </div>
 </div>
-<!--Material model duplicate name not allowed massages show-->
-{% if messages %}
-<ul class="messages">
-    {% for message in messages %}
-    <li{% if message.tags %} class="{{ message.tags }}" {% endif %}>{{ message }}</li>
-        {% endfor %}
-</ul>
-{% endif %}
 <script>
     function openAddModal() {
         document.getElementById('materialModal').classList.remove('hidden');

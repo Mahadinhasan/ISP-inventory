@@ -101,8 +101,8 @@ class Task(models.Model):
 
 class MaterialRequest(models.Model):
     STATUS_CHOICES = [('Pending', 'Pending'), ('Approved', 'Approved'), ('Rejected', 'Rejected')]
-    material = models.ForeignKey(Material, on_delete=models.CASCADE)
-    requester = models.ForeignKey(User, on_delete=models.CASCADE)
+    material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name='material_requests')
+    requester = models.ForeignKey(User, on_delete=models.CASCADE, related_name='material_requests')
     quantity = models.IntegerField()
     notes = models.TextField(blank=True) # Deprecated logic potentially, but keeping for compatibility
     user_note = models.TextField(blank=True) # Explicit User Note
@@ -111,7 +111,20 @@ class MaterialRequest(models.Model):
     requested_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.requester} - {self.material.name}"  
+        return f"{self.requester} - {self.material.name}"
+    
+    @property
+    def used_materials_count(self):
+        """Return count of used materials linked to this request."""
+        return self.used_materials.count()
+    
+    @property
+    def used_materials_display(self):
+        """Return comma-separated list of used material quantities."""
+        items = self.used_materials.all()
+        if not items:
+            return '-'
+        return ', '.join([f"{item.quantity}x {item.material.name}" for item in items])  
     
 class Vendor(models.Model):
     name = models.CharField(max_length=100)
@@ -146,14 +159,56 @@ class NotificationSetting(models.Model):
 
 class UsedMaterial(models.Model):
     STATUS_CHOICES = [('Pending', 'Pending'), ('Accepted', 'Accepted'), ('Rejected', 'Rejected')]
-    technician = models.ForeignKey(User, on_delete=models.CASCADE)
-    material = models.ForeignKey(Material, on_delete=models.CASCADE)
-    quantity = models.IntegerField()
-    address = models.TextField(blank=True)
-    issue = models.TextField(blank=True)
+    
+    # Technician and Material References
+    technician = models.ForeignKey(User, on_delete=models.CASCADE, related_name='used_materials')
+    material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name='used_instances')
+    material_request = models.ForeignKey(MaterialRequest, on_delete=models.SET_NULL, null=True, blank=True, related_name='used_materials')
+    
+    # Material Details (auto-populated from Material model)
+    # category is accessed via material.category property
+    
+    # Client Information
+    client_name = models.CharField(max_length=200, blank=True, verbose_name='Client Name')
+    client_address = models.TextField(blank=True, verbose_name='Client Address')
+    client_phone = models.CharField(max_length=20, blank=True, verbose_name='Client Phone')
+    
+    # Material Usage Details
+    quantity = models.IntegerField(default=1)
+    issue = models.TextField(blank=True, verbose_name='Technical Issue / Notes')
+    
+    # Status and Notes
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
-    admin_note = models.TextField(blank=True)
+    admin_note = models.TextField(blank=True, verbose_name='Admin Notes')
+    
+    # Timestamps
     added_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-added_at']
+        verbose_name = 'Used Material'
+        verbose_name_plural = 'Used Materials'
+        indexes = [
+            models.Index(fields=['technician', '-added_at']),
+            models.Index(fields=['material', '-added_at']),
+            models.Index(fields=['status']),
+        ]
 
+    @property
+    def category(self):
+        """Return the category of the related material."""
+        return self.material.category if self.material else ''
+    
+    @property
+    def material_name(self):
+        """Return the name of the related material."""
+        return self.material.name if self.material else ''
+    
+    @property
+    def technician_full_name(self):
+        """Return the full name of the technician."""
+        return self.technician.get_full_name() or self.technician.username
+    
     def __str__(self):
-        return f"{self.technician.username} - {self.material.name}"
+        return f"{self.technician_full_name} - {self.material_name} ({self.quantity}x) - {self.added_at.strftime('%Y-%m-%d')}"

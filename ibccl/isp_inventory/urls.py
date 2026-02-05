@@ -14,6 +14,7 @@ urlpatterns = [
     path('settings/', views.settings_view, name='settings'),
     path('reports/', views.reports_view, name='reports'),
     path('used-materials/', views.used_materials_view, name='used_materials'),
+    path('used-materials/approve/', views.approve_used_materials, name='approve_used_materials'),
     path('used-materials/<int:pk>/manage/', views.manage_used_material, name='manage_used_material'),
 
 ]
