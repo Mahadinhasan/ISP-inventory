@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import Material, Task, MaterialRequest, UserProfile, Vendor, SystemSetting, NotificationSetting, UsedMaterial
+from .models import Material, Task, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial
+from .models import backupandrestore
 
 # Custom admin classes for better display
 
@@ -24,13 +25,13 @@ class MaterialRequestAdmin(admin.ModelAdmin):
 
 class UsedMaterialAdmin(admin.ModelAdmin):
     """Admin interface for UsedMaterial with request linking."""
-    list_display = ['id', 'technician', 'material', 'quantity', 'material_request', 'status', 'added_at']
+    list_display = ['id', 'technician', 'material_name', 'get_category', 'quantity', 'status', 'added_at']
     list_filter = ['status', 'added_at', 'material__category']
-    search_fields = ['technician__username', 'material__name', 'client_name']
+    search_fields = ['technician__username', 'material__name', 'client_name', 'material__category']
     readonly_fields = ['added_at', 'updated_at']
     fieldsets = (
         ('Material Usage', {
-            'fields': ('technician', 'material', 'quantity', 'material_request', 'status')
+            'fields': ('technician', 'material', 'quantity', 'status')
         }),
         ('Client Info', {
             'fields': ('client_name', 'client_phone', 'client_address')
@@ -43,13 +44,45 @@ class UsedMaterialAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+    
+    def material_name(self, obj):
+        """Display material name from the Material model."""
+        return obj.material.name if obj.material else '-'
+    material_name.short_description = 'Material Name'
+    
+    def get_category(self, obj):
+        """Display material category from the Material model."""
+        return obj.material.category if obj.material else '-'
+    get_category.short_description = 'Category'
 
 # Register your models here.
-admin.site.register(Material)
-admin.site.register(Task)
+class materialAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name', 'category', 'quantity', 'min_stock_level', 'status']
+    list_filter = ['category', 'status']
+    search_fields = ['name', 'category']
+admin.site.register(Material, materialAdmin)
+admin.site.register(Task, admin.ModelAdmin)
+class MaterialRequestAdmin(admin.ModelAdmin):
+    list_display = ['id', 'requester', 'material', 'quantity', 'status', 'requested_at']
+    list_filter = ['status', 'requested_at']
+    search_fields = ['requester__username', 'material__name', 'user_note']
 admin.site.register(MaterialRequest, MaterialRequestAdmin)
-admin.site.register(UserProfile)
-admin.site.register(Vendor)
-admin.site.register(SystemSetting)
-admin.site.register(NotificationSetting)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ['user', 'role']
+    list_filter = ['role']
+    search_fields = ['user__username', 'user__email']
+admin.site.register(UserProfile, UserProfileAdmin)
+class SystemSettingAdmin(admin.ModelAdmin):
+    list_display = ['key', 'value', 'description']
+    search_fields = ['key', 'description']
+admin.site.register(SystemSetting, SystemSettingAdmin)
+class NotificationSettingAdmin(admin.ModelAdmin):
+    list_display = ['user', 'email_notifications', 'low_stock_alert', 'new_request_alert', 'task_assignment_alert']
+    search_fields = ['user__username']
+admin.site.register(NotificationSetting, NotificationSettingAdmin)
 admin.site.register(UsedMaterial, UsedMaterialAdmin)
+
+class backupandrestoreAdmin(admin.ModelAdmin):
+    list_display = ['id', 'backup_file', 'created_at']
+    search_fields = ['backup_file']
+admin.site.register(backupandrestore, backupandrestoreAdmin)

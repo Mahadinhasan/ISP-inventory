@@ -3,8 +3,8 @@ from django.contrib.auth import login, authenticate, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth.models import User, Group
-from .forms import RegisterForm, MaterialForm, TaskForm, RequestForm, VendorForm, SystemSettingForm, NotificationSettingForm, UsedMaterialForm
-from .models import Material, Task, MaterialRequest, UserProfile, Vendor, SystemSetting, NotificationSetting, UsedMaterial
+from .forms import RegisterForm, MaterialForm, TaskForm, RequestForm, SystemSettingForm, NotificationSettingForm, UsedMaterialForm
+from .models import Material, Task, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial
 from .utils import ensure_userprofile
 from django.db.models import Sum, Q, F
 from django.db import transaction
@@ -14,6 +14,7 @@ from django.http import HttpResponse, JsonResponse
 from django.core.management import call_command
 import json
 from io import StringIO
+from django.core.paginator import Paginator
 
 def register_view(request):
     if request.method == 'POST':
@@ -22,7 +23,7 @@ def register_view(request):
             user = form.save()
             # Ensure role groups exist and add user to selected group
             role = form.cleaned_data.get('role')
-            for r in ['Admin', 'Storekeeper', 'Technician']:
+            for r in ['Admin', 'Storekeeper', 'Technician', 'NOC']:
                 Group.objects.get_or_create(name=r)
             if role:
                 grp = Group.objects.get(name=role)
@@ -154,6 +155,11 @@ def materials_view(request):
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Technician'
 
+    #Pagination added
+    paginator = Paginator(materials,10)  # Show 10 materials per page
+    page_number = request.GET.get('page')
+    materials_page = paginator.get_page(page_number)
+
     #search name,categoty,status
     search = request.GET.get('search', '').strip()
     if search:
@@ -232,8 +238,8 @@ def materials_view(request):
             except Exception:
                 messages.error(request, "An error occurred while updating stock. Try again.")
                 return redirect('materials')
-
-        # Add/edit material
+            
+             # Add/edit material
         # Material model duplicate name not allowed massages show
         
         instance = None
@@ -276,6 +282,7 @@ def materials_view(request):
         'form': form,
         'role': role,
         'user': request.user,
+        'materials_page': materials_page,
     }
     return render(request, 'inventory/materials.html', context)
 
@@ -368,19 +375,31 @@ def tasks_view(request):
 
 @login_required
 def requests_view(request):
-    requests = MaterialRequest.objects.all().order_by('-requested_at')
+    base_requests = MaterialRequest.objects.all().order_by('-requested_at')
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Technician'
+    
+    # Get users for dropdown
+    users = User.objects.all() if role in ['Admin', 'Storekeeper'] else User.objects.filter(userprofile__role='Technician')
 
-    # Search Logic
+    # Search Logic - apply BEFORE pagination
     search_query = request.GET.get('search', '').strip()
     if search_query:
-        requests = requests.filter(
+        base_requests = base_requests.filter(
             Q(material__name__icontains=search_query) | 
             Q(user_note__icontains=search_query) | 
             Q(notes__icontains=search_query) |
             Q(requester__username__icontains=search_query)
         )
+
+    # Separate advance requests from regular requests
+    advance_requests = base_requests.filter(admin_note__icontains='advance').order_by('-requested_at')
+    regular_requests = base_requests.exclude(admin_note__icontains='advance').order_by('-requested_at')
+
+    # Pagination applied AFTER filtering
+    paginator = Paginator(regular_requests, 10)  # Show 10 requests per page
+    page_number = request.GET.get('page')
+    requests_page = paginator.get_page(page_number)
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -514,11 +533,14 @@ def requests_view(request):
 
     else:
         form = RequestForm()
-        
+
     return render(request, 'inventory/requests.html', {
-        'requests': requests, 
+        'requests': requests_page, 
         'form': form,
-        'role': role
+        'role': role,
+        'page_obj': requests_page,
+        'users': users,
+        'advance_requests': advance_requests,
     })
 
 @login_required
@@ -567,20 +589,11 @@ def reports_view(request):
     }
     return render(request, 'inventory/reports.html', context)
 
-@login_required
-def manage_request(request, pk):
-    # Backward compatibility if needed, but requests_view now handles it via POST
-    return redirect('requests')
-
-@login_required
-def approve_request(request, pk):
-    # Deprecated by manage_request logic
-    return redirect('requests')
 
 @login_required
 def settings_view(request):
     # Ensure role groups exist
-    ROLE_GROUPS = ['Admin', 'Storekeeper', 'Technician']
+    ROLE_GROUPS = ['Admin', 'Storekeeper', 'Technician', 'NOC']
     for r in ROLE_GROUPS:
         Group.objects.get_or_create(name=r)
 
@@ -609,35 +622,19 @@ def settings_view(request):
         # ensure at least one role-group assigned
         if not u.groups.filter(name__in=ROLE_GROUPS).exists():
             u.groups.add(default_group)
-
-    vendors = Vendor.objects.all()
     system_settings = SystemSetting.objects.all()
 
     # Notification form for current user
     notif_obj, _ = NotificationSetting.objects.get_or_create(user=request.user)
     notif_form = NotificationSettingForm(instance=notif_obj)
 
-    vendor_form = VendorForm()
     setting_form = SystemSettingForm()
 
     if request.method == 'POST':
         action = request.POST.get('action')
-
-        if action == 'add_vendor':
-            form = VendorForm(request.POST)
-            if form.is_valid():
-                vendor = form.save(commit=False)
-                vendor.created_by = request.user
-                vendor.save()
-                messages.success(request, f"Vendor '{vendor.name}' added!")
-
-        elif action == 'add_setting':
-            form = SystemSettingForm(request.POST)
-            if form.is_valid():
-                form.save()
-                messages.success(request, "System setting saved!")
-
-        elif action == 'update_notifications':
+        
+        
+        if action == 'update_notifications':
             form = NotificationSettingForm(request.POST, instance=notif_obj)
             if form.is_valid():
                 form.save()
@@ -739,8 +736,6 @@ def settings_view(request):
     context = {
         'users': users,
         'groups': Group.objects.all(),
-        'vendors': vendors,
-        'vendor_form': vendor_form,
         'system_settings': system_settings,
         'setting_form': setting_form,
         'notif_form': notif_form,
@@ -752,6 +747,11 @@ def settings_view(request):
 def used_materials_view(request):
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Technician'
+
+    #pagination added
+    used_materials = UsedMaterial.objects.filter(technician=request.user).order_by('-added_at')
+    paginator = Paginator(used_materials, 10)  # Show 10 records per page
+    page_number = request.GET.get('page')
 
     # Strict permission: Only Technicians can access this page
     if role != 'Technician':
@@ -773,19 +773,15 @@ def used_materials_view(request):
             if form.is_valid():
                 # Additional security check: Verify material is approved for this technician
                 material = form.cleaned_data.get('material')
-                material_request = form.cleaned_data.get('material_request')
                 
                 approved_material_ids = MaterialRequest.objects.filter(
                     requester=request.user,
-                    material_status='Normal'  # Ensure only Normal stock materials can be used
-                ).values_list('material', flat=True).distinct()
+                    material__status='Normal'
+                ).values_list('material', flat=True).distinct() # Get list of approved material IDs for this technician
                 
                 if material and material.id in approved_material_ids:
                     um = form.save(commit=False)
                     um.technician = request.user
-                    # Link to material request if provided
-                    if material_request and material_request.requester == request.user:
-                        um.material_request = material_request
                     um.save()
                     messages.success(request, "Used Material recorded successfully!")
                     return redirect('used_materials')
@@ -803,7 +799,6 @@ def used_materials_view(request):
                 if form.is_valid():
                     # Additional security check: Verify material is approved for this technician
                     material = form.cleaned_data.get('material')
-                    material_request = form.cleaned_data.get('material_request')
                     
                     approved_material_ids = MaterialRequest.objects.filter(
                         requester=request.user,
@@ -812,11 +807,6 @@ def used_materials_view(request):
                     
                     if material and material.id in approved_material_ids:
                         updated_um = form.save(commit=False)
-                        # Update material request link if provided
-                        if material_request and material_request.requester == request.user:
-                            updated_um.material_request = material_request
-                        else:
-                            updated_um.material_request = None
                         updated_um.save()
                         messages.success(request, "Used Material updated successfully.")
                         return redirect('used_materials')
@@ -842,63 +832,32 @@ def used_materials_view(request):
     else:
         form = UsedMaterialForm(user=request.user)
 
-    return render(request, 'inventory/used_material.html', {
+    return render(request, 'inventory/used_materials.html', {
         'used_materials': used_materials,
         'form': form,
-        'role': role
+        'role': role,
+        'page_obj': page_number,
     })
 
 @login_required
-def approve_used_materials(request):
-    """Admin/Storekeeper view to manage pending used material approvals.
-    
-    Displays all used materials with Pending/Accepted/Rejected status
-    and allows bulk management.
-    """
-    profile = ensure_userprofile(request.user)
-    role = profile.role if profile else 'Technician'
-    
-    # Permission check
-    if role not in ['Admin', 'Storekeeper']:
-        messages.error(request, "Permission denied. Only Admin and Storekeeper can access this.")
-        return redirect('dashboard')
-    
-    # Fetch all used materials, ordered by status (Pending first) and date
-    used_materials = UsedMaterial.objects.all().select_related(
-        'material', 'technician', 'material_request'
-    ).order_by('status', '-added_at')
-    
-    # Optional: Filter by status
-    status_filter = request.GET.get('status', '')
-    if status_filter in ['Pending', 'Accepted', 'Rejected']:
-        used_materials = used_materials.filter(status=status_filter)
-    
-    # Optional: Search
-    search_query = request.GET.get('search', '').strip()
-    if search_query:
-        used_materials = used_materials.filter(
-            Q(material__name__icontains=search_query) |
-            Q(client_name__icontains=search_query) |
-            Q(technician__username__icontains=search_query) |
-            Q(technician__first_name__icontains=search_query) |
-            Q(technician__last_name__icontains=search_query)
-        )
-    
-    # Stats
-    total_pending = UsedMaterial.objects.filter(status='Pending').count()
-    total_accepted = UsedMaterial.objects.filter(status='Accepted').count()
-    total_rejected = UsedMaterial.objects.filter(status='Rejected').count()
-    
-    return render(request, 'inventory/approve_used_materials.html', {
-        'used_materials': used_materials,
-        'status_filter': status_filter,
-        'search_query': search_query,
-        'total_pending': total_pending,
-        'total_accepted': total_accepted,
-        'total_rejected': total_rejected,
-        'role': role,
-    })
+def get_used_material_api(request, pk):
+    """API endpoint to get used material data for editing via AJAX"""
+    try:
+        used_material = UsedMaterial.objects.get(pk=pk, technician=request.user)
+    except UsedMaterial.DoesNotExist:
+        return JsonResponse({'error': 'Record not found or access denied'}, status=404)
 
+    data = {
+        'id': used_material.id,
+        'material': used_material.material.id,
+        'client_name': used_material.client_name or '',
+        'client_phone': used_material.client_phone or '',
+        'client_address': used_material.client_address or '',
+        'quantity': used_material.quantity,
+        'issue': used_material.issue or '',
+        'status': used_material.status,
+    }
+    return JsonResponse(data)
 
 @login_required
 def manage_used_material(request, pk):

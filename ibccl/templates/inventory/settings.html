@@ -15,13 +15,22 @@
                     <button onclick="showTab('users')" class="w-full text-left px-6 py-4 bg-white rounded-2xl shadow-md font-bold text-indigo-700 hover:bg-indigo-100 transition">
                         <i class="fas fa-users mr-3"></i>User Management
                     </button>
-                    <!-- Other buttons... -->
+                    <button onclick="showBackupTab()" class="w-full text-left px-6 py-4 bg-white rounded-2xl shadow-md font-bold text-indigo-700 hover:bg-indigo-100 transition">
+                        <i class="fas fa-database mr-3"></i>Backup & Restore
+                    </button>
+                    <button onclick="showNotificationTab()" class="w-full text-left px-6 py-4 bg-white rounded-2xl shadow-md font-bold text-indigo-700 hover:bg-indigo-100 transition">
+                        <i class="fas fa-bell mr-3"></i>Notification Settings
+                    </button>
+                    <button onclick="showLogTab()" class="w-full text-left px-6 py-4 bg-white rounded-2xl shadow-md font-bold text-indigo-700 hover:bg-indigo-100 transition">
+                        <i class="fas fa-file-alt mr-3"></i>Log Settings
+                    </button>
                 </div>
             </div>
         </div>
 
         <!-- Content -->
         <div class="col-span-3">
+            <!-- Users Tab -->
             <div id="usersTab" class="bg-white rounded-3xl shadow-xl p-8">
                 <div class="flex justify-between items-center mb-8">
                     <h2 class="text-3xl font-bold text-indigo-900">User Management</h2>
@@ -63,6 +72,7 @@
                                             <option value="Admin" {% if u.userprofile.role == 'Admin' %}selected{% endif %}>Admin</option>
                                             <option value="Storekeeper" {% if u.userprofile.role == 'Storekeeper' %}selected{% endif %}>Storekeeper</option>
                                             <option value="Technician" {% if u.userprofile.role == 'Technician' %}selected{% endif %}>Technician</option>
+                                            <option value="NOC" {% if u.userprofile.role == 'NOC' %}selected{% endif %}>NOC</option>
                                         </select>
                                     </form>
                                 </td>
@@ -93,6 +103,90 @@
                     </table>
                 </div>
             </div>
+
+            <!-- Backup Tab -->
+            <div id="backupTab" class="hidden bg-gradient-to-br from-purple-50 to-pink-50 rounded-3xl shadow-2xl p-8">
+                <h2 class="text-3xl font-bold text-purple-900 mb-6">Backup & Restore</h2>
+                <div class="flex flex-col md:flex-row gap-6">
+                    <form method="post" class="flex-1 bg-white rounded-2xl shadow-md p-6">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="backup">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Create Backup</h3>
+                        <p class="text-gray-500 mb-6">Download a backup of the current system data.</p>
+                        <button type="submit" class="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
+                            <i class="fas fa-download mr-2"></i>Download Backup
+                        </button>
+                    </form>
+                    <form method="post" enctype="multipart/form-data" class="flex-1 bg-white rounded-2xl shadow-md p-6">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="restore">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Restore Backup</h3>
+                        <p class="text-gray-500 mb-6">Upload a backup file to restore system data.</p>
+                        <input type="file" name="backup_file" accept=".zip,.tar.gz" required class="mb-4">
+                        <button type="submit" class="px-6 py-3 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition">
+                            <i class="fas fa-upload mr-2"></i>Restore Backup
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Notification Tab -->
+            <div id="notificationTab" class="hidden bg-gradient-to-br from-green-50 to-blue-50 rounded-3xl shadow-2xl p-8">
+                <h2 class="text-3xl font-bold text-green-900 mb-6">Notification Settings</h2>
+                <form method="post" class="bg-white rounded-2xl shadow-md p-6 max-w-lg">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update_notifications">
+                    <div class="mb-4">
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" name="email_notifications" class="form-checkbox h-5 w-5 text-green-600" {% if email_notifications %}checked{% endif %}>
+                            <span class="text-gray-700 font-medium">Email Notifications</span>
+                        </label>
+                    </div>
+                    <div class="mb-4">
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" name="sms_notifications" class="form-checkbox h-5 w-5 text-green-600" {% if sms_notifications %}checked{% endif %}>
+                            <span class="text-gray-700 font-medium">SMS Notifications</span>
+                        </label>
+                    </div>
+                    <div class="mb-4">
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" name="push_notifications" class="form-checkbox h-5 w-5 text-green-600" {% if push_notifications %}checked{% endif %}>
+                            <span class="text-gray-700 font-medium">Push Notifications</span>
+                        </label>
+                    </div>
+                    <button type="submit" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                        <i class="fas fa-save mr-2"></i>Save Settings
+                    </button>
+                </form>
+            </div>
+
+            <!-- Log Tab -->
+            <div id="logTab" class="hidden bg-gradient-to-br from-yellow-50 to-red-50 rounded-3xl shadow-2xl p-8">
+                <h2 class="text-3xl font-bold text-yellow-900 mb-6">Log Settings</h2>
+                <form method="post" class="bg-white rounded-2xl shadow-md p-6 max-w-lg">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update_logs">
+                    <div class="mb-4">
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" name="enable_logging" class="form-checkbox h-5 w-5 text-yellow-600" {% if enable_logging %}checked{% endif %}>
+                            <span class="text-gray-700 font-medium">Enable Logging</span>
+                        </label>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-gray-700 font-medium mb-2">Log Level</label>
+                        <select name="log_level" class="w-full px-6 py-4 border-2 border-yellow-200 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-100">
+                            <option value="DEBUG" {% if log_level == 'DEBUG' %}selected{% endif %}>DEBUG</option>
+                            <option value="INFO" {% if log_level == 'INFO' %}selected{% endif %}>INFO</option>
+                            <option value="WARNING" {% if log_level == 'WARNING' %}selected{% endif %}>WARNING</option>
+                            <option value="ERROR" {% if log_level == 'ERROR' %}selected{% endif %}>ERROR</option>
+                            <option value="CRITICAL" {% if log_level == 'CRITICAL' %}selected{% endif %}>CRITICAL</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition">
+                        <i class="fas fa-save mr-2"></i>Save Log Settings
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
 </div>
@@ -111,6 +205,7 @@
                     <option value="Technician">Technician</option>
                     <option value="Storekeeper">Storekeeper</option>
                     <option value="Admin">Admin</option>
+                    <option value="NOC">NOC</option>
                 </select>
             </div>
             <div class="mt-8 flex justify-end gap-4">
@@ -124,15 +219,69 @@
         </form>
     </div>
 </div>
-            <!-- Other tabs (Vendors, System, Notifications, Backup) -->
-            <!-- Use the same structure as previous messages -->
-            <!-- I can send full code if needed -->
+
+<!--added Backup-->
+<section class="mt-12" id="backupSection" class="hidden">
+</section>
+<!--added Notification-->
+<section class="mt-12" id="notificationSection" class="hidden">
+</section>
+<!--added log setting -->
+<section class="mt-12" id="logSection" class="hidden">
+</section>
 <script>
 function openCreateModal() {
     document.getElementById('createModal').classList.remove('hidden');
 }
+
 function closeModal() {
     document.getElementById('createModal').classList.add('hidden');
+}
+
+function showTab(tab) {
+    // Hide all tabs
+    document.getElementById('usersTab').classList.add('hidden');
+    document.getElementById('backupTab').classList.add('hidden');
+    document.getElementById('notificationTab').classList.add('hidden');
+    document.getElementById('logTab').classList.add('hidden');
+    
+    // Show selected tab
+    if (tab === 'users') {
+        document.getElementById('usersTab').classList.remove('hidden');
+    }
+}
+
+function showBackupTab() {
+    // Hide all tabs
+    document.getElementById('usersTab').classList.add('hidden');
+    document.getElementById('backupTab').classList.add('hidden');
+    document.getElementById('notificationTab').classList.add('hidden');
+    document.getElementById('logTab').classList.add('hidden');
+    
+    // Show backup tab
+    document.getElementById('backupTab').classList.remove('hidden');
+}
+
+function showNotificationTab() {
+    // Hide all tabs
+    document.getElementById('usersTab').classList.add('hidden');
+    document.getElementById('backupTab').classList.add('hidden');
+    document.getElementById('notificationTab').classList.add('hidden');
+    document.getElementById('logTab').classList.add('hidden');
+    
+    // Show notification tab
+    document.getElementById('notificationTab').classList.remove('hidden');
+}
+
+function showLogTab() {
+    // Hide all tabs
+    document.getElementById('usersTab').classList.add('hidden');
+    document.getElementById('backupTab').classList.add('hidden');
+    document.getElementById('notificationTab').classList.add('hidden');
+    document.getElementById('logTab').classList.add('hidden');
+    
+    // Show log tab
+    document.getElementById('logTab').classList.remove('hidden');
 }
 </script>
 {% endblock %}

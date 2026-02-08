@@ -8,7 +8,7 @@
             <h1 class="text-4xl font-bold text-gray-900">Task Management</h1>
             <p class="text-gray-600">Manage installation and maintenance jobs</p>
         </div>
-        {% if role != 'Technician' %}
+        {% if role == 'Technician' %}
         <button onclick="document.getElementById('createTaskModal').classList.remove('hidden')"
             class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition">
             <i class="fas fa-plus mr-2"></i>Create Task

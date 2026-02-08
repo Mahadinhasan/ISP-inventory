@@ -6,44 +6,10 @@
 <div class="space-y-6">
     <div class="flex justify-between items-center">
         <h1 class="text-3xl font-bold text-gray-900">Used Materials Log</h1>
+        <button onclick="openAddModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition">
+            <i class="fas fa-plus mr-2"></i>Add Used Material
+        </button>
     </div>
-
-    {% if role == 'Technician' %}
-    <!-- Add Report Form for Technician -->
-    <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100 transition hover:shadow-xl">
-        <h2 class="text-xl font-semibold mb-4 text-gray-800 flex items-center">
-            <i class="fas fa-plus-circle mr-2 text-indigo-600"></i>Report Usage
-        </h2>
-        <form method="POST" action="{% url 'used_materials' %}">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="create">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Material (Name/Code)</label>
-                    {{ form.material }}
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Address</label>
-                    {{ form.address }}
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Technical Issue</label>
-                    {{ form.issue }}
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Quantity (Q.)</label>
-                    {{ form.quantity }}
-                </div>
-            </div>
-            <div class="mt-4 flex justify-end">
-                <button type="submit"
-                    class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-md transition duration-300 ease-in-out transform hover:-translate-y-1 shadow-md">
-                    <i class="fas fa-paper-plane mr-2"></i>Submit Report
-                </button>
-            </div>
-        </form>
-    </div>
-    {% endif %}
 
     <!-- Used Materials List -->
     <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
@@ -53,22 +19,27 @@
                     <tr>
                         <th scope="col"
                             class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Technician</th>
+                            Material Name</th>
                         <th scope="col"
                             class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Material</th>
+                            Category</th>
+                        <th scope="col"
+                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Quantity</th>
+                        <th scope="col"
+                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Client Name</th>
                         <th scope="col"
                             class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Address</th>
                         <th scope="col"
                             class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Phone</th>
+                        <th scope="col"
+                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Issue</th>
                         <th scope="col"
-                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Q.
-                        </th>
-                        <th scope="col"
-                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date
-                            Used</th>
+                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         {% if role == 'Technician' %}
                         <th scope="col"
                             class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -79,24 +50,42 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     {% for item in used_materials %}
                     <tr class="hover:bg-gray-50 transition duration-150">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
-                            <i class="fas fa-user-circle mr-2 text-indigo-500"></i> {{ item.technician.username }}
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ item.material.name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-3 py-1 rounded-full text-xs font-semibold 
+                                {% if item.material.category == 'Internet' %}bg-blue-100 text-blue-800
+                                {% elif item.material.category == 'Dish' %}bg-purple-100 text-purple-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ item.material.category }}
+                            </span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ item.material.name }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">{{ item.address }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">{{ item.issue }}</td>
-                        <td
-                            class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-bold bg-gray-50 rounded-lg text-center">
-                            {{ item.quantity }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.added_at|date:"Y-m-d H:i"
-                            }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-bold bg-gray-50 rounded-lg text-center">
+                            {{ item.quantity }}M</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ item.client_name|default:"N/A" }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-700">{{ item.client_address|default:"N/A"|truncatewords:10 }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ item.client_phone|default:"N/A" }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-700">{{ item.issue|default:"N/A"|truncatewords:8 }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-3 py-1 rounded-full text-xs font-semibold
+                                {% if item.status == 'Pending' %}bg-yellow-100 text-yellow-800
+                                {% elif item.status == 'Accepted' %}bg-green-100 text-green-800
+                                {% elif item.status == 'Rejected' %}bg-red-100 text-red-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ item.status }}
+                            </span>
+                        </td>
 
                         {% if role == 'Technician' and item.technician == user %}
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <button
-                                onclick="openEditModal('{{ item.id }}', '{{ item.material.id }}', '{{ item.quantity }}', '{{ item.address|escapejs }}', '{{ item.issue|escapejs }}')"
+                                onclick="openEditModal('{{ item.id }}')"
                                 class="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-md transition">
                                 <i class="fas fa-edit mr-1"></i> Edit
+                            </button>
+                            <button
+                                onclick="confirmDelete('{{ item.id }}')"
+                                class="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1 rounded-md transition ml-2">
+                                <i class="fas fa-trash mr-1"></i> Delete
                             </button>
                         </td>
                         {% elif role == 'Technician' %}
@@ -105,10 +94,10 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" class="px-6 py-10 text-center text-gray-500 italic">
+                        <td colspan="8" class="px-6 py-10 text-center text-gray-500 italic">
                             <div class="flex flex-col items-center">
                                 <i class="fas fa-box-open text-gray-300 text-4xl mb-3"></i>
-                                <p>No used models reported yet.</p>
+                                <p>No used materials reported yet.</p>
                             </div>
                         </td>
                     </tr>
@@ -119,78 +108,318 @@
     </div>
 </div>
 
-<!-- Edit Modal (Technician) -->
-<div id="editModal"
-    class="hidden fixed inset-0 bg-gray-900 bg-opacity-60 overflow-y-auto h-full w-full z-50 flex items-center justify-center backdrop-blur-sm">
-    <div class="relative p-5 border w-96 shadow-2xl rounded-xl bg-white">
-        <div class="mt-3 text-center">
-            <h3 class="text-xl leading-6 font-bold text-gray-900 mb-4">Edit Used Model</h3>
-            <form method="POST" action="{% url 'used_materials' %}">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="edit">
-                <input type="hidden" name="um_id" id="editUmId">
-                <div class="mt-2 px-4 text-left space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Material</label>
-                        {{ form.material }}
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Address</label>
-                        {{ form.address }}
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Report Issue</label>
-                        {{ form.issue }}
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Quantity</label>
-                        {{ form.quantity }}
-                    </div>
+<!-- Add/Edit Modal -->
+<div id="addEditModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="sticky top-0 bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
+            <h2 class="text-2xl font-bold text-gray-900" id="modalTitle">Add Used Material</h2>
+            <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700">
+                <i class="fas fa-times text-2xl"></i>
+            </button>
+        </div>
+
+        <form method="POST" action="{% url 'used_materials' %}" class="p-6 space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" id="modalAction" value="create">
+            <input type="hidden" name="um_id" id="modalUmId" value="">
+
+            <!-- Material Name with Category Display -->
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-box mr-2 text-indigo-600"></i>Material Name *
+                    </label>
+                    {{ form.material }}
+                    {% if form.material.errors %}
+                    <p class="text-red-600 text-sm mt-1">{{ form.material.errors.0 }}</p>
+                    {% endif %}
                 </div>
-                <div class="items-center px-4 py-3 mt-6">
-                    <button type="submit"
-                        class="w-full px-4 py-2 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 shadow-md transition">Update</button>
-                    <button type="button" onclick="document.getElementById('editModal').classList.add('hidden')"
-                        class="mt-2 w-full px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 shadow-sm transition">Cancel</button>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-tag mr-2 text-indigo-600"></i>Category (Auto)
+                    </label>
+                    <div id="categoryDisplay" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg bg-gray-100 text-gray-600 font-medium">-</div>
+                </div>
+            </div>
+
+            <!-- Client Information -->
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-user mr-2 text-indigo-600"></i>Client Name
+                    </label>
+                    {{ form.client_name }}
+                    {% if form.client_name.errors %}
+                    <p class="text-red-600 text-sm mt-1">{{ form.client_name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-phone mr-2 text-indigo-600"></i>Client Phone
+                    </label>
+                    {{ form.client_phone }}
+                    {% if form.client_phone.errors %}
+                    <p class="text-red-600 text-sm mt-1">{{ form.client_phone.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Client Address -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-map-marker-alt mr-2 text-indigo-600"></i>Client Address
+                </label>
+                {{ form.client_address }}
+                {% if form.client_address.errors %}
+                <p class="text-red-600 text-sm mt-1">{{ form.client_address.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Quantity and Material Request -->
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-cubes mr-2 text-indigo-600"></i>Quantity Used *
+                    </label>
+                    {{ form.quantity }}
+                    {% if form.quantity.errors %}
+                    <p class="text-red-600 text-sm mt-1">{{ form.quantity.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Technical Issue / Notes -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-sticky-note mr-2 text-indigo-600"></i>Technical Issue / Notes
+                </label>
+                {{ form.issue }}
+                {% if form.issue.errors %}
+                <p class="text-red-600 text-sm mt-1">{{ form.issue.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Status -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-check-circle mr-2 text-indigo-600"></i>Status
+                </label>
+                {{ form.status }}
+                {% if form.status.errors %}
+                <p class="text-red-600 text-sm mt-1">{{ form.status.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Form Actions -->
+            <div class="flex justify-end space-x-3 pt-6 border-t">
+                <button type="button" onclick="closeModal()" class="px-6 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition">
+                    Cancel
+                </button>
+                <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition">
+                    <i class="fas fa-save mr-2"></i>Save Used Material
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-sm w-full mx-4">
+        <div class="p-6 text-center">
+            <i class="fas fa-exclamation-triangle text-5xl text-red-600 mb-4"></i>
+            <h3 class="text-2xl font-bold text-gray-900 mb-2">Delete Used Material?</h3>
+            <p class="text-gray-600 mb-6">This action cannot be undone. Are you sure you want to delete this entry?</p>
+            
+            <form method="POST" action="{% url 'used_materials' %}" class="inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="um_id" id="deleteUmId" value="">
+                
+                <div class="flex justify-center space-x-3">
+                    <button type="button" onclick="closeDeleteModal()" class="px-6 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium">
+                        Delete
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
+<!--pagination control-->
+<div class="flex justify-center mt-6">
+    <nav class="inline-flex -space-x-px">
+        {% if used_materials.has_previous %}
+        <a href="?page={{ used_materials.previous_page_number }}" class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 rounded-l-lg hover:bg-gray-100 hover:text-gray-700">
+            <span class="sr-only">Previous</span>
+            <i class="fas fa-chevron-left"></i>
+        </a>
+        {% else %}
+        <span class="px-3 py-2 leading-tight text-gray-300 bg-gray-100 border border-gray-300 rounded-l-lg cursor-not-allowed">
+            <span class="sr-only">Previous</span>
+            <i class="fas fa-chevron-left"></i>
+        </span>
+        {% endif %}
+
+        {% for num in used_materials.paginator.page_range %}
+            {% if used_materials.number == num %}
+                <span class="px-3 py-2 leading-tight text-white bg-indigo-600 border border-gray-300">{{ num }}</span>
+            {% else %}
+                <a href="?page={{ num }}" class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 hover:bg-gray-100 hover:text-gray-700">{{ num }}</a>
+            {% endif %}
+        {% endfor %}
+
+        {% if used_materials.has_next %}
+        <a href="?page={{ used_materials.next_page_number }}" class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 rounded-r-lg hover:bg-gray-100 hover:text-gray-700">
+            <span class="sr-only">Next</span>
+            <i class="fas fa-chevron-right"></i>
+        </a>
+        {% else %}
+        <span class="px-3 py-2 leading-tight text-gray-300 bg-gray-100 border border-gray-300 rounded-r-lg cursor-not-allowed">
+            <span class="sr-only">Next</span>
+            <i class="fas fa-chevron-right"></i>
+        </span>
+        {% endif %}
+    </nav>
+</div>
+
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        // Style Django form fields (Select inputs)
-        const selects = document.querySelectorAll('select, input[type="text"], input[type="number"], textarea');
-        selects.forEach(s => {
-            s.classList.add('mt-1', 'block', 'w-full', 'pl-3', 'pr-3', 'py-2', 'text-base', 'border-gray-300', 'focus:outline-none', 'focus:ring-indigo-500', 'focus:border-indigo-500', 'sm:text-sm', 'rounded-md', 'border', 'shadow-sm');
-        });
-    });
+    // Category options based on material selection
+    const materialCategories = {
+        {% for item in form.material.field.queryset %}
+        '{{ item.id }}': '{{ item.category }}',
+        {% endfor %}
+    };
 
-    function openEditModal(id, materialId, quantity, address, issue) {
-        document.getElementById('editUmId').value = id;
-
-        const qtyInput = document.querySelector('#editModal input[name="quantity"]');
-        if (qtyInput) qtyInput.value = quantity;
-
-        const addrInput = document.querySelector('#editModal input[name="address"], #editModal textarea[name="address"]');
-        if (addrInput) addrInput.value = address || '';
-
-        const issueInput = document.querySelector('#editModal input[name="issue"], #editModal textarea[name="issue"]');
-        if (issueInput) issueInput.value = issue || '';
-
-        const matSelect = document.querySelector('#editModal select[name="material"]');
-        if (matSelect) matSelect.value = materialId;
-
-        document.getElementById('editModal').classList.remove('hidden');
+    // Modal Functions
+    function openAddModal() {
+        document.getElementById('modalTitle').textContent = 'Add Used Material';
+        document.getElementById('modalAction').value = 'create';
+        document.getElementById('modalUmId').value = '';
+        resetForm();
+        document.getElementById('addEditModal').classList.remove('hidden');
     }
 
-    // Close modals when clicking outside
-    window.onclick = function (event) {
-        const editModal = document.getElementById('editModal');
-        if (event.target == editModal) {
-            editModal.classList.add('hidden');
+    function openEditModal(umId) {
+        document.getElementById('modalTitle').textContent = 'Edit Used Material';
+        document.getElementById('modalAction').value = 'edit';
+        document.getElementById('modalUmId').value = umId;
+        loadFormData(umId);
+        document.getElementById('addEditModal').classList.remove('hidden');
+    }
+
+    function resetForm() {
+        const form = document.querySelector('form[method="POST"]');
+        if (form) {
+            form.reset();
+            updateCategory();
         }
     }
+
+    function loadFormData(umId) {
+        // Fetch the specific used material data
+        fetch(`/api/used-materials/${umId}/`, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('id_material').value = data.material;
+            document.getElementById('id_client_name').value = data.client_name || '';
+            document.getElementById('id_client_phone').value = data.client_phone || '';
+            document.getElementById('id_client_address').value = data.client_address || '';
+            document.getElementById('id_quantity').value = data.quantity;
+            document.getElementById('id_issue').value = data.issue || '';
+            document.getElementById('id_status').value = data.status;
+            updateCategory();
+        })
+        .catch(error => {
+            console.error('Error loading form data:', error);
+            alert('Error loading used material data. Please refresh and try again.');
+        });
+    }
+
+    function updateCategory() {
+        const materialSelect = document.getElementById('id_material');
+        const selectedOption = materialSelect.options[materialSelect.selectedIndex];
+        const categoryDisplay = document.getElementById('categoryDisplay');
+        
+        if (selectedOption && selectedOption.value) {
+            // Try to get category from data attribute first
+            let category = selectedOption.getAttribute('data-category');
+            
+            // Fallback to materialCategories object
+            if (!category && materialCategories[selectedOption.value]) {
+                category = materialCategories[selectedOption.value];
+            }
+            
+            if (category) {
+                categoryDisplay.textContent = category;
+                categoryDisplay.classList.remove('text-gray-600');
+                categoryDisplay.classList.add('text-indigo-700', 'font-semibold');
+            } else {
+                categoryDisplay.textContent = '-';
+                categoryDisplay.classList.add('text-gray-600');
+                categoryDisplay.classList.remove('text-indigo-700', 'font-semibold');
+            }
+        } else {
+            categoryDisplay.textContent = '-';
+            categoryDisplay.classList.add('text-gray-600');
+            categoryDisplay.classList.remove('text-indigo-700', 'font-semibold');
+        }
+    }
+
+    function closeModal() {
+        document.getElementById('addEditModal').classList.add('hidden');
+    }
+
+    function confirmDelete(umId) {
+        document.getElementById('deleteUmId').value = umId;
+        document.getElementById('deleteModal').classList.remove('hidden');
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('deleteModal').classList.add('hidden');
+    }
+
+    // Close modals on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeModal();
+            closeDeleteModal();
+        }
+    });
+
+    // Style Django form fields and attach listeners
+    document.addEventListener('DOMContentLoaded', () => {
+        const inputs = document.querySelectorAll('select, input[type="text"], input[type="tel"], input[type="number"], textarea');
+        inputs.forEach(input => {
+            if (!input.classList.contains('styled')) {
+                input.classList.add('w-full', 'px-4', 'py-3', 'border-2', 'border-gray-300', 'rounded-lg', 'focus:outline-none', 'focus:border-indigo-600', 'focus:ring-2', 'focus:ring-indigo-200', 'transition');
+                input.classList.add('styled');
+            }
+            
+            // Add change listener to material select for auto-category update
+            if (input.id === 'id_material') {
+                input.addEventListener('change', updateCategory);
+            }
+        });
+        
+        // Initial category update
+        updateCategory();
+    });
 </script>
+
+<style>
+    #addEditModal.hidden, #deleteModal.hidden {
+        display: none !important;
+    }
+</style>
 {% endblock %}

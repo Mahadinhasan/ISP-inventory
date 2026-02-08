@@ -25,7 +25,7 @@
         {% endif %}
         <!-- 2. Total User Card -->
         {% if user.userprofile.role == 'Admin' %}
-        <div onclick="document.getElementById('materialsModal').classList.remove('hidden')"
+        <div onclick="showTotalUsers()"
             class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
                 <div class="p-4 bg-blue-100 rounded-full">
@@ -593,13 +593,22 @@
             tr[i].style.display = visible ? "" : "none";
         }
     }
+    //show total users in dashboard with name and role in dashboard
+    function showTotalUsers() {
+        fetch('/api/total-users/')
+            .then(response => response.json())
+            .then(data => {
+                const totalUsersElement = document.getElementById('totalUsers');
+                totalUsersElement.innerHTML = `<i class="fas fa-users text-3xl text-indigo-600"></i><span class="ml-2 text-lg font-medium text-gray-900">${data.total_users} Users</span>`;
+            })
+            .catch(error => console.error('Error fetching total users:', error));
+    }
     // Style form fields in the Add Used Material modal
     document.addEventListener('DOMContentLoaded', () => {
         const formFields = document.querySelectorAll('#addUsedMaterialModal select, #addUsedMaterialModal input[type="number"], #addUsedMaterialModal input[type="text"], #addUsedMaterialModal textarea');
         formFields.forEach(field => {
             field.classList.add('mt-1', 'block', 'w-full', 'pl-3', 'pr-3', 'py-2', 'text-base', 'border-gray-300', 'focus:outline-none', 'focus:ring-indigo-500', 'focus:border-indigo-500', 'sm:text-sm', 'rounded-md', 'border', 'shadow-sm');
         });
-
         // Handle data-redirect cards
         document.querySelectorAll('[data-redirect]').forEach(card => {
             card.addEventListener('click', function () {

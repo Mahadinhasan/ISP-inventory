@@ -7,6 +7,7 @@ class UserProfile(models.Model):
         ('Admin', 'Admin'),
         ('Storekeeper', 'Storekeeper'),
         ('Technician', 'Technician'),
+        ('NOC', 'NOC'),
     ]
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='Technician')
@@ -19,8 +20,8 @@ class Material(models.Model):
         ('Internet', 'Internet'),
         ('Dish', 'Dish'),
     ]
-    name = models.CharField(max_length=100, unique=True)#can't allow duplicate name 
-    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
+    name = models.CharField(max_length=100, unique=True)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)#select field (piece/meter)
     quantity = models.IntegerField(default=0)
     min_stock_level = models.IntegerField(default=10)
     notes = models.TextField(blank=True)
@@ -125,18 +126,6 @@ class MaterialRequest(models.Model):
         if not items:
             return '-'
         return ', '.join([f"{item.quantity}x {item.material.name}" for item in items])  
-    
-class Vendor(models.Model):
-    name = models.CharField(max_length=100)
-    contact_person = models.CharField(max_length=100, blank=True)
-    email = models.EmailField(blank=True)
-    phone = models.CharField(max_length=20, blank=True)
-    address = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-
-    def __str__(self):
-        return self.name
 
 class SystemSetting(models.Model):
     key = models.CharField(max_length=100, unique=True)
@@ -163,24 +152,16 @@ class UsedMaterial(models.Model):
     # Technician and Material References
     technician = models.ForeignKey(User, on_delete=models.CASCADE, related_name='used_materials')
     material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name='used_instances')
-    material_request = models.ForeignKey(MaterialRequest, on_delete=models.SET_NULL, null=True, blank=True, related_name='used_materials')
-    
-    # Material Details (auto-populated from Material model)
-    # category is accessed via material.category property
-    
     # Client Information
     client_name = models.CharField(max_length=200, blank=True, verbose_name='Client Name')
     client_address = models.TextField(blank=True, verbose_name='Client Address')
     client_phone = models.CharField(max_length=20, blank=True, verbose_name='Client Phone')
-    
     # Material Usage Details
     quantity = models.IntegerField(default=1)
     issue = models.TextField(blank=True, verbose_name='Technical Issue / Notes')
-    
     # Status and Notes
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
     admin_note = models.TextField(blank=True, verbose_name='Admin Notes')
-    
     # Timestamps
     added_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -202,7 +183,7 @@ class UsedMaterial(models.Model):
     
     @property
     def material_name(self):
-        """Return the name of the related material."""
+        """Return the name of the related material from Material model."""
         return self.material.name if self.material else ''
     
     @property
@@ -212,3 +193,10 @@ class UsedMaterial(models.Model):
     
     def __str__(self):
         return f"{self.technician_full_name} - {self.material_name} ({self.quantity}x) - {self.added_at.strftime('%Y-%m-%d')}"
+    
+class backupandrestore(models.Model):
+    backup_file = models.FileField(upload_to='backups/')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Backup from {self.created_at.strftime('%Y-%m-%d %H:%M:%S')}"
