@@ -5,7 +5,7 @@ from .models import Material, Task, MaterialRequest, SystemSetting, Notification
 from .utils import ensure_userprofile
 
 class RegisterForm(UserCreationForm):
-    ROLE_CHOICES = [('Technician', 'Technician'), ('Storekeeper', 'Storekeeper'), ('Admin', 'Admin'), ('NOC', 'NOC')]
+    ROLE_CHOICES = [('Branch', 'Branch'), ('Storekeeper', 'Storekeeper'), ('Admin', 'Admin'), ('NOC', 'NOC')]
     role = forms.ChoiceField(choices=ROLE_CHOICES)
     class Meta:
         model = User
@@ -47,15 +47,15 @@ class MaterialForm(forms.ModelForm):
                 if is_new and 'status' in self.fields:
                     del self.fields['status']
             
-            # Technicians cannot edit status at all
-            if role == 'Technician':
+            # Branch cannot edit status at all
+            if role == 'Branch':
                 if 'status' in self.fields:
                     self.fields['status'].disabled = True
 
 class TaskForm(forms.ModelForm):
     class Meta:
         model = Task
-        fields = ['title', 'customer', 'address', 'technician']
+        fields = ['title', 'customer', 'address', 'Branch']
 
 class RequestForm(forms.ModelForm):
     class Meta:
@@ -78,7 +78,7 @@ class NotificationSettingForm(forms.ModelForm):
     class Meta:
         model = NotificationSetting
         fields = ['email_notifications', 'low_stock_alert', 'new_request_alert', 'task_assignment_alert']
-#Materials name filter for technician use only approved materials
+#Materials name filter for Branch use only approved materials
 class UsedMaterialForm(forms.ModelForm):
     class Meta:
         model = UsedMaterial
@@ -133,8 +133,8 @@ class UsedMaterialForm(forms.ModelForm):
         if user:
             try:
                 profile = ensure_userprofile(user)
-                if profile and profile.role == 'Technician':
-                    # Filter to only show materials that have been approved for this technician
+                if profile and profile.role == 'Branch':
+                    # Filter to only show materials that have been approved for this Branch
                     approved_requests = MaterialRequest.objects.filter(
                         requester=user, 
                         status='Approved'
@@ -162,7 +162,7 @@ class UsedMaterialForm(forms.ModelForm):
     
     
     def clean_material(self):
-        """Validate that technician only selects approved materials with Normal status"""
+        """Validate that Branch only selects approved materials with Normal status"""
         material = self.cleaned_data.get('material')
         
         if not material:
@@ -174,17 +174,17 @@ class UsedMaterialForm(forms.ModelForm):
                 f"Can only use materials with Normal status. '{material.name}' has status: {material.status}"
             )
         
-        # Only validate approval for Technicians
+        # Only validate approval for Branch
         if self.user:
             try:
                 profile = ensure_userprofile(self.user)
-                if profile and profile.role == 'Technician':
+                if profile and profile.role == 'Branch':
                     # For edit: allow the currently selected material even if no longer approved
                     if self.instance and self.instance.pk:
                         if material.id == self.instance.material.id:
                             return material
                     
-                    # Check if the selected material is in approved materials for this technician
+                    # Check if the selected material is in approved materials for this Branch
                     approved_material_ids = MaterialRequest.objects.filter(
                         requester=self.user,
                         status='Approved'

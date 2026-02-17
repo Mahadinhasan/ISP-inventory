@@ -15,6 +15,7 @@ from django.core.management import call_command
 import json
 from io import StringIO
 from django.core.paginator import Paginator
+import requests
 
 def register_view(request):
     if request.method == 'POST':
@@ -23,7 +24,7 @@ def register_view(request):
             user = form.save()
             # Ensure role groups exist and add user to selected group
             role = form.cleaned_data.get('role')
-            for r in ['Admin', 'Storekeeper', 'Technician', 'NOC']:
+            for r in ['Admin', 'Storekeeper', 'Branch', 'NOC']:
                 Group.objects.get_or_create(name=r)
             if role:
                 grp = Group.objects.get(name=role)
@@ -68,12 +69,11 @@ def logout_view(request):
 @login_required
 def dashboard(request):
     profile = ensure_userprofile(request.user)
-    role = profile.role if profile else 'Technician'
+    role = profile.role if profile else 'Branch'
 
-    # Role-specific total materials count
-    # Request send by technician materials approved by admin and auto update total materials count unique materials False
-    if role == 'Technician':
-        # For Technician: Count all approved requests with Normal stock status (not unique materials)
+    # Request send by Branch materials approved by admin and auto update total materials count unique materials False
+    if role == 'Branch':
+        # For Branch: Count all approved requests with Normal stock status (not unique materials)
         total_materials = MaterialRequest.objects.filter(
             requester=request.user, 
             status='Approved',
@@ -84,19 +84,19 @@ def dashboard(request):
         total_materials = Material.objects.count()
     
     active_tasks = Task.objects.filter(status='In Progress').count()
-    pending_requests = MaterialRequest.objects.filter(status='Pending').count()
-    
+    pending_requests = MaterialRequest.objects.filter(status='Pending', requester=request.user).count()
+
     # Data for dashboard modals - Role-specific
     all_tasks = Task.objects.all().order_by('-created_at')
-    all_requests = MaterialRequest.objects.all().order_by('-requested_at')
+    all_requests = MaterialRequest.objects.filter(requester=request.user).order_by('-requested_at')
     all_used_materials = UsedMaterial.objects.all().select_related('technician', 'material').order_by('-added_at')
     
     # Role-specific material data for the materials modal
     technician_approved_materials = None
     all_materials = None
     
-    if role == 'Technician':
-        # For Technicians: Get approved MaterialRequest objects with Normal stock status only
+    if role == 'Branch':
+        # For Branch: Get approved MaterialRequest objects with Normal stock status only
         technician_approved_materials = MaterialRequest.objects.filter(
             requester=request.user,
             status='Approved',
@@ -106,12 +106,12 @@ def dashboard(request):
         # For Admin & Storekeeper: Get all materials
         all_materials = Material.objects.all().order_by('-added_at')
     
-    # Technician specific stats
+    # Branch specific stats
     my_stock_count = 0
     used_materials_count = 0
     used_material_form = None
     
-    if role == 'Technician':
+    if role == 'Branch':
         # Calculate stock: Approved Requests (In) - Used Materials (Out)
         total_in = MaterialRequest.objects.filter(requester=request.user, status='Approved').aggregate(s=Sum('quantity'))['s'] or 0
         total_out = UsedMaterial.objects.filter(technician=request.user).aggregate(s=Sum('quantity'))['s'] or 0
@@ -153,7 +153,7 @@ def materials_view(request):
 
     # Ensure a UserProfile exists and read role
     profile = ensure_userprofile(request.user)
-    role = profile.role if profile else 'Technician'
+    role = profile.role if profile else 'Branch'
 
     #Pagination added
     paginator = Paginator(materials,10)  # Show 10 materials per page
@@ -182,8 +182,8 @@ def materials_view(request):
         db_status = status_map.get(stock_status, stock_status)
         materials = materials.filter(status=db_status)
     
-    # Technician: only see their own rows (added_by stored as username)
-    if role == 'Technician':
+    # Branch: only see their own rows (added_by stored as username)
+    if role == 'Branch':
         materials = materials.filter(added_by=request.user.username)
 
     if request.method == 'POST':
@@ -191,16 +191,16 @@ def materials_view(request):
         action = request.POST.get('action')
 
         # Delete action
-        if action == 'delete' and role in ['Storekeeper', 'Technician']:
+        if action == 'delete' and role in ['Storekeeper', 'Branch']:
             material = get_object_or_404(Material, id=material_id)
-            if role == 'Technician' and material.added_by != request.user.username:
+            if role == 'Branch' and material.added_by != request.user.username:
                 messages.error(request, "You can only delete your own materials!")
             else:
                 material.delete()
                 messages.success(request, "Material deleted!")
             return redirect('materials')
 
-        # Technician 'use material' action (atomic, race-safe)
+        # Branch 'use material' action (atomic, race-safe)
         if action == 'use_material':
             qty = request.POST.get('use_quantity')
             try:
@@ -210,8 +210,8 @@ def materials_view(request):
                 return redirect('materials')
 
             # Role check (use profile computed above)
-            if role != 'Technician':
-                messages.error(request, "Only Technicians can use materials this way.")
+            if role != 'Branch':
+                messages.error(request, "Only Branch users can use materials this way.")
                 return redirect('materials')
 
             if qty <= 0:
@@ -296,10 +296,10 @@ def material_json(request, pk):
     except Material.DoesNotExist:
         return JsonResponse({'error': 'Material not found'}, status=404)
 
-    # Basic permission: Technicians should only fetch their own materials
+    # Basic permission: Branch should only fetch their own materials
     profile = ensure_userprofile(request.user)
-    role = profile.role if profile else 'Technician'
-    if role == 'Technician' and mat.added_by != request.user.username:
+    role = profile.role if profile else 'Branch'
+    if role == 'Branch' and mat.added_by != request.user.username:
         return JsonResponse({'error': 'Permission denied'}, status=403)
 
     data = {
@@ -316,22 +316,19 @@ def material_json(request, pk):
 @login_required
 def tasks_view(request):
     profile = ensure_userprofile(request.user)
-    role = profile.role if profile else 'Technician'
+    role = profile.role if profile else 'Branch'
 
-    # Filter permissions
-    if role == 'Technician':
-        # Technicians see tasks assigned to them
-        tasks = Task.objects.filter(technician=request.user)
+    if role == 'Branch':
+        tasks = Task.objects.filter(technician=request.user).order_by('-created_at')
     else:
-        # Admin/Storekeeper see all
-        tasks = Task.objects.all()
+        tasks = Task.objects.all().order_by('-created_at')
 
     if request.method == 'POST':
         action = request.POST.get('action')
         
         if action == 'create':
-            if role == 'Technician':
-                 messages.error(request, "Technicians cannot create tasks.")
+            if role == 'Branch':
+                 messages.error(request, "Branch users cannot create tasks.")
                  return redirect('tasks')
             form = TaskForm(request.POST)
             if form.is_valid():
@@ -345,7 +342,7 @@ def tasks_view(request):
             try:
                 task = Task.objects.get(pk=task_id)
                 # Permission check
-                if role == 'Technician' and task.technician != request.user:
+                if role == 'Branch' and task.requester != request.user:
                     messages.error(request, "Permission denied.")
                 else:
                     task.status = new_status
@@ -375,12 +372,20 @@ def tasks_view(request):
 
 @login_required
 def requests_view(request):
-    base_requests = MaterialRequest.objects.all().order_by('-requested_at')
+    base_requests = MaterialRequest.objects.filter(requester=request.user).order_by('-requested_at')
     profile = ensure_userprofile(request.user)
-    role = profile.role if profile else 'Technician'
+    role = profile.role if profile else 'Branch'
     
+    # For Admin/Storekeeper, show all requests instead of just their own
+    if role in ['Admin', 'Storekeeper']:
+        base_requests = MaterialRequest.objects.all().order_by('-requested_at')
+
+    #Request count (pending/approved/rejected)
+    pending_count = base_requests.filter(status='Pending').count()
+    approved_count = base_requests.filter(status='Approved').count()
+    rejected_count = base_requests.filter(status='Rejected').count()
     # Get users for dropdown
-    users = User.objects.all() if role in ['Admin', 'Storekeeper'] else User.objects.filter(userprofile__role='Technician')
+    users = User.objects.all() if role in ['Admin', 'Storekeeper'] else User.objects.filter(userprofile__role='Branch')
 
     # Search Logic - apply BEFORE pagination
     search_query = request.GET.get('search', '').strip()
@@ -407,7 +412,7 @@ def requests_view(request):
         # Create Request
         if action == 'create':
             if role in ['Admin', 'Storekeeper']:
-                 messages.error(request, "Only Technicians can submit requests.")
+                 messages.error(request, "Only Branch users can submit requests.")
                  return redirect('requests')
 
             form = RequestForm(request.POST)
@@ -535,6 +540,9 @@ def requests_view(request):
         form = RequestForm()
 
     return render(request, 'inventory/requests.html', {
+        'pending_count': pending_count,
+        'approved_count': approved_count,
+        'rejected_count': rejected_count,
         'requests': requests_page, 
         'form': form,
         'role': role,
@@ -593,7 +601,7 @@ def reports_view(request):
 @login_required
 def settings_view(request):
     # Ensure role groups exist
-    ROLE_GROUPS = ['Admin', 'Storekeeper', 'Technician', 'NOC']
+    ROLE_GROUPS = ['Admin', 'Storekeeper', 'Branch', 'NOC']
     for r in ROLE_GROUPS:
         Group.objects.get_or_create(name=r)
 
@@ -610,7 +618,7 @@ def settings_view(request):
 
     # Use User queryset for compatibility with existing template which expects User objects
     users = User.objects.all().select_related('userprofile')
-    default_group = Group.objects.get(name='Technician')
+    default_group = Group.objects.get(name='Branch')
     # Ensure every user has a UserProfile and at least one role-group
     for u in users:
         # create UserProfile if missing, prefilling role from first role-group if available
@@ -746,38 +754,38 @@ def settings_view(request):
 @login_required
 def used_materials_view(request):
     profile = ensure_userprofile(request.user)
-    role = profile.role if profile else 'Technician'
+    role = profile.role if profile else 'Branch'
 
     #pagination added
     used_materials = UsedMaterial.objects.filter(technician=request.user).order_by('-added_at')
     paginator = Paginator(used_materials, 10)  # Show 10 records per page
     page_number = request.GET.get('page')
 
-    # Strict permission: Only Technicians can access this page
-    if role != 'Technician':
-        messages.error(request, "Access restricted to Technicians only.")
+    # Strict permission: Only Branch users can access this page
+    if role != 'Branch':
+        messages.error(request, "Access restricted to Branch users only.")
         return redirect('dashboard')
     
-    # Fetch UsedMaterial records for this technician on approval data can import material request link
+    # Fetch UsedMaterial records for this Branch on approval data can import material request link
     used_materials = UsedMaterial.objects.filter(technician=request.user).order_by('-added_at')
 
     if request.method == 'POST':
         action = request.POST.get('action')
         
         if action == 'create':
-            if role != 'Technician':
-                messages.error(request, "Only Technicians can add Used Materials.")
+            if role != 'Branch':
+                messages.error(request, "Only Branch users can add Used Materials.")
                 return redirect('used_materials')
             
             form = UsedMaterialForm(request.POST, user=request.user)
             if form.is_valid():
-                # Additional security check: Verify material is approved for this technician
+                # Additional security check: Verify material is approved for this Branch
                 material = form.cleaned_data.get('material')
                 
                 approved_material_ids = MaterialRequest.objects.filter(
                     requester=request.user,
                     material__status='Normal'
-                ).values_list('material', flat=True).distinct() # Get list of approved material IDs for this technician
+                ).values_list('material', flat=True).distinct() # Get list of approved material IDs for this Branch
                 
                 if material and material.id in approved_material_ids:
                     um = form.save(commit=False)
@@ -797,7 +805,7 @@ def used_materials_view(request):
                 um = UsedMaterial.objects.get(pk=um_id, technician=request.user)
                 form = UsedMaterialForm(request.POST, instance=um, user=request.user)
                 if form.is_valid():
-                    # Additional security check: Verify material is approved for this technician
+                    # Additional security check: Verify material is approved for this Branch
                     material = form.cleaned_data.get('material')
                     
                     approved_material_ids = MaterialRequest.objects.filter(
@@ -869,7 +877,7 @@ def manage_used_material(request, pk):
     - Reject them with notes
     """
     profile = ensure_userprofile(request.user)
-    role = profile.role if profile else 'Technician'
+    role = profile.role if profile else 'Branch'
     
     # Permission check: Only Admin and Storekeeper can approve
     if role not in ['Admin', 'Storekeeper']:
@@ -953,3 +961,68 @@ def manage_used_material(request, pk):
         'used_material': used_material,
         'role': role,
     })
+
+
+@login_required
+def pending_requests_api(request):
+    """
+    API endpoint to fetch pending requests with count and ordering.
+    Returns JSON data with:
+    - List of pending material requests ordered by requested_at (newest first)
+    - Total count of pending requests
+    - Count of pending requests by user
+    """
+    profile = ensure_userprofile(request.user)
+    role = profile.role if profile else 'Branch'
+    
+    try:
+        # Get pending requests ordered by most recent first
+        pending_requests = MaterialRequest.objects.filter(
+            status='Pending'
+        ).select_related('requester', 'material').order_by('-requested_at')
+        
+        # For non-admin users, optionally filter to their own requests
+        show_all = request.GET.get('show_all', 'true').lower() == 'true'
+        if not show_all and role == 'Branch':
+            pending_requests = pending_requests.filter(requester=request.user)
+        
+        # Pagination
+        page_size = int(request.GET.get('page_size', 10))
+        page_number = int(request.GET.get('page', 1))
+        
+        paginator = Paginator(pending_requests, page_size)
+        page_obj = paginator.get_page(page_number)
+        
+        # Build request data
+        requests_data = []
+        for req in page_obj:
+            requests_data.append({
+                'id': req.id,
+                'requester': req.requester.get_full_name() or req.requester.username,
+                'requester_username': req.requester.username,
+                'material_name': req.material.name,
+                'material_id': req.material.id,
+                'quantity': req.quantity,
+                'requested_at': req.requested_at.isoformat(),
+                'requested_at_display': req.requested_at.strftime('%Y-%m-%d %H:%M'),
+                'status': req.status,
+                'notes': req.notes or '',
+            })
+        
+        # Return JSON response with metadata
+        return JsonResponse({
+            'success': True,
+            'data': requests_data,
+            'count': paginator.count,
+            'total_pages': paginator.num_pages,
+            'current_page': page_number,
+            'page_size': page_size,
+            'has_next': page_obj.has_next(),
+            'has_previous': page_obj.has_previous(),
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)

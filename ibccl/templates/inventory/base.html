@@ -82,8 +82,8 @@
                             class="nav-link border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                             <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
                         </a>
-                        {% if user.userprofile.role != 'Technician' %}
-                        <!--Materials (Hidden for Technicians)-->
+                        {% if user.userprofile.role != 'Branch' %}
+                        <!--Materials (Hidden for Branch)-->
                         <a href="{% url 'materials' %}"
                             class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                             <i class="fas fa-boxes mr-2"></i>Materials
@@ -101,22 +101,24 @@
                             class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                             <i class="fas fa-clipboard-list mr-2"></i>Request
                         </a>
+                        <!--Used Materials-->
+                        {% if user.userprofile.role == 'Branch' %}
+                        <a href="{% url 'used_materials' %}"
+                            class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <i class="fas fa-history mr-2"></i>Used Material
+                        </a>
+                        {% endif %}
                         <!--Report-->
                         <a href="{% url 'reports' %}"
                             class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                             <i class="fas fa-file-alt mr-2"></i>Report
-                        </a>
-                        <!--Log history-->
-                        <a href="#"
-                            class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            <i class="fas fa-history mr-2"></i>Log History
                         </a>
                         <!--Notification-->
                         <a href="#"
                             class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                             <i class="fas fa-bell mr-2"></i>Notification
                         </a>
-                        {% if user.userprofile.role != 'Technician' and user.userprofile.role != 'Storekeeper' %}
+                        {% if user.userprofile.role != 'Branch' and user.userprofile.role != 'Storekeeper' %}
                         {% if user.is_superuser %}
                         <!--Settings (Admin only)-->
                         <a href="{% url 'settings' %}"
@@ -239,7 +241,7 @@
             <div class="pt-2 pb-3 space-y-1">
                 <a href="{% url 'dashboard' %}"
                     class="block pl-3 pr-4 py-2 border-l-4 border-indigo-500 text-base font-medium text-indigo-700 bg-indigo-50">Dashboard</a>
-                {% if user.userprofile.role != 'Technician' %}
+                {% if user.userprofile.role != 'Branch' %}
                 <a href="{% url 'materials' %}"
                     class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Materials</a>
                 {% endif %}
@@ -249,13 +251,13 @@
                 {% endif %}
                 <a href="{% url 'requests' %}"
                     class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Request</a>
+                <a href="{% url 'used_materials' %}"
+                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Used Materials</a>
                 <a href="{% url 'reports' %}"
                     class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Report</a>
                 <a href="#"
-                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Log History</a>
-                <a href="#"
                     class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Notification</a>
-                {% if user.userprofile.role != 'Technician' and user.userprofile.role != 'Storekeeper' %}
+                {% if user.userprofile.role != 'Branch' and user.userprofile.role != 'Storekeeper' %}
                 {% if user.is_superuser %}
                 <a href="{% url 'settings' %}"
                     class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Settings</a>
@@ -278,6 +280,13 @@
         {% block content %}{% endblock %}
     </main>
 
+<!--added footer-->
+    <footer class="bg-white shadow-inner border-t border-gray-200 mt-10">
+        <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-500">
+            &copy; <span class="current-year"></span> ISP Inventory System. All rights reserved.
+        </div>
+    </footer>
+
     <script>
         // NavLink active state
         document.querySelectorAll('.nav-link').forEach(link => {
@@ -287,6 +296,11 @@
             }
         });
 
+        //current year for footer
+        const year = new Date().getFullYear();
+        document.querySelectorAll('.current-year').forEach(el => {
+            el.textContent = year;
+        });
         // Profile Dropdown Toggle
         function toggleProfileMenu() {
             const dropdown = document.getElementById('profile-dropdown');

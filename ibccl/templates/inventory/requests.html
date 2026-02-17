@@ -6,7 +6,7 @@
     <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div>
             <h1 class="text-4xl font-bold text-gray-900">Material Requests</h1>
-            <p class="text-gray-600">Manage technician material requests</p>
+            <p class="text-gray-600">Manage branch material requests</p>
         </div>
         
         <div class="flex gap-2">
@@ -18,7 +18,7 @@
                     <i class="fas fa-search"></i>
                 </button>
             </form>
-            {% if role == 'Technician' %}
+            {% if role == 'Branch' %}
             <button onclick="document.getElementById('requestModal').classList.remove('hidden')"
                 class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition shadow-lg hover:shadow-xl transform hover:-translate-y-1">
                 <i class="fas fa-plus mr-2"></i>Request Material
@@ -30,53 +30,66 @@
                 <select name="user" onchange="this.form.submit()"
                     class="border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="">All Users</option>
-                    {% for u in users %}
-                    <option value="{{ u.id }}" {% if request.GET.user == u.id|stringformat:"s" %}selected{% endif %}>
-                        {{ u.get_full_name|default:u.username }}</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}" {% if request.GET.user == user.id %}selected{% endif %}>
+                        {{ user.get_full_name|default:user.username }}</option>
                     {% endfor %}
                 </select>
             </form>
             {% endif %}
         </div>
     </div>
+    <!--Request count-->
+    <div class="flex gap-4 mb-6">
+        <div class="px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg border border-yellow-200 flex items-center gap-2">
+            <i class="fas fa-hourglass-half"></i> Pending: {{ pending_count }}
+        </div>
+        <div class="px-4 py-2 bg-green-100 text-green-800 rounded-lg border border-green-200 flex items-center gap-2">
+            <i class="fas fa-check"></i> Approved: {{ approved_count }}
+        </div>
+        <div class="px-4 py-2 bg-red-100 text-red-800 rounded-lg border border-red-200 flex items-center gap-2">
+            <i class="fas fa-times"></i> Rejected: {{ rejected_count }}
+        </div>
+    </div>
+    <!-----------Table----------->
     <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request
+                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request
                         ID</th>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requester
+                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requester
                     </th>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User
+                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User
                         Note</th>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Material
+                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Material
                     </th>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Admin Note</th>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
+                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Admin Note</th>
+                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                     {% if role == 'Admin' %}
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     {% endif %}
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for req in requests %}
                 <tr class="hover:bg-gray-50 transition duration-150">
-                    <td class="px-6 py-4 text-sm font-medium text-gray-900">REQ-{{ req.id|stringformat:"03d" }}</td>
-                    <td class="px-6 py-4 text-sm text-gray-600 flex items-center">
+                    <td class="px-4 py-4 text-sm font-medium text-gray-900">REQ-{{ req.id|stringformat:"03d" }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-600 flex items-center">
                         <div
                             class="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center mr-2 text-blue-600 text-xs">
                             <i class="fas fa-user"></i>
                         </div>
                         {{ req.requester.get_full_name|default:req.requester.username }}
                     </td>
-                    <td class="px-6 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.user_note|default:"N/A" }}</td>
-                    <td class="px-6 py-4 text-sm text-gray-900">{{ req.material.name }}</td>
-                    <td class="px-6 py-4 text-sm font-bold text-gray-900 bg-gray-50 rounded text-center">{{ req.quantity }}</td>
-                    <td class="px-6 py-4 text-sm text-gray-600">{{ req.requested_at|date:"Y-M-d,H:s" }}</td>
-                    <td class="px-6 py-4">
+                    <td class="px-4 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.user_note|default:"N/A" }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900">{{ req.material.name }}</td>
+                    <td class="px-4 py-4 text-sm font-bold text-gray-900 bg-gray-50 rounded text-center">{{ req.quantity }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-600">{{ req.requested_at|date:"Y-M-d,H:s" }}</td>
+                    <td class="px-4 py-4">
                         <span class="px-3 py-1 text-xs font-semibold rounded-full border 
                             {% if req.status == 'Pending' %}bg-yellow-100 text-yellow-800 border-yellow-200
                             {% elif req.status == 'Approved' %}bg-green-100 text-green-800 border-green-200
@@ -84,7 +97,7 @@
                             {{ req.status }}
                         </span>
                     </td>
-                    <td class="px-6 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.admin_note|default:"N/A" }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.admin_note|default:"N/A" }}</td>
                     <td class="px-5 py-3 text-sm text-gray-900">
                         <span class="px-3 py-1 text-xs font-bold rounded-full bg-blue-100 text-blue-800 border border-blue-300">
                             <i class="fas fa-envelope mr-1"></i>Regular
@@ -265,7 +278,7 @@
 </div>
 
 <!-- Pagination Controls -->
-<div class="flex justify-center mt-6">
+<div class="flex justify-end mt-6">
     <nav class="inline-flex -space-x-px" aria-label="Pagination">
         {% if page_obj.has_previous %}
         <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}page={{ page_obj.previous_page_number }}"

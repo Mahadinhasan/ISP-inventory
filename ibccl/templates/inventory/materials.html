@@ -13,14 +13,19 @@
     </button>
     {% endif %}
     <!--Materials count normal/Low stock/Out of stock-->
-    <div class="mb-4 text-sm text-gray-600">
-        {% if role == 'Admin' or role == 'Storekeeper' %}
-        <span class="mr-3">Total Normal Stock: {{ total_normal_stock }}</span>
-        <span class="mr-3">Total Low Stock: {{ total_low_stock }}</span>
-        <span class="mr-3">Total Out of Stock: {{ total_out_of_stock }}</span>
-        {% endif %}
-    </div>  
-
+     {% if role == 'Admin' or role == 'Storekeeper' %}
+      <div class="flex gap-4 mb-6">
+        <div class="px-4 py-2 bg-green-100 text-green-800 rounded-lg border border-green-200 flex items-center gap-2">
+            <i class="fas fa-info-circle"></i>Total Normal Stock: {{ total_normal_stock }}
+        </div>
+        <div class="px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg border border-yellow-200 flex items-center gap-2">
+            <i class="fas fa-check-circle"></i> Total Low Stock: {{ total_low_stock }}
+        </div>
+        <div class="px-4 py-2 bg-red-100 text-red-800 rounded-lg border border-red-200 flex items-center gap-2">
+            <i class="fas fa-times-circle"></i> Total Out of Stock: {{ total_out_of_stock }}
+        </div>
+    </div>
+    {% endif %}
     <!--Filter-->
     <form method="get" class="mb-8 grid grid-cols-1 md:grid-cols-4 gap-4">
         <input type="text" name="search" value="{{ search }}" placeholder="Search..."
@@ -171,7 +176,7 @@
     </div>
 </div>
 <!--Pagination Controls -->
-<div class="flex justify-center mt-4">
+<div class="flex justify-end mt-4">
     <nav class="inline-flex">
         {% if materials_page.has_previous %}
         <a href="?page=1" class="px-3 py-1 border border-gray-300 text-sm font-medium text-gray-500 hover:bg-gray-100">First</a>

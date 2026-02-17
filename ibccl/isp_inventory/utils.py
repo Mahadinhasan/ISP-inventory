@@ -1,7 +1,7 @@
 from django.contrib.auth.models import Group
 from .models import UserProfile
 
-ROLE_GROUPS = ['Admin', 'Storekeeper', 'Technician']
+ROLE_GROUPS = ['Admin', 'Storekeeper', 'Branch', 'NOC']
 
 
 def ensure_userprofile(user):
@@ -10,7 +10,7 @@ def ensure_userprofile(user):
     This function is defensive: it handles the case where the reverse
     OneToOne accessor (`user.userprofile`) does not exist yet and will
     create a `UserProfile` using the first matching role-group or the
-    default role `'Technician'`.
+    default role `'Branch'`.
     """
     if user is None or user.pk is None:
         return None
@@ -33,7 +33,7 @@ def ensure_userprofile(user):
         role_name = None
 
     if not role_name:
-        role_name = 'Technician'
+        role_name = 'Branch'
 
     profile, _ = UserProfile.objects.get_or_create(user=user, defaults={'role': role_name})
     return profile
