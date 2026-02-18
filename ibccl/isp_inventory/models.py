@@ -103,12 +103,14 @@ class Task(models.Model):
 
 class MaterialRequest(models.Model):
     STATUS_CHOICES = [('Pending', 'Pending'), ('Approved', 'Approved'), ('Rejected', 'Rejected')]
+    REQUEST_TYPE_CHOICES = [('Regular', 'Regular'), ('Advance', 'Advance')]
     material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name='material_requests')
     requester = models.ForeignKey(User, on_delete=models.CASCADE, related_name='material_requests')
     quantity = models.IntegerField()
     notes = models.TextField(blank=True) # Deprecated logic potentially, but keeping for compatibility
     user_note = models.TextField(blank=True) # Explicit User Note
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    request_type = models.CharField(max_length=20, choices=REQUEST_TYPE_CHOICES, default='Regular')  # Regular or Advance
     admin_note = models.CharField(max_length=200, blank=True) #material quantity update note
     requested_at = models.DateTimeField(auto_now_add=True)
 

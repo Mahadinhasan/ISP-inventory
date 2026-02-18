@@ -14,7 +14,6 @@ urlpatterns = [
     path('reports/', views.reports_view, name='reports'),
     path('used-materials/', views.used_materials_view, name='used_materials'),
     path('api/used-materials/<int:pk>/', views.get_used_material_api, name='get_used_material_api'),
-    path('used-materials/<int:pk>/manage/', views.manage_used_material, name='manage_used_material'),
     path('api/pending-requests/', views.pending_requests_api, name='pending_requests_api'),
 
 ]

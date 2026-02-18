@@ -207,7 +207,7 @@
 │  │ ├─ Search: By requester, material name             │ │
 │  │ └─ Readonly: Count and display properties          │ │
 │  └────────────────────────────────────────────────────┘ │
-│                                                          │
+│                                                         │
 │  STOREKEEPER ROLE:                                      │
 │  ┌────────────────────────────────────────────────────┐ │
 │  │ ✗ Cannot create UsedMaterial                       │ │

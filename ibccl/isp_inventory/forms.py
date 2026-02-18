@@ -60,9 +60,23 @@ class TaskForm(forms.ModelForm):
 class RequestForm(forms.ModelForm):
     class Meta:
         model = MaterialRequest
-        fields = ['material', 'quantity', 'user_note'] 
+        fields = ['material', 'quantity', 'request_type', 'user_note']
         labels = {
             'user_note': 'User Notes',
+            'request_type': 'Request Type',
+        }
+        widgets = {
+            'material': forms.Select(attrs={
+                'class': 'w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2'
+            }),
+            'quantity': forms.NumberInput(attrs={
+                'class': 'w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2'
+            }),
+            'user_note': forms.Textarea(attrs={
+                'class': 'w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2',
+                'rows': 3
+            }),
+            'request_type': forms.HiddenInput(),
         }
 
 class SystemSettingForm(forms.ModelForm):
