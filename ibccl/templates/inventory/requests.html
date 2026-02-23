@@ -64,7 +64,10 @@
             <thead class="bg-gray-50">
                 <tr>
                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request ID</th>
+                    {% if user.userprofile.role == 'Admin' or user.userprofile.role == 'Storekeeper' %}
                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requester</th>
+                    {% endif %}
+                    <!-- <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver</th> -->
                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User Note</th>
                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Material</th>
                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
@@ -72,7 +75,7 @@
                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Admin Note</th>
-                    {% if role == 'Admin' %}
+                    {% if user.userprofile.role == 'Admin' %}
                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     {% endif %}
                 </tr>
@@ -87,12 +90,19 @@
                             REQ-{{req.id|stringformat:"03d"}}
                         {% endif %}
                     </td>
+                    {% if user.userprofile.role == 'Admin' or user.userprofile.role == 'Storekeeper' %}
                     <td class="px-4 py-4 text-sm text-gray-600 flex items-center">
                         <div class="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center mr-2 text-blue-600 text-xs">
                             <i class="fas fa-user"></i>
                         </div>
                         {{ req.requester.get_full_name|default:req.requester.username }}
                     </td>
+                    {% endif %}
+                    <!-- {% if user.userprofile.role == 'Admin' or user.userprofile.role == 'Storekeeper' %}
+                    <td class="px-4 py-4 text-sm text-gray-600 flex items-center">
+                        {{ req.receiver.get_full_name|default:"N/A" }}
+                    </td>
+                    {% endif %} -->
                     <td class="px-4 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.user_note|default:"N/A" }}</td>
                     <td class="px-4 py-4 text-sm text-gray-900">{{ req.material.name }}</td>
                     <td class="px-4 py-4 text-sm font-bold text-gray-900 bg-gray-50 rounded text-center">{{ req.quantity }}</td>
