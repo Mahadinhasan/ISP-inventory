@@ -3,22 +3,24 @@
 {% block content %}
 <div class="fade-in">
     <div class="mb-8">
-        <h1 class="text-4xl font-bold text-gray-900">Dashboard</h1>
-        <p class="mt-2 text-lg text-gray-600">Welcome back, {{ user.get_full_name|default:user.username }}!</p>
+        <div>
+            <h1 class="text-4xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+            <p class="mt-2 text-lg text-gray-600 dark:text-gray-400">Welcome back, {{ user.get_full_name|default:user.username }}!</p>
+        </div>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
         <!-- 1. Total Materials Card -->
         {% if user.userprofile.role != 'Admin' %}
         <div onclick="document.getElementById('materialsModal').classList.remove('hidden')"
-            class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
-                <div class="p-4 bg-blue-100 rounded-full">
-                    <i class="fas fa-box text-3xl text-blue-600"></i>
+                <div class="p-4 bg-blue-100 dark:bg-blue-900 rounded-full">
+                    <i class="fas fa-box text-3xl text-blue-600 dark:text-blue-400"></i>
                 </div>
                 <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600">In stock</p>
-                    <p class="text-4xl font-bold text-gray-900">{{ total_materials }}</p>
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">In stock</p>
+                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ total_materials }}</p>
                 </div>
             </div>
         </div>
@@ -26,14 +28,14 @@
         <!-- 2. Total User Card -->
         {% if user.userprofile.role == 'Admin' %}
         <div onclick="showTotalUsers()"
-            class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
-                <div class="p-4 bg-blue-100 rounded-full">
-                    <i class="fas fa-box text-3xl text-blue-600"></i>
+                <div class="p-4 bg-blue-100 dark:bg-blue-900 rounded-full">
+                    <i class="fas fa-box text-3xl text-blue-600 dark:text-blue-400"></i>
                 </div>
                 <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600">Total User</p>
-                    <p class="text-4xl font-bold text-gray-900">{{ total_users }}</p>
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Total User</p>
+                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ total_users }}</p>
                 </div>
             </div>
         </div>
@@ -41,55 +43,55 @@
         <!-- 3. Active Task Card -->
         {% if user.userprofile.role != 'Storekeeper' %}
         <div onclick="document.getElementById('tasksModal').classList.remove('hidden')"
-            class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
-                <div class="p-4 bg-green-100 rounded-full">
-                    <i class="fas fa-tasks text-3xl text-green-600"></i>
+                <div class="p-4 bg-green-100 dark:bg-green-900 rounded-full">
+                    <i class="fas fa-tasks text-3xl text-green-600 dark:text-green-400"></i>
                 </div>
                 <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600">Active Task</p>
-                    <p class="text-4xl font-bold text-gray-900">{{ active_tasks }}</p>
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Active Task</p>
+                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ active_tasks }}</p>
                 </div>
             </div>
         </div>
         {% endif %}
         <!-- 4. Advance Materials Card -->
         <div onclick="document.getElementById('advanceMaterialsModal').classList.remove('hidden')"
-            class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
-                <div class="p-4 bg-indigo-100 rounded-full">
-                    <i class="fas fa-star text-3xl text-indigo-600"></i>
+                <div class="p-4 bg-indigo-100 dark:bg-indigo-900 rounded-full">
+                    <i class="fas fa-star text-3xl text-indigo-600 dark:text-indigo-400"></i>
                 </div>
                 <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600">Advance Materials</p>
-                    <p class="text-4xl font-bold text-gray-900">{{ advance_materials|length }}</p>
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Advance Materials</p>
+                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ advance_materials|length }}</p>
                 </div>
             </div>
         </div>
         <!-- 5. Pending Request Card -->
         <div onclick="document.getElementById('requestsModal').classList.remove('hidden')"
-            class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
-                <div class="p-4 bg-yellow-100 rounded-full">
-                    <i class="fas fa-clock text-3xl text-yellow-600"></i>
+                <div class="p-4 bg-yellow-100 dark:bg-yellow-900 rounded-full">
+                    <i class="fas fa-clock text-3xl text-yellow-600 dark:text-yellow-400"></i>
                 </div>
                 <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600">Pending Request</p>
-                    <p class="text-4xl font-bold text-gray-900">{{ pending_requests }}</p>
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Pending Request</p>
+                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ pending_requests }}</p>
                 </div>
             </div>
         </div>
 
         <!-- 6. Used Materials Card -->
         <div onclick="window.location.href = '{% url 'used_materials' %}'"
-            class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
-                <div class="p-4 bg-teal-100 rounded-full">
-                    <i class="fas fa-warehouse text-3xl text-teal-600"></i>
+                <div class="p-4 bg-teal-100 dark:bg-teal-900 rounded-full">
+                    <i class="fas fa-warehouse text-3xl text-teal-600 dark:text-teal-400"></i>
                 </div>
                 <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600">Used Materials</p>
-                    <p class="text-4xl font-bold text-gray-900">{{ used_materials_count }}</p>
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Used Materials</p>
+                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ used_materials_count }}</p>
                 </div>
             </div>
         </div>
@@ -713,6 +715,9 @@
         if (selectedTab) {
             selectedTab.classList.remove('hidden');
         }
+
+        //Internal Communication Card show all user massage and announcement
+
         
         // Update button styles
         const advanceBtn = document.getElementById('advanceTabBtn');
@@ -733,4 +738,6 @@
         }
     }
 </script>
+
+
 {% endblock %}

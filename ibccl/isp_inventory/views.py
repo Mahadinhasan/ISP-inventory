@@ -71,6 +71,9 @@ def dashboard(request):
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
 
+    #Internal Communication Card show all user massage and announcement (fetch from external API websocket or database)
+
+
     # Request send by Branch materials approved by admin and auto update total materials count unique materials False
     if role == 'Branch':
         # For Branch: Count all approved requests with Normal stock status (not unique materials)

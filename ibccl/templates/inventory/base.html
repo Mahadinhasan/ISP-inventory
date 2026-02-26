@@ -8,8 +8,26 @@
     <!--added favicon-->
     <link rel="icon" type="image/x-icon" href="{% static 'inventory/favicon.ico' %}">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Configure Tailwind CSS with dark mode support
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {}
+            }
+        }
+    </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
+        /* Enable smooth theme transitions */
+        html {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        body {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
         .fade-in {
             animation: fadeIn 0.2s ease-in;
         }
@@ -60,11 +78,11 @@
     </style>
 </head>
 
-<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 min-h-screen transition-colors duration-300">
 
     {% if user.is_authenticated %}
     <!-- Navigation -->
-    <nav class="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-40">
+    <nav class="bg-white dark:bg-gray-800 shadow-lg border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 transition-colors duration-300">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
                 <!-- Logo and Desktop Menu -->
@@ -175,15 +193,15 @@
                                 </button>
 
                                 <!-- Appearance Submenu (Hidden by default) -->
-                                <div id="appearance-submenu" class="hidden bg-gray-50 border-l-4 border-indigo-500">
-                                    <label class="block px-6 py-2 text-sm text-gray-600 hover:text-gray-900 cursor-pointer">
-                                        <input type="radio" name="appearance" value="light" class="mr-2"> Light Mode
+                                <div id="appearance-submenu" class="hidden bg-gray-50 dark:bg-gray-800 border-l-4 border-indigo-500 transition-colors duration-200">
+                                    <label class="block px-6 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150">
+                                        <input type="radio" name="appearance" value="light" class="mr-2 appearance-theme-radio" data-theme="light"> Light Mode
+                                    </label> 
+                                    <label class="block px-6 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150">
+                                        <input type="radio" name="appearance" value="dark" class="mr-2 appearance-theme-radio" data-theme="dark"> Dark Mode
                                     </label>
-                                    <label class="block px-6 py-2 text-sm text-gray-600 hover:text-gray-900 cursor-pointer">
-                                        <input type="radio" name="appearance" value="dark" class="mr-2"> Dark Mode
-                                    </label>
-                                    <label class="block px-6 py-2 text-sm text-gray-600 hover:text-gray-900 cursor-pointer">
-                                        <input type="radio" name="appearance" value="auto" class="mr-2" checked> Auto
+                                    <label class="block px-6 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150">
+                                        <input type="radio" name="appearance" value="auto" class="mr-2 appearance-theme-radio" data-theme="auto"> Auto
                                     </label>
                                 </div>
 
@@ -323,6 +341,78 @@
             submenu.classList.toggle('hidden');
         }
 
+        // ========== Dark Mode Theme Manager ==========
+        const ThemeManager = {
+            STORAGE_KEY: 'theme-preference',
+            LIGHT: 'light',
+            DARK: 'dark',
+            AUTO: 'auto',
+
+            // Get system preference (respects prefers-color-scheme)
+            getSystemTheme() {
+                return window.matchMedia('(prefers-color-scheme: dark)').matches ? this.DARK : this.LIGHT;
+            },
+
+            // Get effective theme (considering auto mode)
+            getEffectiveTheme(preference) {
+                return preference === this.AUTO ? this.getSystemTheme() : preference;
+            },
+
+            // Apply theme to DOM
+            applyTheme(theme) {
+                const htmlElement = document.documentElement;
+                const effectiveTheme = this.getEffectiveTheme(theme);
+                
+                if (effectiveTheme === this.DARK) {
+                    htmlElement.classList.add('dark');
+                    document.body.style.colorScheme = 'dark';
+                } else {
+                    htmlElement.classList.remove('dark');
+                    document.body.style.colorScheme = 'light';
+                }
+
+                // Update radio button state
+                const radios = document.querySelectorAll('.appearance-theme-radio');
+                radios.forEach(radio => {
+                    radio.checked = radio.dataset.theme === theme;
+                });
+            },
+
+            // Get current preference (from storage)
+            getPreference() {
+                return localStorage.getItem(this.STORAGE_KEY) || this.AUTO;
+            },
+
+            // Save preference to storage
+            savePreference(theme) {
+                localStorage.setItem(this.STORAGE_KEY, theme);
+            },
+
+            // Initialize theme on page load
+            init() {
+                const preference = this.getPreference();
+                this.applyTheme(preference);
+
+                // Listen to system theme changes (when in auto mode)
+                const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+                mediaQuery.addEventListener('change', () => {
+                    const currentPref = this.getPreference();
+                    if (currentPref === this.AUTO) {
+                        this.applyTheme(this.AUTO);
+                    }
+                });
+
+                // Attach event listeners to radio buttons
+                document.querySelectorAll('.appearance-theme-radio').forEach(radio => {
+                    radio.addEventListener('change', (e) => {
+                        const theme = e.target.dataset.theme;
+                        this.savePreference(theme);
+                        this.applyTheme(theme);
+                    });
+                });
+            }
+        };
+
         // Status Menu Toggle
         function toggleStatusMenu() {
             const submenu = document.getElementById('status-submenu');
@@ -357,8 +447,12 @@
             document.getElementById('status-submenu').classList.add('hidden');
         }
 
-        // Initialize status on page load
+        // Initialize theme and status on page load
         document.addEventListener('DOMContentLoaded', function() {
+            // Initialize theme manager
+            ThemeManager.init();
+
+            // Initialize status
             const savedStatus = localStorage.getItem('userStatus') || 'online';
             setStatus(savedStatus);
         });
