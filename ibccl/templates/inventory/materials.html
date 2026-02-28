@@ -34,6 +34,9 @@
             <option value="">All Categories</option>
             <option value="Internet" {% if category == 'Internet' %}selected{% endif %}>Internet</option>
             <option value="Dish" {% if category == 'Dish' %}selected{% endif %}>Dish</option>
+            <option value="Fiber" {% if category == 'Fiber' %}selected{% endif %}>Fiber</option>
+            <option value="Common item" {% if category == 'Common item' %}selected{% endif %}>Common item</option>
+            <option value="Work shop" {% if category == 'Work shop' %}selected{% endif %}>Work shop</option>
         </select>
         <select name="stock_status" class="px-4 py-3 border rounded-lg">
             <option value="">All Stock Status</option>
@@ -65,13 +68,13 @@
             <thead class="bg-gray-50">
                 <tr>
                     <!--Add Checkbox-->
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Materials Name</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock Status</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Balance(Meter/piece)</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Balance</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Min Level</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Added By</th>
                     {% if role == 'Storekeeper' %}
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                     {% endif %}
@@ -80,7 +83,9 @@
             <!--Add Checkbox for select multiple materials-->
             <tbody class="divide-y divide-gray-200">
                 {% for material in materials %}
+                
                 <tr {% if material.stock_status == 'low' %}class="bg-red-50" {% endif %}>  
+                    <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ material.id }}</td>
                     <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ material.name }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">{{ material.category }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">
@@ -99,8 +104,7 @@
                         {% endif %}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">{{ material.min_stock_level }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">{{ material.added_at|date:"Y-m-d H:i" }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">{{ material.added_by_display }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ material.added_at|date:"Y-m-d" }}</td>
                     {% if role == 'Storekeeper' %}
                     <td class="px-6 py-4 whitespace-nowrap">
                         <button onclick="editMaterial('{{ material.id }}')"
@@ -175,17 +179,39 @@
         </div>
     </div>
 </div>
-<!--Pagination Controls -->
-<div class="flex justify-end mt-4">
-    <nav class="inline-flex">
+<!--pagination control-->
+<div class="flex justify-end mt-6">
+    <nav class="inline-flex -space-x-px">
         {% if materials_page.has_previous %}
-        <a href="?page=1" class="px-3 py-1 border border-gray-300 text-sm font-medium text-gray-500 hover:bg-gray-100">First</a>
-        <a href="?page={{ materials_page.previous_page_number }}" class="px-3 py-1 border border-gray-300 text-sm font-medium text-gray-500 hover:bg-gray-100">Previous</a>
+        <a href="?page={{ materials_page.previous_page_number }}" class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 rounded-l-lg hover:bg-gray-100 hover:text-gray-700">
+            <span class="sr-only">Previous</span>
+            <i class="fas fa-chevron-left"></i>
+        </a>
+        {% else %}
+        <span class="px-3 py-2 leading-tight text-gray-300 bg-gray-100 border border-gray-300 rounded-l-lg cursor-not-allowed">
+            <span class="sr-only">Previous</span>
+            <i class="fas fa-chevron-left"></i>
+        </span>
         {% endif %}
-        <span class="px-3 py-1 border border-gray-300 text-sm font-medium text-gray-700">{{ materials_page.number }} of {{ materials_page.paginator.num_pages }}</span>
+
+        {% for num in materials_page.paginator.page_range %}
+            {% if materials_page.number == num %}
+                <span class="px-3 py-2 leading-tight text-white bg-indigo-600 border border-gray-300">{{ num }}</span>
+            {% else %}
+                <a href="?page={{ num }}" class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 hover:bg-gray-100 hover:text-gray-700">{{ num }}</a>
+            {% endif %}
+        {% endfor %}
+
         {% if materials_page.has_next %}
-        <a href="?page={{ materials_page.next_page_number }}" class="px-3 py-1 border border-gray-300 text-sm font-medium text-gray-500 hover:bg-gray-100">Next</a>
-        <a href="?page={{ materials_page.paginator.num_pages }}" class="px-3 py-1 border border-gray-300 text-sm font-medium text-gray-500 hover:bg-gray-100">Last</a>
+        <a href="?page={{ materials_page.next_page_number }}" class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 rounded-r-lg hover:bg-gray-100 hover:text-gray-700">
+            <span class="sr-only">Next</span>
+            <i class="fas fa-chevron-right"></i>
+        </a>
+        {% else %}
+        <span class="px-3 py-2 leading-tight text-gray-300 bg-gray-100 border border-gray-300 rounded-r-lg cursor-not-allowed">
+            <span class="sr-only">Next</span>
+            <i class="fas fa-chevron-right"></i>
+        </span>
         {% endif %}
     </nav>
 </div>
@@ -218,7 +244,6 @@
                 setIf('id_min_stock_level', data.min_stock_level);
                 setIf('id_status', data.status);
                 setIf('id_notes', data.notes);
-                setIf('id_added_by', data.added_by);
             })
             .catch(err => {
                 console.error('Failed to load material data', err);

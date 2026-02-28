@@ -15,42 +15,45 @@ class RegisterForm(UserCreationForm):
 class MaterialForm(forms.ModelForm):
     class Meta:
         model = Material
-        fields = ['name', 'category', 'quantity', 'min_stock_level', 'status', 'added_by']
+        fields = ['name', 'category', 'quantity', 'min_stock_level', 'status']
     
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
+        
+        # Determine user's role if available
+        role = None
+        if self.user:
+            try:
+                profile = ensure_userprofile(self.user)
+                role = profile.role if profile else None
+            except Exception:
+                pass
+        
+        # Check if this is a new instance
+        is_new = not (self.instance and self.instance.pk)
+        
+        # Handle role-based field modifications (before styling loop)
+        if role == 'Storekeeper':
+            # Storekeeper cannot edit the name of existing materials
+            if not is_new:
+                self.fields['name'].disabled = True
+                self.fields['name'].help_text = "Name cannot be changed by Storekeeper."
+            
+            # Storekeeper cannot set status when adding new materials
+            if is_new and 'status' in self.fields:
+                del self.fields['status']
+        
+        # Branch cannot edit status at all
+        if role == 'Branch':
+            if 'status' in self.fields:
+                self.fields['status'].disabled = True
         
         # Add black border styling to all fields
         for field_name, field in self.fields.items():
             field.widget.attrs.update({
                 'class': 'w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
             })
-        
-        if self.user:
-            try:
-                profile = ensure_userprofile(self.user)
-                role = profile.role if profile else None
-            except Exception:
-                role = None
-            
-            is_new = not (self.instance and self.instance.pk)
-            
-            if role == 'Storekeeper':
-                # Storekeeper cannot edit the name of existing materials
-                if not is_new:
-                    self.fields['name'].disabled = True
-                    self.fields['name'].help_text = "Name cannot be changed by Storekeeper."
-                
-                # Storekeeper cannot set status when adding new materials
-                # But can edit status for existing materials
-                if is_new and 'status' in self.fields:
-                    del self.fields['status']
-            
-            # Branch cannot edit status at all
-            if role == 'Branch':
-                if 'status' in self.fields:
-                    self.fields['status'].disabled = True
 
 class TaskForm(forms.ModelForm):
     class Meta:
@@ -60,10 +63,12 @@ class TaskForm(forms.ModelForm):
 class RequestForm(forms.ModelForm):
     class Meta:
         model = MaterialRequest
-        fields = ['material', 'quantity', 'request_type', 'user_note']
+        fields = ['material', 'quantity', 'request_type', 'send_by', 'received_by']
         labels = {
             'user_note': 'User Notes',
             'request_type': 'Request Type',
+            'send_by': 'Send By',
+            'received_by': 'Received By',
         }
         widgets = {
             'material': forms.Select(attrs={
@@ -72,7 +77,11 @@ class RequestForm(forms.ModelForm):
             'quantity': forms.NumberInput(attrs={
                 'class': 'w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2'
             }),
-            'user_note': forms.Textarea(attrs={
+            'send_by': forms.Textarea(attrs={
+                'class': 'w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2',
+                'rows': 3
+            }),
+            'received_by': forms.Textarea(attrs={
                 'class': 'w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2',
                 'rows': 3
             }),

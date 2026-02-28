@@ -15,7 +15,7 @@ class MaterialRequestAdmin(admin.ModelAdmin):
             'fields': ('requester', 'material', 'quantity', 'status', 'requested_at')
         }),
         ('Notes', {
-            'fields': ('user_note', 'admin_note')
+            'fields': ('send_by', 'admin_note')
         }),
         ('Used Materials', {
             'fields': ('used_materials_count', 'used_materials_display'),

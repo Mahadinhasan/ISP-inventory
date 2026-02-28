@@ -63,18 +63,20 @@
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request ID</th>
-                    {% if user.userprofile.role == 'Admin' or user.userprofile.role == 'Storekeeper' %}
-                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requester</th>
+                    {% if user.userprofile.role == 'Branch' %}
+                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                     {% endif %}
-                    <!-- <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver</th> -->
-                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User Note</th>
+                    {% if user.userprofile.role == 'Admin' or user.userprofile.role == 'Storekeeper' %}
+                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
+                    {% endif %}
                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Material</th>
-                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
-                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
+                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Send By</th>
                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Admin Note</th>
+                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Received By</th>
                     {% if user.userprofile.role == 'Admin' %}
                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     {% endif %}
@@ -82,31 +84,23 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for req in requests %}
+                {% if user.userprofile.role == 'Branch' %}
                 <tr class="hover:bg-gray-50 transition duration-150 {% if req.request_type == 'Advance' %}border-l-4 border-indigo-400{% endif %}">
-                    <td class="px-4 py-4 text-sm font-medium text-gray-900">
+                    <td class="px-2 py-2 text-sm font-medium text-gray-900">
                         {% if req.request_type == 'Advance' %}
                             ADV-{{req.id|stringformat:"03d"}}
                         {% else %}
                             REQ-{{req.id|stringformat:"03d"}}
                         {% endif %}
                     </td>
-                    {% if user.userprofile.role == 'Admin' or user.userprofile.role == 'Storekeeper' %}
-                    <td class="px-4 py-4 text-sm text-gray-600 flex items-center">
-                        <div class="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center mr-2 text-blue-600 text-xs">
-                            <i class="fas fa-user"></i>
-                        </div>
-                        {{ req.requester.get_full_name|default:req.requester.username }}
-                    </td>
-                    {% endif %}
-                    <!-- {% if user.userprofile.role == 'Admin' or user.userprofile.role == 'Storekeeper' %}
-                    <td class="px-4 py-4 text-sm text-gray-600 flex items-center">
-                        {{ req.receiver.get_full_name|default:"N/A" }}
-                    </td>
-                    {% endif %} -->
-                    <td class="px-4 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.user_note|default:"N/A" }}</td>
+                {% endif %}
+                {% if user.userprofile.role == 'Admin' or user.userprofile.role == 'Storekeeper' %}
+                    <td class="px-4 py-4 text-sm text-gray-900">{{ req.user.get_full_name|default:req.requester.username }}</td>
+                {% endif %}
                     <td class="px-4 py-4 text-sm text-gray-900">{{ req.material.name }}</td>
                     <td class="px-4 py-4 text-sm font-bold text-gray-900 bg-gray-50 rounded text-center">{{ req.quantity }}</td>
                     <td class="px-4 py-4 text-sm text-gray-600">{{ req.requested_at|date:"Y-M-d,H:s" }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.send_by|default:"N/A" }}</td>
                     <td class="px-4 py-4">
                         <span class="px-3 py-1 text-xs font-semibold rounded-full border 
                             {% if req.status == 'Pending' %}bg-yellow-100 text-yellow-800 border-yellow-200
@@ -127,6 +121,17 @@
                         </span>
                     </td>
                     <td class="px-4 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.admin_note|default:"N/A" }}</td>
+                    <td class="px-4 py-4 text-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 italic max-w-xs truncate">{{ req.received_by }}</span>
+                            {% if role == 'Branch' and req.status == 'Approved' and req.requester == user %}
+                            <button onclick="openReceivedByModal('{{ req.id }}')"
+                                class="ml-2 text-green-600 hover:text-green-900 font-medium bg-green-50 px-2 py-1 rounded hover:bg-green-100 transition text-xs whitespace-nowrap">
+                                <i class="fas fa-plus mr-1"></i> Add
+                            </button>
+                            {% endif %}
+                        </div>
+                    </td>
                     {% if role == 'Admin' %}
                     <td class="px-6 py-4 text-sm">
                         <button onclick="openAdminModal('{{ req.id }}', '{{ req.admin_note|escapejs }}', '{{ req.quantity }}')"
@@ -177,8 +182,8 @@
                         required>
                 </div>
                 <div class="form-group">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">User Notes</label>
-                    <textarea name="user_note" rows="3"
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Send By</label>
+                    <textarea name="send_by" rows="3"
                         class="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2"></textarea>
                 </div>
             </div>
@@ -242,6 +247,42 @@
     </div>
 </div>
 
+<!-- Received By Modal (for Branch users to fill in received_by info for approved requests) -->
+<div id="receivedByModal"
+    class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm">
+    <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all">
+        <h3 class="text-xl font-bold mb-4 text-gray-800 flex items-center">
+            <i class="fas fa-check-circle mr-2 text-green-600"></i> Record Receipt
+        </h3>
+        <p class="text-sm text-gray-600 mb-4">Please enter who received the approved materials:</p>
+        <form id="receivedByForm">
+            {% csrf_token %}
+            <input type="hidden" name="req_id" id="receivedByReqId">
+            <input type="hidden" name="action" value="save_received_by">
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Received By (Name/Details)</label>
+                <textarea name="received_by" id="receivedByText"
+                    class="w-full border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 p-3"
+                    rows="4"
+                    placeholder="Enter name, date, and any other relevant details about who received the materials..."
+                    required></textarea>
+            </div>
+
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="document.getElementById('receivedByModal').classList.add('hidden')"
+                    class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium">
+                    Cancel
+                </button>
+                <button type="submit"
+                    class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium">
+                    <i class="fas fa-save mr-1"></i> Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Pagination Controls -->
 <div class="flex justify-end mt-6">
     <nav class="inline-flex -space-x-px" aria-label="Pagination">
@@ -301,6 +342,41 @@
         document.getElementById('adminQuantity').value = quantity;
         document.getElementById('adminModal').classList.remove('hidden');
     }
+
+    function openReceivedByModal(id) {
+        document.getElementById('receivedByReqId').value = id;
+        document.getElementById('receivedByText').value = '';
+        document.getElementById('receivedByModal').classList.remove('hidden');
+    }
+
+    // Handle received_by form submission via AJAX
+    document.getElementById('receivedByForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        
+        fetch('{% url "requests" %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Receipt information saved successfully!');
+                document.getElementById('receivedByModal').classList.add('hidden');
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while saving. Please try again.');
+        });
+    });
 
     function openRequestModal(type) {
         const modal = document.getElementById('requestModal');

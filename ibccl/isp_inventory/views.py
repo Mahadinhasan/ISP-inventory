@@ -172,7 +172,7 @@ def materials_view(request):
     role = profile.role if profile else 'Branch'
 
     #Pagination added
-    paginator = Paginator(materials,10)  # Show 10 materials per page
+    paginator = Paginator(materials.order_by('-added_at'),5)
     page_number = request.GET.get('page')
     materials_page = paginator.get_page(page_number)
 

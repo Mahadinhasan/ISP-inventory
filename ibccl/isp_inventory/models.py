@@ -20,6 +20,9 @@ class Material(models.Model):
     CATEGORY_CHOICES = [
         ('Internet', 'Internet'),
         ('Dish', 'Dish'),
+        ('Fiber', 'Fiber'),
+        ('Common item', 'Common item'),
+        ('Work shop', 'Work shop'),
     ]
     name = models.CharField(max_length=100, unique=True)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)#select field (piece/meter)
@@ -30,33 +33,12 @@ class Material(models.Model):
         ('Normal', 'Normal'),
         ('Low Stock', 'Low Stock'),
         ('Out of Stock', 'Out of Stock'),
-        ('Reserved', 'Reserved'),
-        ('Deprecated', 'Deprecated'),
     ]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Normal')
-    added_by = models.CharField(max_length=100)
     added_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.name
-    @property
-    def added_by_display(self):
-        """Return a friendly display for `added_by`.
-
-        `added_by` stores a username string. Prefer the User's full name
-        when available, otherwise fall back to username or the raw value.
-        """
-        if not self.added_by:
-            return ''
-        try:
-            user = User.objects.filter(username=self.added_by).first()
-            if user:
-                full = (user.first_name or '') + (' ' + user.last_name if user.last_name else '')
-                full = full.strip()
-                return full or user.username
-        except Exception:
-            pass
-        return self.added_by
 
     @property
     def stock_status(self):
@@ -108,10 +90,12 @@ class MaterialRequest(models.Model):
     requester = models.ForeignKey(User, on_delete=models.CASCADE, related_name='material_requests')
     quantity = models.IntegerField()
     notes = models.TextField(blank=True) # Deprecated logic potentially, but keeping for compatibility
-    user_note = models.TextField(blank=True) # Explicit User Note
+    send_by = models.TextField(blank=True) # Explicit User Note
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
     request_type = models.CharField(max_length=20, choices=REQUEST_TYPE_CHOICES, default='Regular')  # Regular or Advance
     admin_note = models.CharField(max_length=200, blank=True) #material quantity update note
+    received_by = models.TextField(blank=True) # Who received the material (filled by branch user when approved)
+    received_at = models.DateTimeField(null=True, blank=True) # When the received_by was last updated
     requested_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
