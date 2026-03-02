@@ -1,5 +1,7 @@
 from django.contrib.auth.models import Group
-from .models import UserProfile
+from django.utils import timezone
+from datetime import datetime
+from .models import UserProfile, Material, MaterialMonthlyCount
 
 ROLE_GROUPS = ['Admin', 'Storekeeper', 'Branch', 'NOC']
 
@@ -37,3 +39,116 @@ def ensure_userprofile(user):
 
     profile, _ = UserProfile.objects.get_or_create(user=user, defaults={'role': role_name})
     return profile
+
+
+# ==================== MONTHLY COUNT UTILITIES ====================
+
+def get_current_month_date():
+    """Get the first day of current month."""
+    now = timezone.now()
+    return datetime(now.year, now.month, 1)
+
+
+def get_material_monthly_count(material, month_date=None):
+    """
+    Get or create monthly count for a material.
+    
+    Args:
+        material: Material instance
+        month_date: datetime object (defaults to current month)
+    
+    Returns:
+        MaterialMonthlyCount instance with count value
+    """
+    if month_date is None:
+        month_date = get_current_month_date()
+    
+    monthly_count, _ = MaterialMonthlyCount.objects.get_or_create(
+        material=material,
+        month=month_date.date(),
+        defaults={'count': 0}
+    )
+    return monthly_count
+
+
+def increment_material_count(material, quantity=1, month_date=None):
+    """
+    Increment monthly count for a material.
+    
+    Args:
+        material: Material instance
+        quantity: Amount to increment (default: 1)
+        month_date: datetime object (defaults to current month)
+    
+    Returns:
+        Updated MaterialMonthlyCount instance
+    """
+    if month_date is None:
+        month_date = get_current_month_date()
+    
+    monthly_count = get_material_monthly_count(material, month_date)
+    monthly_count.count += quantity
+    monthly_count.save()
+    return monthly_count
+
+
+def reset_material_monthly_count(material, month_date=None):
+    """
+    Reset monthly count to 0 for end of month.
+    
+    Args:
+        material: Material instance
+        month_date: datetime object (defaults to current month)
+    
+    Returns:
+        Reset MaterialMonthlyCount instance
+    """
+    if month_date is None:
+        month_date = get_current_month_date()
+    
+    monthly_count = get_material_monthly_count(material, month_date)
+    monthly_count.count = 0
+    monthly_count.save()
+    return monthly_count
+
+
+def get_monthly_count_summary(month_date=None):
+    """
+    Get summary of all materials' monthly counts.
+    
+    Args:
+        month_date: datetime object (defaults to current month)
+    
+    Returns:
+        QuerySet of MaterialMonthlyCount with counts > 0
+    """
+    if month_date is None:
+        month_date = get_current_month_date()
+    
+    return MaterialMonthlyCount.objects.filter(
+        month=month_date.date()
+    ).select_related('material').order_by('-count')
+
+
+def reset_all_monthly_counts(month_date=None):
+    """
+    Reset all monthly counts at month end.
+    
+    Args:
+        month_date: datetime object (defaults to current month)
+    
+    Returns:
+        Count of materials reset
+    """
+    if month_date is None:
+        month_date = get_current_month_date()
+    
+    reset_count = 0
+    materials = Material.objects.all()
+    
+    for material in materials:
+        reset_material_monthly_count(material, month_date)
+        reset_count += 1
+    
+    return reset_count
+

@@ -1,5 +1,8 @@
 from django.contrib.auth.models import User
 from django.db import models
+from django.utils import timezone
+from dateutil.relativedelta import relativedelta
+from datetime import datetime
 
 
 # Extend User with Role
@@ -27,7 +30,7 @@ class Material(models.Model):
     name = models.CharField(max_length=100, unique=True)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)#select field (piece/meter)
     quantity = models.IntegerField(default=0)
-    min_stock_level = models.IntegerField(default=10)
+    min_stock_level = models.IntegerField(default=0)
     notes = models.TextField(blank=True)
     STATUS_CHOICES = [
         ('Normal', 'Normal'),
@@ -38,7 +41,9 @@ class Material(models.Model):
     added_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.name
+        """Display material name with stock status indicator."""
+        stock_indicator = " (in stock)" if self.quantity > 0 else ""
+        return f"{self.name}{stock_indicator}"
 
     @property
     def stock_status(self):
@@ -47,6 +52,58 @@ class Material(models.Model):
         if self.status == 'Normal': return 'normal'
         if self.status == 'Out of Stock': return 'out_of_stock'
         return 'normal'
+    
+    @property
+    def is_in_stock(self):
+        """Check if material has quantity greater than 0."""
+        return self.quantity > 0
+    
+    def get_monthly_count(self):
+        """Get or create monthly count for current month."""
+        now = timezone.now()
+        current_month = datetime(now.year, now.month, 1)
+        
+        monthly_count, created = MaterialMonthlyCount.objects.get_or_create(
+            material=self,
+            month=current_month,
+            defaults={'count': 0}
+        )
+        
+        # Reset count if it's a new month
+        if created:
+            monthly_count.count = 0
+            monthly_count.save()
+        
+        return monthly_count
+    
+    def increment_monthly_count(self, increment_by=1):
+        """Increment monthly count."""
+        monthly_count = self.get_monthly_count()
+        monthly_count.count += increment_by
+        monthly_count.save()
+        return monthly_count
+    
+    def reset_monthly_count(self):
+        """Reset monthly count to 0."""
+        monthly_count = self.get_monthly_count()
+        monthly_count.count = 0
+        monthly_count.save()
+        return monthly_count
+    
+    def get_previous_month_count(self):
+        """Get previous month's count."""
+        now = timezone.now()
+        previous_month = now - relativedelta(months=1)
+        previous_month_date = datetime(previous_month.year, previous_month.month, 1)
+        
+        try:
+            monthly_count = MaterialMonthlyCount.objects.get(
+                material=self,
+                month=previous_month_date
+            )
+            return monthly_count.count
+        except MaterialMonthlyCount.DoesNotExist:
+            return 0
 
     def save(self, *args, **kwargs):
         """Synchronize `status` with `quantity` vs `min_stock_level`.
@@ -69,7 +126,6 @@ class Material(models.Model):
         except Exception:
             pass
         super().save(*args, **kwargs)
-        
 
 class Task(models.Model):
     STATUS_CHOICES = [('Pending', 'Pending'), ('In Progress', 'In Progress'), ('Completed', 'Completed')]
@@ -82,6 +138,45 @@ class Task(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class MaterialMonthlyCount(models.Model):
+    """Track monthly quantity count for materials with auto-reset functionality."""
+    material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name='monthly_counts')
+    month = models.DateField(help_text="First day of the month for which count is tracked")
+    count = models.IntegerField(default=0, help_text="Monthly count that resets at month end")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ('material', 'month')
+        ordering = ['-month']
+        verbose_name = 'Material Monthly Count'
+        verbose_name_plural = 'Material Monthly Counts'
+        indexes = [
+            models.Index(fields=['material', '-month']),
+            models.Index(fields=['month']),
+        ]
+    
+    def __str__(self):
+        return f"{self.material.name} - {self.month.strftime('%B %Y')} (Count: {self.count})"
+    
+    def reset(self):
+        """Reset count to 0 for month end."""
+        self.count = 0
+        self.save()
+        return self
+    
+    @property
+    def month_display(self):
+        """Return month in readable format."""
+        return self.month.strftime('%B %Y')
+    
+    @property
+    def is_current_month(self):
+        """Check if this is the current month."""
+        now = timezone.now()
+        return self.month.year == now.year and self.month.month == now.month
 
 class MaterialRequest(models.Model):
     STATUS_CHOICES = [('Pending', 'Pending'), ('Approved', 'Approved'), ('Rejected', 'Rejected')]

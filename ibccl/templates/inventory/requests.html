@@ -36,7 +36,7 @@
                     <option value="">All Users</option>
                     {% for user in users %}
                     <option value="{{ user.id }}" {% if request.GET.user == user.id %}selected{% endif %}>
-                        {{ user.get_full_name|default:user.username }} ({{ user.request_count|default:"0" }} approved)</option>
+                        {{ user.get_full_name|default:user.username }}</option>
                     {% endfor %}
                 </select>
             </form>

@@ -12,46 +12,49 @@
     </div>
 
     <!-- Used Materials List -->
-    <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
                         <th scope="col"
-                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
                             Material Name</th>
                         <th scope="col"
-                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
                             Category</th>
                         <th scope="col"
-                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
                             Quantity</th>
                         <th scope="col"
-                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
                             Client Name</th>
                         <th scope="col"
-                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
                             Address</th>
                         <th scope="col"
-                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
                             Phone</th>
                         <th scope="col"
-                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
                             Issue</th>
                         <th scope="col"
-                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">Status</th>
+                        <th scope="col"
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
+                            Date</th>
                         {% if role == 'Branch' %}
                         <th scope="col"
-                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
                             Actions</th>
                         {% endif %}
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     {% for item in used_materials %}
-                    <tr class="hover:bg-gray-50 transition duration-150">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ item.material.name }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap">
+                    <tr class="hover:bg-gray-100 transition duration-150">
+                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ item.material.name }}</td>
+                        <td class="px-4 py-4 whitespace-nowrap">
                             <span class="px-3 py-1 rounded-full text-xs font-semibold 
                                 {% if item.material.category == 'Internet' %}bg-blue-100 text-blue-800
                                 {% elif item.material.category == 'Dish' %}bg-purple-100 text-purple-800
@@ -59,13 +62,13 @@
                                 {{ item.material.category }}
                             </span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-bold bg-gray-50 rounded-lg text-center">
-                            {{ item.quantity }}M</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ item.client_name|default:"N/A" }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-700">{{ item.client_address|default:"N/A"|truncatewords:10 }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ item.client_phone|default:"N/A" }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-700">{{ item.issue|default:"N/A"|truncatewords:8 }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap">
+                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-bold bg-gray-50 rounded-lg text-center">
+                            {{ item.quantity }}</td>
+                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{{ item.client_name|default:"N/A" }}</td>
+                        <td class="px-4 py-4 text-sm text-gray-700">{{ item.client_address|default:"N/A"|truncatewords:10 }}</td>
+                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{{ item.client_phone|default:"N/A" }}</td>
+                        <td class="px-4 py-4 text-sm text-gray-700">{{ item.issue|default:"N/A"|truncatewords:8 }}</td>
+                        <td class="px-4 py-4 whitespace-nowrap">
                             <span class="px-3 py-1 rounded-full text-xs font-semibold
                                 {% if item.status == 'Pending' %}bg-yellow-100 text-yellow-800
                                 {% elif item.status == 'Accepted' %}bg-green-100 text-green-800
@@ -74,9 +77,10 @@
                                 {{ item.status }}
                             </span>
                         </td>
+                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{{item.added_at|date:"d-m-Y"}}</td>
 
                         {% if role == 'Branch' and item.technician == user %}
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
                             <button
                                 onclick="openEditModal('{{ item.id }}')"
                                 class="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-md transition">

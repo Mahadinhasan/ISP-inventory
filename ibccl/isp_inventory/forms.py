@@ -15,7 +15,7 @@ class RegisterForm(UserCreationForm):
 class MaterialForm(forms.ModelForm):
     class Meta:
         model = Material
-        fields = ['name', 'category', 'quantity', 'min_stock_level', 'status']
+        fields = ['name', 'category', 'quantity', 'min_stock_level', 'status', 'notes']
     
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
@@ -30,24 +30,29 @@ class MaterialForm(forms.ModelForm):
             except Exception:
                 pass
         
-        # Check if this is a new instance
+        # Check if this is a new instance (adding new) or existing (editing)
         is_new = not (self.instance and self.instance.pk)
         
-        # Handle role-based field modifications (before styling loop)
-        if role == 'Storekeeper':
-            # Storekeeper cannot edit the name of existing materials
+        # Handle Storekeeper and Admin permissions
+        if role in ['Storekeeper', 'Admin']:
+            # When editing existing material: name is read-only (unique constraint)
             if not is_new:
                 self.fields['name'].disabled = True
-                self.fields['name'].help_text = "Name cannot be changed by Storekeeper."
+                self.fields['name'].help_text = "Material name cannot be changed (unique constraint)."
             
-            # Storekeeper cannot set status when adding new materials
+            # When adding new material: status is not allowed (set by system auto)
             if is_new and 'status' in self.fields:
                 del self.fields['status']
+
         
         # Branch cannot edit status at all
         if role == 'Branch':
             if 'status' in self.fields:
                 self.fields['status'].disabled = True
+        
+        # Make notes optional
+        if 'notes' in self.fields:
+            self.fields['notes'].required = False
         
         # Add black border styling to all fields
         for field_name, field in self.fields.items():
@@ -63,12 +68,11 @@ class TaskForm(forms.ModelForm):
 class RequestForm(forms.ModelForm):
     class Meta:
         model = MaterialRequest
-        fields = ['material', 'quantity', 'request_type', 'send_by', 'received_by']
+        fields = ['material', 'quantity', 'request_type', 'send_by']
         labels = {
             'user_note': 'User Notes',
             'request_type': 'Request Type',
             'send_by': 'Send By',
-            'received_by': 'Received By',
         }
         widgets = {
             'material': forms.Select(attrs={

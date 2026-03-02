@@ -6,19 +6,21 @@
 <div class="fade-in">
     <h1 class="text-4xl font-bold text-gray-900 mb-8">Materials Management</h1>
 
-    {% if role == 'Storekeeper' %}
+    {% if role == 'Storekeeper' or role == 'Admin' %}
     <button onclick="openAddModal()"
         class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium mb-6">
         <i class="fas fa-plus mr-2"></i>Add Material
     </button>
     {% endif %}
+
     <!--Materials count normal/Low stock/Out of stock-->
-     {% if role == 'Admin' or role == 'Storekeeper' %}
-      <div class="flex gap-4 mb-6">
+    {% if role == 'Admin' or role == 'Storekeeper' %}
+    <div class="flex gap-4 mb-6">
         <div class="px-4 py-2 bg-green-100 text-green-800 rounded-lg border border-green-200 flex items-center gap-2">
             <i class="fas fa-info-circle"></i>Total Normal Stock: {{ total_normal_stock }}
         </div>
-        <div class="px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg border border-yellow-200 flex items-center gap-2">
+        <div
+            class="px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg border border-yellow-200 flex items-center gap-2">
             <i class="fas fa-check-circle"></i> Total Low Stock: {{ total_low_stock }}
         </div>
         <div class="px-4 py-2 bg-red-100 text-red-800 rounded-lg border border-red-200 flex items-center gap-2">
@@ -26,6 +28,7 @@
         </div>
     </div>
     {% endif %}
+
     <!--Filter-->
     <form method="get" class="mb-8 grid grid-cols-1 md:grid-cols-4 gap-4">
         <input type="text" name="search" value="{{ search }}" placeholder="Search..."
@@ -41,7 +44,7 @@
         <select name="stock_status" class="px-4 py-3 border rounded-lg">
             <option value="">All Stock Status</option>
             <option value="low" {% if stock_status == 'low' %}selected{% endif %}>Low Stock</option>
-            <option value="normal" {% if stock_status == 'normal' %}selected{% endif %}>Normal Stock</option>   
+            <option value="normal" {% if stock_status == 'normal' %}selected{% endif %}>Normal Stock</option>
             <option value="out_of_stock" {% if stock_status == 'out_of_stock' %}selected{% endif %}>Out of Stock</option>
         </select>
         <button type="submit" class="bg-indigo-600 text-white px-4 py-3 rounded-lg font-medium">Filter</button>
@@ -62,29 +65,28 @@
         <a href="?" class="text-indigo-600 hover:underline">Clear filters</a>
         {% endif %}
     </div>
+
     <!-- Table -->
     <div class="overflow-x-auto bg-white rounded-lg shadow">
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <!--Add Checkbox-->
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Materials Name</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock Status</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Balance</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">New Stock</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">In Stock</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Min Level</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    {% if role == 'Storekeeper' %}
+                    {% if role == 'Storekeeper' or role == 'Admin' %}
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                     {% endif %}
                 </tr>
             </thead>
-            <!--Add Checkbox for select multiple materials-->
             <tbody class="divide-y divide-gray-200">
-                {% for material in materials %}
-                
-                <tr {% if material.stock_status == 'low' %}class="bg-red-50" {% endif %}>  
+                {% for material in materials_page %}
+                <tr {% if material.stock_status == 'low' %}class="bg-red-50" {% endif %}>
                     <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ material.id }}</td>
                     <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ material.name }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">{{ material.category }}</td>
@@ -96,27 +98,28 @@
                             {{ material.stock_status|capfirst }}
                         </span>
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap {% if material.stock_status == 'low' %}text-red-600 font-semibold{% endif %}">
+                    <td
+                        class="px-6 py-4 whitespace-nowrap {% if material.stock_status == 'low' %}text-red-600 font-semibold{% endif %}">
                         {{ material.quantity }}
                         {% if material.stock_status == 'low' %}
                         <span
                             class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs bg-red-100 text-red-800">Low</span>
                         {% endif %}
                     </td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ material.in_stock|default:"0" }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">{{ material.min_stock_level }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">{{ material.added_at|date:"Y-m-d" }}</td>
-                    {% if role == 'Storekeeper' %}
+                    {% if role == 'Storekeeper' or role == 'Admin' %}
                     <td class="px-6 py-4 whitespace-nowrap">
                         <button onclick="editMaterial('{{ material.id }}')"
-                                class="text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1 rounded-md transition ml-2">
-                                <i class="fas fa-edit mr-1"></i> Edit
-                            </button>
+                            class="text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1 rounded-md transition ml-2">
+                            <i class="fas fa-edit mr-1"></i> Edit
+                        </button>
                         <form method="post" class="inline">
                             {% csrf_token %}
                             <input type="hidden" name="action" value="delete">
                             <input type="hidden" name="material_id" value="{{ material.id }}">
-                             <button type="submit"
-                                onclick="return confirm('Delete?')"
+                            <button type="submit" onclick="return confirm('Delete this material?')"
                                 class="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1 rounded-md transition ml-2">
                                 <i class="fas fa-trash mr-1"></i> Delete
                             </button>
@@ -128,6 +131,7 @@
             </tbody>
         </table>
     </div>
+
     <!-- Material Modal (Add/Edit) -->
     <div id="materialModal"
         class="fixed inset-0 bg-gray-500 bg-opacity-75 hidden flex items-center justify-center z-50">
@@ -138,35 +142,60 @@
                 <input type="hidden" name="material_id" id="materialId">
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {% for field in form %}
+
+                    <!-- Name (disabled on edit via JS) -->
                     <div class="form-group">
-                        <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
-                            {{ field.label }}
+                        <label for="id_name" class="block text-sm font-medium text-gray-700 mb-2">
+                            Name
                         </label>
-                        {% if field.field.widget.input_type == 'textarea' %}
-                        <textarea name="{{ field.name }}" id="{{ field.id_for_label }}"
+                        <input type="text" name="name" id="id_name" required
                             class="w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            rows="3">{{ field.value|default:'' }}</textarea>
-                        {% elif field.field.widget.input_type == 'datetime' %}
-                        <input type="datetime-local" name="{{ field.name }}" id="{{ field.id_for_label }}"
-                            class="w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            value="{{ field.value|date:'Y-m-d\THH:mm'|default:'' }}">
-                        {% elif field.field.widget.input_type == 'date' %}
-                        <input type="date" name="{{ field.name }}" id="{{ field.id_for_label }}"
-                            class="w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            value="{{ field.value|date:'Y-m-d'|default:'' }}">
-                        {% else %}
-                        {{ field }}
-                        {% endif %}
-                        {% if field.errors %}
-                        <p class="text-red-600 text-sm mt-1">{{ field.errors.0 }}</p>
-                        {% endif %}
+                            placeholder="Material name">
                     </div>
-                    {% endfor %}
+
+                    <!-- Category -->
+                    <div class="form-group">
+                        <label for="id_category" class="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                        <select name="category" id="id_category" required
+                            class="w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="">-- Select Category --</option>
+                            <option value="Internet">Internet</option>
+                            <option value="Dish">Dish</option>
+                            <option value="Fiber">Fiber</option>
+                            <option value="Common item">Common item</option>
+                            <option value="Work shop">Work shop</option>
+                        </select>
+                    </div>
+
+                    <!-- Quantity -->
+                    <div class="form-group">
+                        <label for="id_quantity" class="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+                        <input type="number" name="quantity" id="id_quantity" min="0" required
+                            class="w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            placeholder="0">
+                    </div>
+
+                    <!-- Min Stock Level -->
+                    <div class="form-group">
+                        <label for="id_min_stock_level" class="block text-sm font-medium text-gray-700 mb-2">Min Stock
+                            Level</label>
+                        <input type="number" name="min_stock_level" id="id_min_stock_level" min="0" required
+                            class="w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            placeholder="0">
+                    </div>
+
+                    <!-- Notes (full width) -->
+                    <div class="form-group md:col-span-2">
+                        <label for="id_notes" class="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                        <textarea name="notes" id="id_notes" rows="3"
+                            class="w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            placeholder="Optional notes..."></textarea>
+                    </div>
+
                 </div>
 
-                {% if role != 'Storekeeper' %}
-                <p class="text-red-600 mt-6 text-center">Only Storekeepers can edit materials</p>
+                {% if role != 'Storekeeper' and role != 'Admin' %}
+                <p class="text-red-600 mt-6 text-center">Only Storekeepers and Admins can edit materials</p>
                 {% else %}
                 <div class="mt-8 flex justify-end gap-3">
                     <button type="button" onclick="document.getElementById('materialModal').classList.add('hidden')"
@@ -179,54 +208,80 @@
         </div>
     </div>
 </div>
+
 <!--pagination control-->
 <div class="flex justify-end mt-6">
-    <nav class="inline-flex -space-x-px">
+    <nav class="inline-flex -space-x-px" aria-label="Pagination">
         {% if materials_page.has_previous %}
-        <a href="?page={{ materials_page.previous_page_number }}" class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 rounded-l-lg hover:bg-gray-100 hover:text-gray-700">
+        <a href="?{% if search %}search={{ search }}&{% endif %}{% if category %}category={{ category }}&{% endif %}{% if stock_status %}stock_status={{ stock_status }}&{% endif %}page={{ materials_page.previous_page_number }}"
+            class="px-3 py-2 ml-0 leading-tight text-gray-500 bg-white border border-gray-300 rounded-l-lg hover:bg-gray-100 hover:text-gray-700 transition">
             <span class="sr-only">Previous</span>
             <i class="fas fa-chevron-left"></i>
         </a>
         {% else %}
-        <span class="px-3 py-2 leading-tight text-gray-300 bg-gray-100 border border-gray-300 rounded-l-lg cursor-not-allowed">
+        <span
+            class="px-3 py-2 ml-0 leading-tight text-gray-300 bg-gray-100 border border-gray-300 rounded-l-lg cursor-not-allowed">
             <span class="sr-only">Previous</span>
             <i class="fas fa-chevron-left"></i>
         </span>
         {% endif %}
 
         {% for num in materials_page.paginator.page_range %}
-            {% if materials_page.number == num %}
-                <span class="px-3 py-2 leading-tight text-white bg-indigo-600 border border-gray-300">{{ num }}</span>
-            {% else %}
-                <a href="?page={{ num }}" class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 hover:bg-gray-100 hover:text-gray-700">{{ num }}</a>
-            {% endif %}
+        {% if materials_page.number == num %}
+        <span class="px-3 py-2 leading-tight text-white bg-indigo-600 border border-indigo-600">{{ num }}</span>
+        {% else %}
+        <a href="?{% if search %}search={{ search }}&{% endif %}{% if category %}category={{ category }}&{% endif %}{% if stock_status %}stock_status={{ stock_status }}&{% endif %}page={{ num }}"
+            class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 hover:bg-gray-100 hover:text-gray-700 transition">
+            {{ num }}
+        </a>
+        {% endif %}
         {% endfor %}
 
         {% if materials_page.has_next %}
-        <a href="?page={{ materials_page.next_page_number }}" class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 rounded-r-lg hover:bg-gray-100 hover:text-gray-700">
+        <a href="?{% if search %}search={{ search }}&{% endif %}{% if category %}category={{ category }}&{% endif %}{% if stock_status %}stock_status={{ stock_status }}&{% endif %}page={{ materials_page.next_page_number }}"
+            class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 rounded-r-lg hover:bg-gray-100 hover:text-gray-700 transition">
             <span class="sr-only">Next</span>
             <i class="fas fa-chevron-right"></i>
         </a>
         {% else %}
-        <span class="px-3 py-2 leading-tight text-gray-300 bg-gray-100 border border-gray-300 rounded-r-lg cursor-not-allowed">
+        <span
+            class="px-3 py-2 leading-tight text-gray-300 bg-gray-100 border border-gray-300 rounded-r-lg cursor-not-allowed">
             <span class="sr-only">Next</span>
             <i class="fas fa-chevron-right"></i>
         </span>
         {% endif %}
     </nav>
 </div>
+
 <script>
     function openAddModal() {
         document.getElementById('materialModal').classList.remove('hidden');
         document.getElementById('modalTitle').textContent = 'Add Material';
         document.getElementById('materialForm').reset();
         document.getElementById('materialId').value = '';
+
+        // Enable name field for adding new material
+        const nameField = document.getElementById('id_name');
+        if (nameField) {
+            nameField.disabled = false;
+            nameField.readOnly = false;
+            nameField.classList.remove('bg-gray-100', 'cursor-not-allowed', 'border-gray-300');
+            nameField.classList.add('border-black');
+        }
+
+        // Remove the hidden name field if it exists
+        const hiddenName = document.getElementById('hidden_name');
+        if (hiddenName) hiddenName.remove();
+
+        // Remove the read-only label if it exists
+        const readOnlyLabel = document.getElementById('name-readonly-label');
+        if (readOnlyLabel) readOnlyLabel.remove();
     }
 
     function editMaterial(id) {
         document.getElementById('materialModal').classList.remove('hidden');
         document.getElementById('modalTitle').textContent = 'Edit Material';
-        // Fetch material data and populate the form fields
+
         fetch(`/materials/${id}/json/`, { credentials: 'same-origin' })
             .then(resp => {
                 if (!resp.ok) throw resp;
@@ -234,16 +289,46 @@
             })
             .then(data => {
                 document.getElementById('materialId').value = data.id;
-                const setIf = (elid, val) => {
-                    const el = document.getElementById(elid);
-                    if (el) el.value = val;
+
+                // Populate all fields
+                const setVal = (id, val) => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = val ?? '';
                 };
-                setIf('id_name', data.name);
-                setIf('id_category', data.category);
-                setIf('id_quantity', data.quantity);
-                setIf('id_min_stock_level', data.min_stock_level);
-                setIf('id_status', data.status);
-                setIf('id_notes', data.notes);
+                setVal('id_name', data.name);
+                setVal('id_category', data.category);
+                setVal('id_quantity', data.quantity);
+                setVal('id_min_stock_level', data.min_stock_level);
+                setVal('id_notes', data.notes);
+
+                // Disable Name field during edit (unique constraint, cannot change)
+                const nameField = document.getElementById('id_name');
+                if (nameField) {
+                    nameField.disabled = true;
+                    nameField.classList.add('bg-gray-100', 'cursor-not-allowed', 'border-gray-300');
+                    nameField.classList.remove('border-black');
+
+                    // Hidden input to still submit the name value (disabled fields don't submit)
+                    let hiddenName = document.getElementById('hidden_name');
+                    if (!hiddenName) {
+                        hiddenName = document.createElement('input');
+                        hiddenName.type = 'hidden';
+                        hiddenName.name = 'name';
+                        hiddenName.id = 'hidden_name';
+                        nameField.parentNode.appendChild(hiddenName);
+                    }
+                    hiddenName.value = data.name;
+
+                    // Show Read-only label
+                    const nameLabel = nameField.closest('.form-group')?.querySelector('label');
+                    if (nameLabel && !document.getElementById('name-readonly-label')) {
+                        const span = document.createElement('span');
+                        span.id = 'name-readonly-label';
+                        span.className = 'text-xs text-red-600 ml-1';
+                        span.textContent = '(Read-only)';
+                        nameLabel.appendChild(span);
+                    }
+                }
             })
             .catch(err => {
                 console.error('Failed to load material data', err);
