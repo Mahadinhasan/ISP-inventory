@@ -1,49 +1,615 @@
-<!-- templates/inventory/register.html -->
 {% extends 'inventory/base.html' %}
-{% block content %}
-<div class="min-h-screen flex items-center justify-center py-12 px-4">
-    <div class="max-w-md w-full space-y-8">
-        <div class="text-center">
-            <h2 class="text-3xl font-extrabold text-gray-900">Create Your Account</h2>
-            <p class="mt-2 text-sm text-gray-600">Join the ISP Inventory System</p>
-        </div>
+{% block title %}Create Account — ISP Inventory{% endblock %}
 
-        <form method="post" class="mt-8 space-y-6">
+{% block content %}
+<style>
+    /* ── Register page styles ─────────────────────────────────────────────── */
+    .register-card {
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        border-radius: 1.5rem;
+        box-shadow: 0 20px 60px rgba(79, 70, 229, 0.13), 0 4px 16px rgba(0, 0, 0, 0.07);
+        max-width: 700px;
+        width: 100%;
+        margin: 2rem auto;
+        padding: 2.5rem 2.5rem 2rem;
+        animation: cardIn 0.45s cubic-bezier(.22, .68, 0, 1.2);
+    }
+
+    @keyframes cardIn {
+        from {
+            opacity: 0;
+            transform: translateY(28px) scale(.97);
+        }
+
+        to {
+            opacity: 1;
+            transform: none;
+        }
+    }
+
+    .register-brand {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: .75rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .register-brand .icon-wrap {
+        width: 3rem;
+        height: 3rem;
+        background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        border-radius: .85rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 12px rgba(79, 70, 229, .35);
+    }
+
+    .register-brand h1 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1e1b4b;
+        letter-spacing: -.02em;
+    }
+
+    .section-label {
+        font-size: .65rem;
+        font-weight: 700;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        color: #6d28d9;
+        margin-bottom: .5rem;
+        padding-left: .15rem;
+    }
+
+    .field-group {
+        border: 1.5px solid #e5e7eb;
+        border-radius: 1rem;
+        padding: 1rem 1.25rem 1.25rem;
+        background: #f8f7ff;
+        margin-bottom: 1.25rem;
+    }
+
+    .form-label {
+        display: block;
+        font-size: .8rem;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: .3rem;
+    }
+
+    .form-label .req {
+        color: #ef4444;
+        margin-left: 2px;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: .6rem .9rem;
+        border: 1.5px solid #d1d5db;
+        border-radius: .65rem;
+        font-size: .875rem;
+        color: #111827;
+        background: #fff;
+        transition: border-color .18s, box-shadow .18s;
+        outline: none;
+        box-sizing: border-box;
+    }
+
+    .form-control:focus {
+        border-color: #6d28d9;
+        box-shadow: 0 0 0 3px rgba(109, 40, 217, .12);
+    }
+
+    select.form-control {
+        cursor: pointer;
+    }
+
+    textarea.form-control {
+        resize: vertical;
+        min-height: 3.5rem;
+    }
+
+    /* file input */
+    .file-label {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        padding: .55rem 1rem;
+        background: linear-gradient(135deg, #ede9fe, #ddd6fe);
+        border: 1.5px dashed #7c3aed;
+        border-radius: .65rem;
+        cursor: pointer;
+        font-size: .82rem;
+        font-weight: 600;
+        color: #5b21b6;
+        transition: background .2s;
+    }
+
+    .file-label:hover {
+        background: linear-gradient(135deg, #ddd6fe, #c4b5fd);
+    }
+
+    #id_image {
+        display: none;
+    }
+
+    #file-name-display {
+        font-size: .78rem;
+        color: #6b7280;
+        margin-top: .4rem;
+    }
+
+    /* role cards */
+    .role-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: .6rem;
+    }
+
+    @media (max-width: 500px) {
+        .role-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    .role-card input[type="radio"] {
+        display: none;
+    }
+
+    .role-card label {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .35rem;
+        padding: .7rem .4rem;
+        border: 2px solid #e5e7eb;
+        border-radius: .85rem;
+        cursor: pointer;
+        font-size: .78rem;
+        font-weight: 600;
+        color: #4b5563;
+        transition: all .18s;
+        background: #fff;
+    }
+
+    .role-card label i {
+        font-size: 1.3rem;
+        color: #a78bfa;
+    }
+
+    .role-card input:checked+label {
+        border-color: #6d28d9;
+        background: linear-gradient(135deg, #ede9fe, #ddd6fe);
+        color: #4c1d95;
+        box-shadow: 0 3px 10px rgba(109, 40, 217, .15);
+    }
+
+    .role-card input:checked+label i {
+        color: #6d28d9;
+    }
+
+    /* error display */
+    .field-errors {
+        list-style: none;
+        margin: .3rem 0 0;
+        padding: 0;
+    }
+
+    .field-errors li {
+        font-size: .76rem;
+        color: #dc2626;
+        display: flex;
+        align-items: center;
+        gap: .3rem;
+    }
+
+    .non-field-errors {
+        background: #fef2f2;
+        border: 1.5px solid #fca5a5;
+        border-radius: .75rem;
+        padding: .75rem 1rem;
+        margin-bottom: 1.25rem;
+        color: #b91c1c;
+        font-size: .83rem;
+    }
+
+    .non-field-errors li {
+        list-style: none;
+    }
+
+    /* password strength */
+    #pwd-strength-bar {
+        height: 4px;
+        border-radius: 2px;
+        width: 0;
+        max-width: 100%;
+        background: #e5e7eb;
+        transition: width .3s, background .3s;
+        margin-top: .4rem;
+    }
+
+    /* divider */
+    .or-divider {
+        text-align: center;
+        font-size: .78rem;
+        color: #9ca3af;
+        margin: 1rem 0 .75rem;
+    }
+
+    /* submit btn */
+    .btn-register {
+        width: 100%;
+        padding: .85rem;
+        background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        color: #fff;
+        border: none;
+        border-radius: .85rem;
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: .01em;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: .6rem;
+        box-shadow: 0 4px 16px rgba(79, 70, 229, .35);
+        transition: transform .18s, box-shadow .18s, filter .18s;
+    }
+
+    .btn-register:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(79, 70, 229, .38);
+        filter: brightness(1.07);
+    }
+
+    .btn-register:active {
+        transform: translateY(0);
+    }
+
+    /* sign-in link */
+    .sign-in-link {
+        text-align: center;
+        margin-top: 1.25rem;
+        font-size: .84rem;
+        color: #6b7280;
+    }
+
+    .sign-in-link a {
+        color: #4f46e5;
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .sign-in-link a:hover {
+        text-decoration: underline;
+    }
+
+    /* dark mode tweaks */
+    .dark .register-card {
+        background: rgba(30, 27, 75, .88);
+        border-color: rgba(109, 40, 217, .3);
+    }
+
+    .dark .register-brand h1 {
+        color: #e0e7ff;
+    }
+
+    .dark .field-group {
+        background: rgba(109, 40, 217, .08);
+        border-color: rgba(109, 40, 217, .25);
+    }
+
+    .dark .form-label {
+        color: #c7d2fe;
+    }
+
+    .dark .form-control {
+        background: rgba(255, 255, 255, .06);
+        border-color: rgba(109, 40, 217, .35);
+        color: #e0e7ff;
+    }
+
+    .dark .form-control:focus {
+        border-color: #818cf8;
+        box-shadow: 0 0 0 3px rgba(129, 140, 248, .2);
+    }
+
+    .dark .role-card label {
+        background: rgba(255, 255, 255, .04);
+        border-color: rgba(109, 40, 217, .3);
+        color: #a5b4fc;
+    }
+
+    .dark .role-card input:checked+label {
+        background: rgba(109, 40, 217, .22);
+        color: #c4b5fd;
+        border-color: #818cf8;
+    }
+
+    .dark .section-label {
+        color: #a78bfa;
+    }
+
+    .dark .sign-in-link {
+        color: #9ca3af;
+    }
+</style>
+
+<div class="py-6 px-4">
+    <div class="register-card">
+
+        <!-- Brand / Header -->
+        <div class="register-brand">
+            <div class="icon-wrap">
+                <i class="fas fa-network-wired text-white text-xl"></i>
+            </div>
+            <h1>Create Account</h1>
+        </div>
+        <p class="text-center text-sm text-gray-500 -mt-3 mb-5">Join the ISP Inventory System</p>
+
+        <!-- Non-field errors -->
+        {% if form.non_field_errors %}
+        <ul class="non-field-errors">
+            {% for error in form.non_field_errors %}
+            <li><i class="fas fa-exclamation-circle mr-1"></i>{{ error }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data" novalidate>
             {% csrf_token %}
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Full Name</label>
-                    <input name="name" type="text" required class="mt-1 block w-full px-3 py-2 border rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Username</label>
-                    <input name="username" type="text" required class="mt-1 block w-full px-3 py-2 border rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Password</label>
-                    <input name="password" type="password" required class="mt-1 block w-full px-3 py-2 border rounded-lg">
-                </div>
-                <div>
-                    {% if role == 'Admin' %}
-                    <label class="block text-sm font-medium text-gray-700">Role</label>
-                    <select name="role" required class="mt-1 block w-full px-3 py-2 border rounded-lg">
-                        <option value="">Choose role</option>
-                        <option value="Admin">Admin</option>
-                        <option value="Technician">Technician</option>
-                        <option value="Storekeeper">Storekeeper</option>
-                    </select>
-                    {% endif %}
+
+            <!-- ── Account Info ──────────────────────────────────────────── -->
+            <p class="section-label"><i class="fas fa-user mr-1"></i> Account Info</p>
+            <div class="field-group">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+                    <!-- Username -->
+                    <div>
+                        <label class="form-label" for="{{ form.username.id_for_label }}">
+                            Username <span class="req">*</span>
+                        </label>
+                        <input type="text" name="{{ form.username.html_name }}" id="{{ form.username.id_for_label }}"
+                            value="{{ form.username.value|default:'' }}"
+                            class="form-control {% if form.username.errors %}border-red-400{% endif %}"
+                            placeholder="e.g. john_doe" autocomplete="username" required>
+                        {% if form.username.errors %}
+                        <ul class="field-errors">
+                            {% for e in form.username.errors %}<li><i class="fas fa-times-circle"></i>{{ e }}</li>{%
+                            endfor %}
+                        </ul>
+                        {% endif %}
+                    </div>
+
+                    <!-- Email -->
+                    <div>
+                        <label class="form-label" for="{{ form.email.id_for_label }}">
+                            Email Address
+                        </label>
+                        <input type="email" name="{{ form.email.html_name }}" id="{{ form.email.id_for_label }}"
+                            value="{{ form.email.value|default:'' }}"
+                            class="form-control {% if form.email.errors %}border-red-400{% endif %}"
+                            placeholder="you@example.com" autocomplete="email">
+                        {% if form.email.errors %}
+                        <ul class="field-errors">
+                            {% for e in form.email.errors %}<li><i class="fas fa-times-circle"></i>{{ e }}</li>{% endfor %}
+                        </ul>
+                        {% endif %}
+                    </div>
+
+                    <!-- First Name -->
+                    <div>
+                        <label class="form-label" for="{{ form.first_name.id_for_label }}">First Name</label>
+                        <input type="text" name="{{ form.first_name.html_name }}"
+                            id="{{ form.first_name.id_for_label }}" value="{{ form.first_name.value|default:'' }}"
+                            class="form-control" placeholder="First name" autocomplete="given-name">
+                    </div>
+
+                    <!-- Last Name -->
+                    <div>
+                        <label class="form-label" for="{{ form.last_name.id_for_label }}">Last Name</label>
+                        <input type="text" name="{{ form.last_name.html_name }}" id="{{ form.last_name.id_for_label }}"
+                            value="{{ form.last_name.value|default:'' }}" class="form-control" placeholder="Last name"
+                            autocomplete="family-name">
+                    </div>
+
+                    <!-- Password -->
+                    <div>
+                        <label class="form-label" for="{{ form.password1.id_for_label }}">
+                            Password <span class="req">*</span>
+                        </label>
+                        <div style="position:relative;">
+                            <input type="password" name="{{ form.password1.html_name }}"
+                                id="{{ form.password1.id_for_label }}"
+                                class="form-control {% if form.password1.errors %}border-red-400{% endif %}"
+                                placeholder="Create a password" autocomplete="new-password" id="pw1-field" required>
+                            <button type="button" onclick="togglePwd('{{ form.password1.id_for_label }}', this)"
+                                style="position:absolute;right:.7rem;top:50%;transform:translateY(-50%);background:none;border:none;color:#9ca3af;cursor:pointer;">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <div id="pwd-strength-bar"></div>
+                        {% if form.password1.errors %}
+                        <ul class="field-errors">
+                            {% for e in form.password1.errors %}<li><i class="fas fa-times-circle"></i>{{ e }}</li>{%
+                            endfor %}
+                        </ul>{% endif %}
+                    </div>
+
+                    <!-- Confirm Password -->
+                    <div>
+                        <label class="form-label" for="{{ form.password2.id_for_label }}">
+                            Confirm Password <span class="req">*</span>
+                        </label>
+                        <div style="position:relative;">
+                            <input type="password" name="{{ form.password2.html_name }}"
+                                id="{{ form.password2.id_for_label }}"
+                                class="form-control {% if form.password2.errors %}border-red-400{% endif %}"
+                                placeholder="Repeat your password" autocomplete="new-password" required>
+                            <button type="button" onclick="togglePwd('{{ form.password2.id_for_label }}', this)"
+                                style="position:absolute;right:.7rem;top:50%;transform:translateY(-50%);background:none;border:none;color:#9ca3af;cursor:pointer;">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        {% if form.password2.errors %}
+                        <ul class="field-errors">
+                            {% for e in form.password2.errors %}<li><i class="fas fa-times-circle"></i>{{ e }}</li>{%
+                            endfor %}
+                        </ul>{% endif %}
+                    </div>
+
                 </div>
             </div>
 
-            <button type="submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">
-                <i class="fas fa-user-plus mr-2"></i> Create Account
+            <!-- ── Role Selection ────────────────────────────────────────── -->
+            {% if user.is_authenticated and user.userprofile.role == 'Admin' or not user.is_authenticated %}
+            <p class="section-label"><i class="fas fa-shield-alt mr-1"></i> Assign Role</p>
+            <div class="field-group">
+                <div class="role-grid" role="radiogroup" aria-label="Select role">
+                    <div class="role-card">
+                        <input type="radio" name="{{ form.role.html_name }}" id="role_branch" value="Branch" {% if
+                            form.role.value=='Branch' or not form.role.value %}checked{% endif %}>
+                        <label for="role_branch">
+                            <i class="fas fa-code-branch"></i> Branch
+                        </label>
+                    </div>
+                    <div class="role-card">
+                        <input type="radio" name="{{ form.role.html_name }}" id="role_noc" value="NOC" {% if
+                            form.role.value=='NOC' %}checked{% endif %}>
+                        <label for="role_noc">
+                            <i class="fas fa-satellite-dish"></i> NOC
+                        </label>
+                    </div>
+                    <div class="role-card">
+                        <input type="radio" name="{{ form.role.html_name }}" id="role_storekeeper" value="Storekeeper"
+                            {% if form.role.value=='Storekeeper' %}checked{% endif %}>
+                        <label for="role_storekeeper">
+                            <i class="fas fa-warehouse"></i> Storekeeper
+                        </label>
+                    </div>
+                    <div class="role-card">
+                        <input type="radio" name="{{ form.role.html_name }}" id="role_admin" value="Admin" {% if
+                            form.role.value=='Admin' %}checked{% endif %}>
+                        <label for="role_admin">
+                            <i class="fas fa-user-shield"></i> Admin
+                        </label>
+                    </div>
+                </div>
+                {% if form.role.errors %}
+                <ul class="field-errors mt-2">
+                    {% for e in form.role.errors %}<li><i class="fas fa-times-circle"></i>{{ e }}</li>{% endfor %}
+                </ul>{% endif %}
+            </div>
+            {% else %}
+            {# Non-admin registrations default to Branch #}
+            <input type="hidden" name="{{ form.role.html_name }}" value="Branch">
+            {% endif %}
+
+            <!-- ── Contact & Location ────────────────────────────────────── -->
+            <p class="section-label"><i class="fas fa-map-marker-alt mr-1"></i> Contact &amp; Location</p>
+            <div class="field-group">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+                    <!-- Phone -->
+                    <div>
+                        <label class="form-label" for="{{ form.phone.id_for_label }}">Phone Number</label>
+                        <input type="tel" name="{{ form.phone.html_name }}" id="{{ form.phone.id_for_label }}"
+                            value="{{ form.phone.value|default:'' }}" class="form-control"
+                            placeholder="+880 1XXX-XXXXXX" autocomplete="tel">
+                    </div>
+
+                    <!-- City -->
+                    <div>
+                        <label class="form-label" for="{{ form.city.id_for_label }}">City</label>
+                        <input type="text" name="{{ form.city.html_name }}" id="{{ form.city.id_for_label }}"
+                            value="{{ form.city.value|default:'' }}" class="form-control" placeholder="e.g. Dhaka">
+                    </div>
+
+                    <!-- ZIP Code -->
+                    <div>
+                        <label class="form-label" for="{{ form.zip_code.id_for_label }}">ZIP / Postal Code</label>
+                        <input type="text" name="{{ form.zip_code.html_name }}" id="{{ form.zip_code.id_for_label }}"
+                            value="{{ form.zip_code.value|default:'' }}" class="form-control" placeholder="e.g. 1200">
+                    </div>
+
+                    <!-- Address -->
+                    <div>
+                        <label class="form-label" for="{{ form.address.id_for_label }}">Address</label>
+                        <textarea name="{{ form.address.html_name }}" id="{{ form.address.id_for_label }}"
+                            class="form-control"
+                            placeholder="Street address…">{{ form.address.value|default:'' }}</textarea>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- ── Profile Picture ───────────────────────────────────────── -->
+            <p class="section-label"><i class="fas fa-image mr-1"></i> Profile Picture</p>
+            <div class="field-group" style="padding-bottom:.9rem;">
+                <label class="file-label" for="{{ form.image.id_for_label }}">
+                    <i class="fas fa-cloud-upload-alt"></i> Choose Photo
+                </label>
+                <input type="file" name="{{ form.image.html_name }}" id="{{ form.image.id_for_label }}" accept="image/*"
+                    onchange="showFileName(this)">
+                <p id="file-name-display">No file chosen &nbsp;(PNG, JPG, GIF, WEBP · max 2 MB)</p>
+                {% if form.image.errors %}
+                <ul class="field-errors mt-1">
+                    {% for e in form.image.errors %}<li><i class="fas fa-times-circle"></i>{{ e }}</li>{% endfor %}
+                </ul>{% endif %}
+            </div>
+
+            <!-- Submit -->
+            <button type="submit" class="btn-register" id="register-btn">
+                <i class="fas fa-user-plus"></i> Create Account
             </button>
 
-            <p class="text-center text-sm text-gray-600">
-                Already have an account? <a href="{% url 'login' %}" class="text-indigo-600 font-medium">Sign in</a>
-            </p>
         </form>
+
+        <p class="sign-in-link">
+            Already have an account? <a href="{% url 'login' %}">Sign in</a>
+        </p>
     </div>
 </div>
+
+<script>
+    /* ── Password visibility toggle ─────────────────────────────────────── */
+    function togglePwd(fieldId, btn) {
+        const input = document.getElementById(fieldId);
+        if (!input) return;
+        const isText = input.type === 'text';
+        input.type = isText ? 'password' : 'text';
+        btn.querySelector('i').className = isText ? 'fas fa-eye' : 'fas fa-eye-slash';
+    }
+
+    /* ── Password strength bar ──────────────────────────────────────────── */
+    const pwdInput = document.getElementById('{{ form.password1.id_for_label }}');
+    const strengthBar = document.getElementById('pwd-strength-bar');
+    if (pwdInput && strengthBar) {
+        pwdInput.addEventListener('input', () => {
+            const val = pwdInput.value;
+            let score = 0;
+            if (val.length >= 8) score++;
+            if (/[A-Z]/.test(val)) score++;
+            if (/[0-9]/.test(val)) score++;
+            if (/[^A-Za-z0-9]/.test(val)) score++;
+            const pct = (score / 4) * 100;
+            const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e'];
+            strengthBar.style.width = pct + '%';
+            strengthBar.style.background = colors[score - 1] || '#e5e7eb';
+        });
+    }
+
+    /* ── Show chosen file name ──────────────────────────────────────────── */
+    function showFileName(input) {
+        const el = document.getElementById('file-name-display');
+        if (!el) return;
+        el.textContent = input.files.length
+            ? input.files[0].name
+            : 'No file chosen';
+    }
+</script>
 {% endblock %}

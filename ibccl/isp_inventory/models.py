@@ -4,8 +4,6 @@ from django.utils import timezone
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
 
-
-# Extend User with Role
 class UserProfile(models.Model):
     ROLE_CHOICES = [
         ('Admin', 'Admin'),
@@ -13,11 +11,106 @@ class UserProfile(models.Model):
         ('Branch', 'Branch'),
         ('NOC', 'NOC'),
     ]
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='userprofile')
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='Branch')
+    phone = models.CharField(max_length=20, blank=True)
+    address = models.TextField(blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    zip_code = models.CharField(max_length=20, blank=True)
+    image = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    last_login = models.DateTimeField(null=True, blank=True)
+    # Status / Preferences
+    is_active = models.BooleanField(default=True)
+    is_verified = models.BooleanField(default=False)
+    email_notifications = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'User Profile'
+        verbose_name_plural = 'User Profiles'
+        indexes = [
+            models.Index(fields=['role']),
+            models.Index(fields=['user']),
+            models.Index(fields=['is_active']),
+        ]
 
     def __str__(self):
-        return f"{self.user.username} - {self.role}"    
+        return f"{self.user.username} - {self.role}"
+
+    # ── Convenience properties (delegate to User) ──────────────────────────
+    @property
+    def username(self):
+        """Read-only alias for User.username."""
+        return self.user.username
+
+    @property
+    def email(self):
+        """Read-only alias for User.email."""
+        return self.user.email
+
+    @property
+    def full_name(self):
+        """User's full name, falls back to username."""
+        return f"{self.user.first_name} {self.user.last_name}".strip() or self.user.username
+
+    @property
+    def profile_image_url(self):
+        """Profile image URL, with a default fallback."""
+        if self.image:
+            return self.image.url
+        return '/static/images/default_profile.png'
+
+    @property
+    def role_display(self):
+        """Human-readable role label."""
+        return dict(self.ROLE_CHOICES).get(self.role, self.role)
+
+    # ── Role helpers ────────────────────────────────────────────────────────
+    @property
+    def is_admin(self):
+        return self.role == 'Admin'
+
+    @property
+    def is_storekeeper(self):
+        return self.role == 'Storekeeper'
+
+    @property
+    def is_branch(self):
+        return self.role == 'Branch'
+
+    @property
+    def is_noc(self):
+        return self.role == 'NOC'
+
+    # ── Permission helpers ──────────────────────────────────────────────────
+    def get_permissions(self):
+        """Return list of permission strings for this user's role."""
+        permissions = {
+            'Admin': ['create', 'read', 'update', 'delete', 'manage_users', 'manage_settings'],
+            'Storekeeper': ['create', 'read', 'update', 'manage_inventory', 'approve_requests'],
+            'Branch': ['read', 'create_request', 'use_material'],
+            'NOC': ['read', 'create_task', 'update_task'],
+        }
+        return permissions.get(self.role, [])
+
+    def has_permission(self, permission):
+        """Return True if the user's role grants *permission*."""
+        return permission in self.get_permissions()
+
+    # ── Lifecycle ────────────────────────────────────────────────────────────
+    def update_last_login(self):
+        """Manually stamp the last-login time."""
+        self.last_login = timezone.now()
+        self.save(update_fields=['last_login'])
+
+    def save(self, *args, **kwargs):
+        """Sync last_login from Django's User on first save."""
+        if not self.last_login and self.user.last_login:
+            self.last_login = self.user.last_login
+        super().save(*args, **kwargs)
 
 class Material(models.Model):
     CATEGORY_CHOICES = [

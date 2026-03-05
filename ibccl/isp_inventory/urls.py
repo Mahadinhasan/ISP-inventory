@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, re_path
 from . import views
 
 urlpatterns = [
@@ -8,7 +8,7 @@ urlpatterns = [
     path('dashboard/', views.dashboard, name='dashboard'),
     path('materials/', views.materials_view, name='materials'),
     path('materials/<int:pk>/json/', views.material_json, name='material_json'),
-    path('tasks/', views.tasks_view, name='tasks'),
+    # path('tasks/', views.tasks_view, name='tasks'),
     path('requests/', views.requests_view, name='requests'),
     path('settings/', views.settings_view, name='settings'),
     path('reports/', views.reports_view, name='reports'),
@@ -16,4 +16,6 @@ urlpatterns = [
     path('api/used-materials/<int:pk>/', views.get_used_material_api, name='get_used_material_api'),
     path('api/pending-requests/', views.pending_requests_api, name='pending_requests_api'),
 
+    # Catch-all: show custom 404 for any unrecognised URL (works in DEBUG=True too)
+    re_path(r'^.*$', views.custom_404_view, name='custom_404'),
 ]

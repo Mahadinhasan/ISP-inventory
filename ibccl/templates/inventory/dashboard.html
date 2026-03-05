@@ -95,6 +95,22 @@
                 </div>
             </div>
         </div>
+
+        <!--Low Stock-->
+        {% if user.userprofile.role != 'Admin' and user.userprofile.role != 'Branch' %}
+        <div onclick="document.getElementById('materialsModal').classList.remove('hidden')"
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            <div class="flex items-center">
+                <div class="p-4 bg-blue-100 dark:bg-blue-900 rounded-full">
+                    <i class="fas fa-box text-3xl text-red-600 dark:text-red-400"></i>
+                </div>
+                <div class="ml-6">
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Low Stock Materials</p>
+                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ low_stock_materials }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
         <!-- 7. Reports Card -->
         <div data-redirect="{% url 'reports' %}"
             class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
@@ -137,6 +153,9 @@
             </div>
         </div>
     </div>
+    <!--add new card by storekeeper-->
+    <!--Low Stock materials-->
+    
     <!-- Modals -->
 
 
@@ -421,7 +440,7 @@
                 <table id="usedMaterialsTable" class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Technician</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Material</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date Used</th>
@@ -509,26 +528,8 @@
         </div>
     </div>
     {% endif %}
-    <!-- Internal Communication Modal -->
-    <div id="internalCommModal"
-        class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
-        onclick="if(event.target === this) this.classList.add('hidden')">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
-            <div class="p-6 border-b flex justify-between items-center">
-                <h3 class="text-xl font-bold text-gray-900">Internal Communication</h3>
-                <button onclick="document.getElementById('internalCommModal').classList.add('hidden')"
-                    class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
-            </div>
-            <div class="p-6 overflow-y-auto">
-                <div class="bg-pink-50 p-6 rounded-lg text-center">
-                    <i class="fas fa-comments text-6xl text-pink-400 mb-4"></i>
-                    <p class="text-gray-600">Internal communication feature coming soon!</p>
-                    <p class="text-sm text-gray-500 mt-2">This will allow team messaging and announcements.</p>
-                </div>
-            </div>
-        </div>
-    </div>
 
+    <!--internel communication massage template all user show massanager style design-->
     <!-- Destroy Materials Modal -->
     <div id="destroyMaterialsModal"
         class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
@@ -550,14 +551,14 @@
         </div>
     </div>
 </div>
-<!--Recent Used Materials-->
-<!--Everyday on used Materials section, admin and staff can see this-->
+<!--Today's Used Materials-->
+{% if user.userprofile.role != 'Branch' and user.userprofile.role != 'Storekeeper' %}
 {% if user.userprofile.role != 'Branch' and user.userprofile.role != 'Storekeeper' %}
 <div class="bg-white rounded-xl shadow-lg overflow-hidden">
     <div class="px-8 py-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-gray-200">
         <h3 class="text-2xl font-bold text-gray-900 flex items-center">
             <i class="fas fa-history mr-3 text-indigo-600"></i>
-            Recent Used Materials ({{ recent_requests|length }})
+            Today's Used Materials ({{ all_used_materials|length }})
         </h3>
     </div>
     <div class="overflow-x-auto">
@@ -575,13 +576,13 @@
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-                {% for req in recent_requests %}
+                {% for req in all_used_materials %}
                 <tr class="hover:bg-gray-50 transition">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {{ req.requested_at|date:"d M Y" }}
+                        {{ req.added_at|date:"d-m-Y" }}
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-700">
-                        {{ req.requester.get_full_name|default:req.requester.username }}
+                        {{ req.technician.username }}
                     </td>
                     <td class="px-6 py-4 text-sm font-medium text-gray-900">
                         {{ req.material.name }}
@@ -591,7 +592,7 @@
                     </td>
                     <td class="px-6 py-4">
                         <span class="px-4 py-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                                {% if req.status == 'Approved' %}bg-green-100 text-green-800
+                                {% if req.status == 'Accepted' %}bg-green-100 text-green-800
                                 {% elif req.status == 'Pending' %}bg-yellow-100 text-yellow-800
                                 {% else %}bg-red-100 text-red-800{% endif %}">
                             {{ req.status }}
@@ -611,7 +612,7 @@
     </div>
 </div>
 {% endif %}
-
+{% endif %}
 <!---Pending request-->
 {% if user.userprofile.role != 'Branch' and user.userprofile.role != 'Admin' %}
 <div class="bg-white rounded-xl shadow-lg overflow-hidden">

@@ -68,9 +68,9 @@ class MaterialRequestAdmin(admin.ModelAdmin):
     search_fields = ['requester__username', 'material__name', 'user_note']
 admin.site.register(MaterialRequest, MaterialRequestAdmin)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ['user', 'role']
-    list_filter = ['role']
-    search_fields = ['user__username', 'user__email']
+    list_display = ['id', 'username', 'email', 'role', 'is_active', 'is_verified', 'email_notifications']
+    list_filter = ['role', 'is_active', 'is_verified', 'email_notifications']
+    search_fields = ['username', 'email', 'role']
 admin.site.register(UserProfile, UserProfileAdmin)
 class SystemSettingAdmin(admin.ModelAdmin):
     list_display = ['key', 'value', 'description']

@@ -10,15 +10,12 @@ from django.db.models import Sum, Q, F, Case, When, IntegerField
 from django.db import transaction
 from django.utils import timezone
 from datetime import datetime
-from django.utils import timezone
-from datetime import datetime
 from django.http import HttpResponse, JsonResponse
 from django.core.management import call_command
 import json
 from io import StringIO
 from django.core.paginator import Paginator
 import requests
-
 
 # Helper function to handle month-end resets
 def process_month_end_reset():
@@ -66,23 +63,34 @@ def process_month_end_reset():
 
 def register_view(request):
     if request.method == 'POST':
-        form = RegisterForm(request.POST)
+        form = RegisterForm(request.POST, request.FILES)
         if form.is_valid():
             user = form.save()
+
             # Ensure role groups exist and add user to selected group
-            role = form.cleaned_data.get('role')
+            role = form.cleaned_data.get('role', 'Branch')
             for r in ['Admin', 'Storekeeper', 'Branch', 'NOC']:
                 Group.objects.get_or_create(name=r)
-            if role:
-                grp = Group.objects.get(name=role)
-                user.groups.add(grp)
-            # Create the associated UserProfile for the new user
+            grp = Group.objects.get(name=role)
+            user.groups.add(grp)
+
+            # Create / update the associated UserProfile
             try:
-                ensure_userprofile(user)
+                profile = ensure_userprofile(user)
+                if profile:
+                    profile.role     = role
+                    profile.phone    = form.cleaned_data.get('phone', '')
+                    profile.address  = form.cleaned_data.get('address', '')
+                    profile.city     = form.cleaned_data.get('city', '')
+                    profile.zip_code = form.cleaned_data.get('zip_code', '')
+                    if form.cleaned_data.get('image'):
+                        profile.image = form.cleaned_data['image']
+                    profile.save()
             except Exception:
                 pass
+
             login(request, user)
-            messages.success(request, "Account created!")
+            messages.success(request, f"Welcome, {user.username}! Your account has been created.")
             return redirect('dashboard')
     else:
         form = RegisterForm()
@@ -311,10 +319,12 @@ def dashboard(request):
         used_materials_count = UsedMaterial.objects.filter(technician=request.user).count()
         used_material_form = UsedMaterialForm(user=request.user)
 
-    # Admin specific stats
+    # Admin specific stats and branch user stats
     total_users = 0
     if role == 'Admin':
         total_users = User.objects.count()
+    elif role == 'Branch':
+        total_users = User.objects.filter(userprofile__role='Branch').count()
 
     return render(request, 'inventory/dashboard.html', {
         'total_materials': total_materials,
@@ -496,63 +506,62 @@ def material_json(request, pk):
     }
     return JsonResponse(data)
 
-@login_required
-@login_required
-def tasks_view(request):
-    profile = ensure_userprofile(request.user)
-    role = profile.role if profile else 'Branch'
+# @login_required
+# def tasks_view(request):
+#     profile = ensure_userprofile(request.user)
+#     role = profile.role if profile else 'Branch'
 
-    if role == 'Branch':
-        tasks = Task.objects.filter(technician=request.user).order_by('-created_at')
-    else:
-        tasks = Task.objects.all().order_by('-created_at')
+#     if role == 'Branch':
+#         tasks = Task.objects.filter(technician=request.user).order_by('-created_at')
+#     else:
+#         tasks = Task.objects.all().order_by('-created_at')
 
-    if request.method == 'POST':
-        action = request.POST.get('action')
+#     if request.method == 'POST':
+#         action = request.POST.get('action')
         
-        if action == 'create':
-            if role == 'Branch':
-                 messages.error(request, "Branch users cannot create tasks.")
-                 return redirect('tasks')
-            form = TaskForm(request.POST)
-            if form.is_valid():
-                form.save()
-                messages.success(request, "Task created!")
-                return redirect('tasks')
+#         if action == 'create':
+#             if role == 'Branch':
+#                  messages.error(request, "Branch users cannot create tasks.")
+#                  return redirect('tasks')
+#             form = TaskForm(request.POST)
+#             if form.is_valid():
+#                 form.save()
+#                 messages.success(request, "Task created!")
+#                 return redirect('tasks')
         
-        elif action == 'update_status':
-            task_id = request.POST.get('task_id')
-            new_status = request.POST.get('status')
-            try:
-                task = Task.objects.get(pk=task_id)
-                # Permission check
-                if role == 'Branch' and task.requester != request.user:
-                    messages.error(request, "Permission denied.")
-                else:
-                    task.status = new_status
-                    task.save()
-                    messages.success(request, f"Task status updated to {new_status}")
-            except Task.DoesNotExist:
-                messages.error(request, "Task not found.")
-            return redirect('tasks')
+#         elif action == 'update_status':
+#             task_id = request.POST.get('task_id')
+#             new_status = request.POST.get('status')
+#             try:
+#                 task = Task.objects.get(pk=task_id)
+#                 # Permission check
+#                 if role == 'Branch' and task.requester != request.user:
+#                     messages.error(request, "Permission denied.")
+#                 else:
+#                     task.status = new_status
+#                     task.save()
+#                     messages.success(request, f"Task status updated to {new_status}")
+#             except Task.DoesNotExist:
+#                 messages.error(request, "Task not found.")
+#             return redirect('tasks')
 
-        elif action == 'delete':
-            if role != 'Admin':
-                messages.error(request, "Only Admins can delete tasks.")
-                return redirect('tasks')
-            task_id = request.POST.get('task_id')
-            try:
-                task = Task.objects.get(pk=task_id)
-                task.delete()
-                messages.success(request, "Task deleted.")
-            except Task.DoesNotExist:
-                messages.error(request, "Task not found.")
-            return redirect('tasks')
+#         elif action == 'delete':
+#             if role != 'Admin':
+#                 messages.error(request, "Only Admins can delete tasks.")
+#                 return redirect('tasks')
+#             task_id = request.POST.get('task_id')
+#             try:
+#                 task = Task.objects.get(pk=task_id)
+#                 task.delete()
+#                 messages.success(request, "Task deleted.")
+#             except Task.DoesNotExist:
+#                 messages.error(request, "Task not found.")
+#             return redirect('tasks')
 
-    else:
-        form = TaskForm()
+#     else:
+#         form = TaskForm()
         
-    return render(request, 'inventory/tasks.html', {'tasks': tasks.order_by('-created_at'), 'form': form, 'role': role})
+#     return render(request, 'inventory/tasks.html', {'tasks': tasks.order_by('-created_at'), 'form': form, 'role': role})
 
 @login_required
 def requests_view(request):
@@ -1288,3 +1297,11 @@ def pending_requests_api(request):
             'success': False,
             'error': str(e)
         }, status=400)
+
+# Custom 404 handler
+def custom_404_view(request, exception=None):
+    """Render a beautiful custom 404 page."""
+    context = {
+        'request_path': request.path,
+    }
+    return render(request, '404.html', context, status=404)

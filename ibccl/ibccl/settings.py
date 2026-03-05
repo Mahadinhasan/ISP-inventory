@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'isp_inventory',
     'rest_framework',
+    'Noc',
 ]
 
 MIDDLEWARE = [

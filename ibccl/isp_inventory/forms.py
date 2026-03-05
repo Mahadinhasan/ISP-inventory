@@ -5,11 +5,72 @@ from .models import Material, Task, MaterialRequest, SystemSetting, Notification
 from .utils import ensure_userprofile
 
 class RegisterForm(UserCreationForm):
-    ROLE_CHOICES = [('Branch', 'Branch'), ('Storekeeper', 'Storekeeper'), ('Admin', 'Admin'), ('NOC', 'NOC')]
-    role = forms.ChoiceField(choices=ROLE_CHOICES)
+    """Registration form that creates a Django User and populates UserProfile fields."""
+
+    ROLE_CHOICES = [
+        ('Branch', 'Branch'),
+        ('Storekeeper', 'Storekeeper'),
+        ('Admin', 'Admin'),
+        ('NOC', 'NOC'),
+    ]
+
+    # Extra fields that live on UserProfile (not User)
+    role = forms.ChoiceField(
+        choices=ROLE_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
+    first_name = forms.CharField(max_length=150, required=False)
+    last_name = forms.CharField(max_length=150, required=False)
+    phone = forms.CharField(max_length=20, required=False)
+    address = forms.CharField(widget=forms.Textarea(attrs={'rows': 2}), required=False)
+    city = forms.CharField(max_length=100, required=False)
+    zip_code = forms.CharField(max_length=20, required=False)
+    image = forms.ImageField(required=False)
+
     class Meta:
         model = User
-        fields = ['username', 'first_name', 'password1', 'password2', 'role']
+        fields = ['username', 'first_name', 'last_name', 'email', 'password1', 'password2']
+
+    # ── Validation ────────────────────────────────────────────────────────────
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email', '').strip()
+        if email and User.objects.filter(email=email).exists():
+            raise forms.ValidationError('An account with this email already exists.')
+        return email
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username', '').strip()
+        if User.objects.filter(username=username).exists():
+            raise forms.ValidationError('This username is already taken.')
+        return username
+
+    def clean_role(self):
+        role = self.cleaned_data.get('role')
+        valid = [r[0] for r in self.ROLE_CHOICES]
+        if role not in valid:
+            raise forms.ValidationError('Invalid role selected.')
+        return role
+
+    def clean_image(self):
+        image = self.cleaned_data.get('image')
+        if image:
+            if image.size > 2 * 1024 * 1024:
+                raise forms.ValidationError('Profile image must be under 2 MB.')
+            allowed = ('.png', '.jpg', '.jpeg', '.gif', '.webp')
+            if not image.name.lower().endswith(allowed):
+                raise forms.ValidationError('Allowed formats: PNG, JPG, JPEG, GIF, WEBP.')
+        return image
+
+    # ── Save ──────────────────────────────────────────────────────────────────
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.first_name = self.cleaned_data.get('first_name', '')
+        user.last_name = self.cleaned_data.get('last_name', '')
+        if commit:
+            user.save()
+        return user
 
 # select field for material category (piece/meter)
 class MaterialForm(forms.ModelForm):
