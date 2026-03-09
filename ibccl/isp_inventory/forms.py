@@ -76,50 +76,34 @@ class RegisterForm(UserCreationForm):
 class MaterialForm(forms.ModelForm):
     class Meta:
         model = Material
-        fields = ['name', 'category', 'quantity', 'min_stock_level', 'status', 'notes']
+        fields = ['name', 'category', 'quantity', 'min_stock_level']
     
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        
-        # Determine user's role if available
-        role = None
-        if self.user:
-            try:
-                profile = ensure_userprofile(self.user)
-                role = profile.role if profile else None
-            except Exception:
-                pass
-        
-        # Check if this is a new instance (adding new) or existing (editing)
-        is_new = not (self.instance and self.instance.pk)
-        
-        # Handle Storekeeper and Admin permissions
-        if role in ['Storekeeper', 'Admin']:
-            # When editing existing material: name is read-only (unique constraint)
-            if not is_new:
-                self.fields['name'].disabled = True
-                self.fields['name'].help_text = "Material name cannot be changed (unique constraint)."
-            
-            # When adding new material: status is not allowed (set by system auto)
-            if is_new and 'status' in self.fields:
-                del self.fields['status']
-
-        
-        # Branch cannot edit status at all
-        if role == 'Branch':
-            if 'status' in self.fields:
-                self.fields['status'].disabled = True
-        
-        # Make notes optional
-        if 'notes' in self.fields:
-            self.fields['notes'].required = False
         
         # Add black border styling to all fields
         for field_name, field in self.fields.items():
             field.widget.attrs.update({
                 'class': 'w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
             })
+        
+        if self.user:
+            try:
+                profile = ensure_userprofile(self.user)
+                role = profile.role if profile else None
+            except Exception:
+                role = None
+            
+            is_new = not (self.instance and self.instance.pk)
+            
+            if role == 'Storekeeper':
+                # Storekeeper cannot edit the name of existing materials
+                # Use readonly (not disabled) so the field is still submitted in POST
+                if not is_new:
+                    self.fields['name'].widget.attrs['readonly'] = True
+                    self.fields['name'].help_text = "Name cannot be changed by Storekeeper."
+                # Status is auto-calculated by Material.save()
 
 class TaskForm(forms.ModelForm):
     class Meta:

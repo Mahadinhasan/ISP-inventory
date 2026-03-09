@@ -263,94 +263,223 @@ def dashboard(request):
         # 'technician_approved_materials': technician_approved_materials,
     })
 
+# @login_required
+# def materials_view(request):
+#     profile = ensure_userprofile(request.user)
+#     role = profile.role if profile else 'Branch'
+
+#     # Base queryset
+#     materials = Material.objects.all().order_by('-added_at')
+    
+#     # Materials count normal/Low stock/Out of stock
+#     total_normal_stock = Material.objects.filter(status='Normal').count()
+#     total_low_stock = Material.objects.filter(status='Low Stock').count()
+#     total_out_of_stock = Material.objects.filter(status='Out of Stock').count()
+
+#     # Search filter - name, category, status
+#     search = request.GET.get('search', '').strip()
+#     if search:
+#         materials = materials.filter(
+#             Q(name__icontains=search) | Q(category__icontains=search) | Q(status__icontains=search)
+#         )
+
+#     # Filter by category and stock_status    
+#     category = request.GET.get('category', '')
+#     stock_status = request.GET.get('stock_status', '')
+#     if category:
+#         materials = materials.filter(category=category)
+#     if stock_status:
+#         status_map = {
+#             'low': 'Low Stock',
+#             'normal': 'Normal',
+#             'out_of_stock': 'Out of Stock'
+#         }
+#         db_status = status_map.get(stock_status, stock_status)
+#         materials = materials.filter(status=db_status)
+        
+#     # Pagination
+#     paginator = Paginator(materials, 10)
+#     page_number = request.GET.get('page')
+#     materials_page = paginator.get_page(page_number)
+
+#     if request.method == 'POST':
+#         material_id = request.POST.get('material_id')
+#         action = request.POST.get('action')
+
+#         # Delete action
+#         if action == 'delete':
+#             if role != 'Storekeeper':
+#                 messages.error(request, "Permission denied. Only Storekeeper can delete materials.")
+#                 return redirect('materials')
+            
+#             material = get_object_or_404(Material, id=material_id)
+#             material.delete()
+#             messages.success(request, "Material deleted successfully!")
+#             return redirect('materials')
+
+#         # Add or Edit action
+#         else:
+#             if role != 'Storekeeper':
+#                 messages.error(request, "Permission denied. Only Storekeeper can add/edit materials.")
+#                 return redirect('materials')
+
+#             instance = None
+#             if material_id and material_id != 'undefined' and material_id.isdigit():
+#                 instance = get_object_or_404(Material, id=material_id)
+            
+#             form = MaterialForm(request.POST, user=request.user, instance=instance)
+#             if form.is_valid():
+#                 form.save()
+#                 messages.success(request, "Material saved successfully!")
+#                 return redirect('materials')
+#             else:
+#                 messages.error(request, "Invalid data or material name already exists!")
+#                 return redirect('materials')
+
+#     form = MaterialForm(user=request.user)
+#     context = {
+#         'category': category,
+#         'total_normal_stock': total_normal_stock,
+#         'total_low_stock': total_low_stock,
+#         'total_out_of_stock': total_out_of_stock,
+#         'stock_status': stock_status,
+#         'materials_page': materials_page,
+#         'search': search,
+#         'form': form,
+#         'role': role,
+#     }
+#     return render(request, 'inventory/materials.html', context)
+
+
+
+
+# @login_required
+# def material_json(request, pk):
+#     """Return material data as JSON for populating the
+#      edit form via AJAX."""
+#     try:
+#         mat = Material.objects.get(pk=pk)
+#     except Material.DoesNotExist:
+#         return JsonResponse({'error': 'Material not found'}, status=404)
+
+#     profile = ensure_userprofile(request.user)
+#     role = profile.role if profile else 'Branch'
+    
+#     # Only Storekeeper can edit materials
+#     if role != 'Storekeeper':
+#         return JsonResponse({'error': 'Permission denied'}, status=403)
+
+#     data = {
+#         'id': mat.id,
+#         'name': mat.name,
+#         'category': mat.category,
+#         'quantity': mat.quantity,
+#         'min_stock_level': mat.min_stock_level,
+#         'status': mat.status,
+#         'notes': mat.notes or '',
+#     }
+#     return JsonResponse(data)
+
 @login_required
 def materials_view(request):
+    """Materials management: only Storekeeper can create, edit, delete."""
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
 
-    # Base queryset
+    # Base queryset - Admin/Storekeeper see all; Branch sees all (read-only)
     materials = Material.objects.all().order_by('-added_at')
-    
-    # Materials count normal/Low stock/Out of stock
+
+    # Stock counts (Admin/Storekeeper only)
     total_normal_stock = Material.objects.filter(status='Normal').count()
     total_low_stock = Material.objects.filter(status='Low Stock').count()
     total_out_of_stock = Material.objects.filter(status='Out of Stock').count()
 
-    # Search filter - name, category, status
+    # Search: name, category, status
     search = request.GET.get('search', '').strip()
     if search:
         materials = materials.filter(
             Q(name__icontains=search) | Q(category__icontains=search) | Q(status__icontains=search)
         )
 
-    # Filter by category and stock_status    
+    # Filter by category and stock_status
     category = request.GET.get('category', '')
     stock_status = request.GET.get('stock_status', '')
     if category:
         materials = materials.filter(category=category)
     if stock_status:
-        status_map = {
-            'low': 'Low Stock',
-            'normal': 'Normal',
-            'out_of_stock': 'Out of Stock'
-        }
+        status_map = {'low': 'Low Stock', 'normal': 'Normal', 'out_of_stock': 'Out of Stock'}
         db_status = status_map.get(stock_status, stock_status)
         materials = materials.filter(status=db_status)
-        
+
     # Pagination
     paginator = Paginator(materials, 10)
     page_number = request.GET.get('page')
     materials_page = paginator.get_page(page_number)
 
+    # POST: Create, Edit, Delete (Storekeeper only)
     if request.method == 'POST':
-        material_id = request.POST.get('material_id')
-        action = request.POST.get('action')
-
-        # Delete action
-        if action == 'delete':
-            if role != 'Storekeeper':
-                messages.error(request, "Permission denied. Only Storekeeper can delete materials.")
-                return redirect('materials')
-            
-            material = get_object_or_404(Material, id=material_id)
-            material.delete()
-            messages.success(request, "Material deleted successfully!")
+        if role != 'Storekeeper':
+            messages.error(request, "Only Storekeeper can add, edit, or delete materials.")
             return redirect('materials')
 
-        # Add or Edit action
-        else:
-            if role != 'Storekeeper':
-                messages.error(request, "Permission denied. Only Storekeeper can add/edit materials.")
+        action = request.POST.get('action')
+        material_id = request.POST.get('material_id', '').strip()
+
+        # Delete Material (Storekeeper can delete any material)
+        if action == 'delete':
+            if not material_id or not material_id.isdigit():
+                messages.error(request, "Invalid material specified.")
+                return redirect('materials')
+            try:
+                mat = Material.objects.get(pk=material_id)
+                mat.delete()
+                messages.success(request, "Material deleted successfully.")
+            except Material.DoesNotExist:
+                messages.error(request, "Material not found.")
+            return redirect('materials')
+
+        # Create/Edit Material (Storekeeper can edit any material)
+        instance = None
+        if material_id and material_id != 'undefined' and material_id.isdigit():
+            try:
+                instance = Material.objects.get(pk=material_id)
+            except Material.DoesNotExist:
+                messages.error(request, "Material not found.")
                 return redirect('materials')
 
-            instance = None
-            if material_id and material_id != 'undefined' and material_id.isdigit():
-                instance = get_object_or_404(Material, id=material_id)
-            
-            form = MaterialForm(request.POST, user=request.user, instance=instance)
-            if form.is_valid():
-                form.save()
-                messages.success(request, "Material saved successfully!")
-                return redirect('materials')
+        form = MaterialForm(request.POST, user=request.user, instance=instance)
+        if form.is_valid():
+            material = form.save(commit=False)
+            is_new = not material.id
+
+            material.save()
+            messages.success(request, "Material saved successfully!")
+            return redirect('materials')
+        else:
+            error_msg = "Please correct the errors below." if form.errors else "Invalid data."
+            for field, errors in form.errors.items():
+                if errors:
+                    messages.error(request, f"{field}: {errors[0]}")
+                    break
             else:
-                messages.error(request, "Invalid data or material name already exists!")
-                return redirect('materials')
+                messages.error(request, error_msg)
+            return redirect('materials')
 
     form = MaterialForm(user=request.user)
     context = {
+        'search': search,
         'category': category,
+        'stock_status': stock_status,
         'total_normal_stock': total_normal_stock,
         'total_low_stock': total_low_stock,
         'total_out_of_stock': total_out_of_stock,
-        'stock_status': stock_status,
-        'materials_page': materials_page,
-        'search': search,
+        'materials': materials_page,
         'form': form,
         'role': role,
+        'user': request.user,
+        'materials_page': materials_page,
     }
     return render(request, 'inventory/materials.html', context)
-
-
 
 
 @login_required
@@ -364,8 +493,7 @@ def material_json(request, pk):
 
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
-    
-    # Only Storekeeper can edit materials
+    # Only Storekeeper can fetch material data for edit form
     if role != 'Storekeeper':
         return JsonResponse({'error': 'Permission denied'}, status=403)
 
@@ -376,7 +504,6 @@ def material_json(request, pk):
         'quantity': mat.quantity,
         'min_stock_level': mat.min_stock_level,
         'status': mat.status,
-        'notes': mat.notes or '',
     }
     return JsonResponse(data)
 
@@ -517,6 +644,36 @@ def requests_view(request):
 
     if request.method == 'POST':
         action = request.POST.get('action')
+
+        # Save received_by (Branch requester only) via AJAX (expects JSON)
+        if action == 'save_received_by':
+            if role != 'Branch':
+                return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
+
+            req_id = (request.POST.get('req_id') or '').strip()
+            received_by = (request.POST.get('received_by') or '').strip()
+
+            if not req_id.isdigit():
+                return JsonResponse({'success': False, 'error': 'Invalid request id.'}, status=400)
+            if not received_by:
+                return JsonResponse({'success': False, 'error': 'Received By is required.'}, status=400)
+
+            try:
+                req = MaterialRequest.objects.get(pk=int(req_id), requester=request.user)
+            except MaterialRequest.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Request not found.'}, status=404)
+
+            if req.status != 'Approved':
+                return JsonResponse({'success': False, 'error': 'Only approved requests can be recorded.'}, status=400)
+
+            req.received_by = received_by
+            req.received_at = timezone.now()
+            req.save(update_fields=['received_by', 'received_at'])
+            return JsonResponse({
+                'success': True,
+                'received_by': req.received_by,
+                'received_at': req.received_at.isoformat() if req.received_at else None,
+            })
         
         # Create Request
         if action == 'create':
