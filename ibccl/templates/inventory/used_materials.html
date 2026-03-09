@@ -6,9 +6,11 @@
 <div class="space-y-6">
     <div class="flex justify-between items-center">
         <h1 class="text-3xl font-bold text-gray-900">Used Materials Log</h1>
+        {% if user.userprofile.role != 'Admin' and user.userprofile.role != 'Storekeeper' %}
         <button onclick="openAddModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition">
             <i class="fas fa-plus mr-2"></i>Add Used Material
         </button>
+        {% endif %}
     </div>
 
     <!-- Used Materials List -->

@@ -1,5 +1,5 @@
 {% extends 'inventory/base.html' %}
-{% block title %}Dashboard{% endblock %}
+{% block title %}ISP-Inventory: Dashboard{% endblock %}
 {% block content %}
 <div class="fade-in">
     <div class="mb-8">
@@ -31,7 +31,7 @@
             class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
                 <div class="p-4 bg-blue-100 dark:bg-blue-900 rounded-full">
-                    <i class="fas fa-box text-3xl text-blue-600 dark:text-blue-400"></i>
+                    <i class="fas fa-users text-3xl text-indigo-600"></i>
                 </div>
                 <div class="ml-6">
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Total User</p>
@@ -41,7 +41,7 @@
         </div>
         {% endif %}
         <!-- 3. Active Task Card -->
-        {% if user.userprofile.role != 'Storekeeper' %}
+        <!-- {% if user.userprofile.role != 'Storekeeper' %}
         <div onclick="document.getElementById('tasksModal').classList.remove('hidden')"
             class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
@@ -54,7 +54,7 @@
                 </div>
             </div>
         </div>
-        {% endif %}
+        {% endif %} -->
         <!-- 4. Advance Materials Card -->
         <div onclick="document.getElementById('advanceMaterialsModal').classList.remove('hidden')"
             class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
@@ -83,6 +83,7 @@
         </div>
 
         <!-- 6. Used Materials Card -->
+        {% if user.userprofile.role != 'Branch' %}
         <div onclick="document.getElementById('usedMaterialsModal').classList.remove('hidden')"
             class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
@@ -95,7 +96,7 @@
                 </div>
             </div>
         </div>
-
+        {% endif %}
         <!--Low Stock-->
         {% if user.userprofile.role != 'Admin' and user.userprofile.role != 'Branch' %}
         <div onclick="document.getElementById('materialsModal').classList.remove('hidden')"
@@ -138,7 +139,36 @@
                 </div>
             </div>
         </div>
-
+         <!-- 3. Low Stock Card -->
+        {% if user.userprofile.role != 'Storekeeper' and user.userprofile.role != 'Admin' %}
+        <div onclick="document.getElementById('materialsModal').classList.remove('hidden')"
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            <div class="flex items-center">
+                <div class="p-4 bg-blue-100 dark:bg-blue-900 rounded-full">
+                    <i class="fas fa-box text-3xl text-red-600 dark:text-red-400"></i>
+                </div>
+                <div class="ml-6">
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Low Stock Materials</p>
+                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ low_stock_materials|default:"0" }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+         <!-- 6. Used Materials Card -->
+        {% if user.userprofile.role != 'Branch' and user.userprofile.role != 'Storekeeper' %}
+        <div onclick="document.getElementById('usedMaterialsModal').classList.remove('hidden')"
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            <div class="flex items-center">
+                <div class="p-4 bg-teal-100 dark:bg-teal-900 rounded-full">
+                    <i class="fas fa-display text-3xl text-teal-600 dark:text-teal-400"></i>
+                </div>
+                <div class="ml-6">
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Material Monitoring</p>
+                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ used_materials_count }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
         <!-- 9. Destroy Materials Card -->
         <div onclick="document.getElementById('destroyMaterialsModal').classList.remove('hidden')"
             class="bg-white rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
@@ -155,7 +185,6 @@
     </div>
     <!--add new card by storekeeper-->
     <!--Low Stock materials-->
-    
     <!-- Modals -->
 
 
@@ -271,12 +300,10 @@
                         <tr
                             class="hover:bg-gray-50 transition {% if req.request_type == 'Advance' %}border-l-4 border-indigo-400{% endif %}">
                             {% if role != 'Branch' %}
-                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{
-                                req.requester.get_full_name|default:req.requester.username }}</td>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{req.requester.get_full_name|default:req.requester.username }}</td>
                             {% endif %}
                             <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ req.material.name }}</td>
-                            <td class="px-6 py-4 text-sm text-gray-900 font-bold bg-gray-50 rounded text-center">{{
-                                req.quantity }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-900 font-bold bg-gray-50 rounded text-center">{{req.quantity }}</td>
                             <td class="px-6 py-4 text-sm text-gray-600">{{ req.requested_at|date:"Y-m-d H:i" }}</td>
                             <td class="px-6 py-4 text-sm">
                                 <span
