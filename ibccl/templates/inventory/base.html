@@ -124,11 +124,23 @@
                             class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                             <i class="fas fa-file-alt mr-2"></i>Report
                         </a>
-                        <!--Notification-->
-                        <a href="#"
+                        {% if user.userprofile.role == 'Admin' %}
+                        <!--Materials Monitoring (Real-time, Admin only)-->
+                        <a href="{% url 'materials_monitoring' %}"
                             class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            <i class="fas fa-bell mr-2"></i>Notification
+                            <i class="fas fa-chart-line mr-2"></i>Materials Monitoring
                         </a>
+                        {% endif %}
+                        <!--Notification (live, per-user via Django Channels)-->
+                        <button type="button" id="notification-bell"
+                            class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium relative">
+                            <i class="fas fa-bell mr-2"></i>
+                            <span>Notification</span>
+                            <span id="notification-count"
+                                class="absolute -top-1 -right-2 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold rounded-full bg-red-500 text-white hidden">
+                                0
+                            </span>
+                        </button>
                         {% if user.userprofile.role != 'Branch' and user.userprofile.role != 'Storekeeper' %}
                         {% if user.is_superuser %}
                         <!--Settings (Admin only)-->
@@ -444,6 +456,111 @@
             // Initialize status
             const savedStatus = localStorage.getItem('userStatus') || 'online';
             setStatus(savedStatus);
+
+            // ========== Real-time Notifications via Django Channels ==========
+            (function setupNotifications() {
+                const bell = document.getElementById('notification-bell');
+                const countEl = document.getElementById('notification-count');
+                if (!bell || !countEl) return;
+
+                // Simple dropdown panel for recent notifications
+                const panel = document.createElement('div');
+                panel.id = 'notification-panel';
+                panel.className = 'hidden absolute mt-2 w-80 right-0 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-40';
+                panel.innerHTML = `
+                    <div class="px-4 py-2 border-b border-gray-100 dark:border-gray-700">
+                        <p class="text-sm font-semibold text-gray-900 dark:text-white">Notifications</p>
+                    </div>
+                    <div id="notification-list" class="max-h-80 overflow-y-auto">
+                        <div class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">No notifications yet.</div>
+                    </div>
+                `;
+                bell.parentElement.style.position = 'relative';
+                bell.parentElement.appendChild(panel);
+
+                let open = false;
+                bell.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    open = !open;
+                    panel.classList.toggle('hidden', !open);
+                    if (open) {
+                        // Reset counter when user opens panel
+                        countEl.classList.add('hidden');
+                        countEl.textContent = '0';
+                    }
+                });
+                document.addEventListener('click', function () {
+                    if (!open) return;
+                    open = false;
+                    panel.classList.add('hidden');
+                });
+
+                const list = panel.querySelector('#notification-list');
+                let unseen = 0;
+
+                function pushNotification(payload) {
+                    const item = document.createElement('div');
+                    item.className = 'px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer';
+                    const title = payload.title || (payload.category === 'request'
+                        ? 'Material Request Update'
+                        : 'Notification');
+                    const message = payload.message || '';
+                    const meta = [];
+                    if (payload.material) meta.push(payload.material);
+                    if (payload.status) meta.push(payload.status);
+                    if (payload.quantity != null) meta.push(`Qty: ${payload.quantity}`);
+                    item.innerHTML = `
+                        <p class="text-sm font-semibold text-gray-900 dark:text-white">${title}</p>
+                        <p class="text-xs text-gray-600 dark:text-gray-300 mt-0.5">${message}</p>
+                        ${meta.length ? `<p class="text-xs text-gray-400 dark:text-gray-400 mt-1">${meta.join(' • ')}</p>` : ''}
+                    `;
+
+                    if (list.firstChild && !list.firstChild.classList.contains('px-4')) {
+                        list.innerHTML = '';
+                    }
+                    list.insertBefore(item, list.firstChild);
+
+                    // Increment counter when panel is closed
+                    if (!open) {
+                        unseen += 1;
+                        countEl.textContent = String(unseen);
+                        countEl.classList.remove('hidden');
+                    }
+                }
+
+                // Only attempt WebSocket if browser supports it
+                if (!window.WebSocket) return;
+
+                const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+                const wsUrl = scheme + '://' + window.location.host + '/ws/notifications/';
+                let ws;
+
+                function connect() {
+                    try {
+                        ws = new WebSocket(wsUrl);
+                    } catch (e) {
+                        return;
+                    }
+
+                    ws.onmessage = function (event) {
+                        try {
+                            const data = JSON.parse(event.data);
+                            if (data.type === 'notification' && data.payload) {
+                                pushNotification(data.payload);
+                            }
+                        } catch (err) {
+                            console.warn('Notification parse error', err);
+                        }
+                    };
+
+                    ws.onclose = function () {
+                        // Lightweight reconnect
+                        setTimeout(connect, 5000);
+                    };
+                }
+
+                connect();
+            })();
         });
     </script>
 </body>

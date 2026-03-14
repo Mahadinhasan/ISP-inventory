@@ -17,7 +17,6 @@ import io
 from io import StringIO
 from django.core.paginator import Paginator
 import requests
-"""Export the current report as an Excel (.xlsx) file."""
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -149,7 +148,12 @@ def dashboard(request):
         total_materials = Material.objects.count()
     
     active_tasks = Task.objects.filter(status='In Progress').count()
-    pending_requests = MaterialRequest.objects.filter(status='Pending', requester=request.user).count()
+    if role in ['Admin', 'Storekeeper']:
+        pending_requests_qs = MaterialRequest.objects.filter(status='Pending')
+    else:
+        pending_requests_qs = MaterialRequest.objects.filter(status='Pending', requester=request.user)
+    
+    pending_requests = pending_requests_qs.count()
 
     # Data for dashboard modals - Role-specific
     all_tasks = Task.objects.all().order_by('-created_at')
@@ -162,12 +166,43 @@ def dashboard(request):
     all_materials = None
     
     if role == 'Branch':
-        # For Branch: Get approved MaterialRequest objects with Normal stock status only
-        technician_approved_materials = MaterialRequest.objects.filter(
+        # For Branch: start with approved requests where material is in Normal stock
+        approved_qs = MaterialRequest.objects.filter(
             requester=request.user,
             status='Approved',
-            material__status='Normal'  # Only show materials with Normal stock status
-        ).select_related('material').order_by('-requested_at')
+            material__status='Normal'
+        ).select_related('material').order_by('requested_at') # Order by oldest first for FIFO consumption
+
+        # For each material, get the total used amount (Accepted status)
+        used_totals = {}
+        used_qs = UsedMaterial.objects.filter(
+            technician=request.user,
+            status='Accepted',
+        ).values('material_id').annotate(total=Sum('quantity'))
+        
+        for u in used_qs:
+            used_totals[u['material_id']] = u['total']
+
+        # For each approved request, compute remaining (available) quantity
+        # We process requests in FIFO order to deduct used amounts correctly
+        technician_approved_materials = []
+        for req in approved_qs:
+            mat_id = req.material.id
+            available_for_this_req = req.quantity
+            
+            # If we have used amount for this material, deduct it from this request
+            if mat_id in used_totals and used_totals[mat_id] > 0:
+                amount_to_deduct = min(used_totals[mat_id], req.quantity)
+                available_for_this_req -= amount_to_deduct
+                used_totals[mat_id] -= amount_to_deduct
+            
+            # Attach helper attributes for template display
+            req.available_quantity = max(available_for_this_req, 0)
+            technician_approved_materials.append(req)
+        
+        # Sort back to newest first for display
+        technician_approved_materials.reverse()
+
         # Get Advance type requests for branch user
         advance_materials = MaterialRequest.objects.filter(
             requester=request.user,
@@ -196,52 +231,28 @@ def dashboard(request):
         used_materials_count = UsedMaterial.objects.filter(technician=request.user).count()
         used_material_form = UsedMaterialForm(user=request.user)
 
-    # Admin specific stats and branch user stats
-    total_users = 0
-    if role == 'Admin':
-        total_users = User.objects.count()
-    elif role == 'Branch':
-        total_users = User.objects.filter(userprofile__role='Branch').count()
+    # Total users - visible to all roles on dashboard
+    all_users_list = User.objects.all().select_related('userprofile')
+    total_users = all_users_list.count()
     
-    #used materials
-    # if role in ['Admin', 'Storekeeper', 'Branch']:
-    #     all_used_materials = UsedMaterial.objects.filter(status='Accepted').select_related('technician', 'material').order_by('-added_at')
-    # else:
-    #     all_used_materials = []
-    
-    # # Role-specific material data for the materials modal
-    # technician_approved_materials = None
-    # advance_materials = None
-    # all_materials = None
-    # approved_requests = None  # For Admin/Storekeeper modal
-    
-    # if role == 'Branch':
-    #     # For Branch: Get approved MaterialRequest objects with Normal stock status only
-    #     technician_approved_materials_qs = MaterialRequest.objects.filter(
-    #         requester=request.user,
-    #         status='Accepted',
-    #         material__status='Normal'  # Only show materials with Normal stock status
-    #     ).select_related('material').order_by('-requested_at')
-        
-    #     # Calculate available quantity for each approved material (requested - used)
-    #     technician_approved_materials = []
-    #     for req in technician_approved_materials_qs:
-    #         # Get used quantity for this material that has been accepted
-    #         used_qty = UsedMaterial.objects.filter(
-    #             technician=request.user,
-    #             material=req.material,
-    #             status='Accepted'
-    #         ).aggregate(total=Sum('quantity'))['total'] or 0
-            
-    #         # Available = Requested - Used
-    #         available_qty = req.quantity - used_qty
-            
-    #         # Store request with available quantity
-    #         technician_approved_materials.append({
-    #             'request': req,
-    #             'available_quantity': available_qty,
-    #             'used_quantity': used_qty
-    #         })
+    #Materials monitoring show Branch user used materials count
+
+    # Calculate low stock materials
+    low_stock_materials = 0
+    low_stock_material_list = []
+
+    if role == 'Branch':
+        # For Branch: materials with 0 available quantity from technician_approved_materials
+        if technician_approved_materials:
+            for req in technician_approved_materials:
+                if req.available_quantity == 0:
+                    low_stock_materials += 1
+                    low_stock_material_list.append(req)
+    else:
+        # For Admin/Storekeeper: Materials with status 'Low Stock' or 'Out of Stock'
+        low_stock_items = Material.objects.filter(Q(status='Low Stock') | Q(status='Out of Stock'))
+        low_stock_materials = low_stock_items.count()
+        low_stock_material_list = low_stock_items
 
     return render(request, 'inventory/dashboard.html', {
         'total_materials': total_materials,
@@ -259,130 +270,34 @@ def dashboard(request):
         'used_materials_count': used_materials_count,
         'used_material_form': used_material_form,
         'total_users': total_users,
-        # 'all_used_materials': all_used_materials,
-        # 'technician_approved_materials': technician_approved_materials,
+        'all_users_list': all_users_list,
+        'low_stock_materials': low_stock_materials,
+        'low_stock_material_list': low_stock_material_list,
+        'pending_requests_list': pending_requests_qs.select_related('requester', 'material').order_by('-requested_at'),
     })
 
-# @login_required
-# def materials_view(request):
-#     profile = ensure_userprofile(request.user)
-#     role = profile.role if profile else 'Branch'
 
-#     # Base queryset
-#     materials = Material.objects.all().order_by('-added_at')
-    
-#     # Materials count normal/Low stock/Out of stock
-#     total_normal_stock = Material.objects.filter(status='Normal').count()
-#     total_low_stock = Material.objects.filter(status='Low Stock').count()
-#     total_out_of_stock = Material.objects.filter(status='Out of Stock').count()
+@login_required
+def materials_monitoring_view(request):
+    """Real-time materials monitoring for Admin: branch users and used materials (Django Channels)."""
+    profile = ensure_userprofile(request.user)
+    role = profile.role if profile else None
+    if role != 'Admin':
+        messages.error(request, 'Only Admin can access Materials Monitoring.')
+        return redirect('dashboard')
+    ws_scheme = 'wss' if request.scheme == 'https' else 'ws'
+    ws_host = request.get_host()
+    ws_path = '/ws/inventory/materials-monitoring/'
+    ws_url = f'{ws_scheme}://{ws_host}{ws_path}'
+    return render(request, 'inventory/materials_monitoring.html', {
+        'role': role,
+        'ws_url': ws_url,
+    })
 
-#     # Search filter - name, category, status
-#     search = request.GET.get('search', '').strip()
-#     if search:
-#         materials = materials.filter(
-#             Q(name__icontains=search) | Q(category__icontains=search) | Q(status__icontains=search)
-#         )
-
-#     # Filter by category and stock_status    
-#     category = request.GET.get('category', '')
-#     stock_status = request.GET.get('stock_status', '')
-#     if category:
-#         materials = materials.filter(category=category)
-#     if stock_status:
-#         status_map = {
-#             'low': 'Low Stock',
-#             'normal': 'Normal',
-#             'out_of_stock': 'Out of Stock'
-#         }
-#         db_status = status_map.get(stock_status, stock_status)
-#         materials = materials.filter(status=db_status)
-        
-#     # Pagination
-#     paginator = Paginator(materials, 10)
-#     page_number = request.GET.get('page')
-#     materials_page = paginator.get_page(page_number)
-
-#     if request.method == 'POST':
-#         material_id = request.POST.get('material_id')
-#         action = request.POST.get('action')
-
-#         # Delete action
-#         if action == 'delete':
-#             if role != 'Storekeeper':
-#                 messages.error(request, "Permission denied. Only Storekeeper can delete materials.")
-#                 return redirect('materials')
-            
-#             material = get_object_or_404(Material, id=material_id)
-#             material.delete()
-#             messages.success(request, "Material deleted successfully!")
-#             return redirect('materials')
-
-#         # Add or Edit action
-#         else:
-#             if role != 'Storekeeper':
-#                 messages.error(request, "Permission denied. Only Storekeeper can add/edit materials.")
-#                 return redirect('materials')
-
-#             instance = None
-#             if material_id and material_id != 'undefined' and material_id.isdigit():
-#                 instance = get_object_or_404(Material, id=material_id)
-            
-#             form = MaterialForm(request.POST, user=request.user, instance=instance)
-#             if form.is_valid():
-#                 form.save()
-#                 messages.success(request, "Material saved successfully!")
-#                 return redirect('materials')
-#             else:
-#                 messages.error(request, "Invalid data or material name already exists!")
-#                 return redirect('materials')
-
-#     form = MaterialForm(user=request.user)
-#     context = {
-#         'category': category,
-#         'total_normal_stock': total_normal_stock,
-#         'total_low_stock': total_low_stock,
-#         'total_out_of_stock': total_out_of_stock,
-#         'stock_status': stock_status,
-#         'materials_page': materials_page,
-#         'search': search,
-#         'form': form,
-#         'role': role,
-#     }
-#     return render(request, 'inventory/materials.html', context)
-
-
-
-
-# @login_required
-# def material_json(request, pk):
-#     """Return material data as JSON for populating the
-#      edit form via AJAX."""
-#     try:
-#         mat = Material.objects.get(pk=pk)
-#     except Material.DoesNotExist:
-#         return JsonResponse({'error': 'Material not found'}, status=404)
-
-#     profile = ensure_userprofile(request.user)
-#     role = profile.role if profile else 'Branch'
-    
-#     # Only Storekeeper can edit materials
-#     if role != 'Storekeeper':
-#         return JsonResponse({'error': 'Permission denied'}, status=403)
-
-#     data = {
-#         'id': mat.id,
-#         'name': mat.name,
-#         'category': mat.category,
-#         'quantity': mat.quantity,
-#         'min_stock_level': mat.min_stock_level,
-#         'status': mat.status,
-#         'notes': mat.notes or '',
-#     }
-#     return JsonResponse(data)
 
 @login_required
 def materials_view(request):
-    """Materials management: only Storekeeper can create, edit, delete."""
+    """Materials management: Admin and Storekeeper can create, edit, delete; others read-only."""
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
 
@@ -416,10 +331,10 @@ def materials_view(request):
     page_number = request.GET.get('page')
     materials_page = paginator.get_page(page_number)
 
-    # POST: Create, Edit, Delete (Storekeeper only)
+    # POST: Create, Edit, Delete (Admin/Storekeeper only)
     if request.method == 'POST':
-        if role != 'Storekeeper':
-            messages.error(request, "Only Storekeeper can add, edit, or delete materials.")
+        if role not in ['Storekeeper', 'Admin']:
+            messages.error(request, "Only Admin and Storekeeper can add, edit, or delete materials.")
             return redirect('materials')
 
         action = request.POST.get('action')
@@ -493,8 +408,8 @@ def material_json(request, pk):
 
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
-    # Only Storekeeper can fetch material data for edit form
-    if role != 'Storekeeper':
+    # Only Admin/Storekeeper can fetch material data for edit form
+    if role not in ['Storekeeper', 'Admin']:
         return JsonResponse({'error': 'Permission denied'}, status=403)
 
     data = {
@@ -1289,9 +1204,151 @@ def settings_view(request):
 
     if request.method == 'POST':
         action = request.POST.get('action')
-        
-        
-        if action == 'update_notifications':
+
+        # ── Create User ──
+        if action == 'create_user':
+            username = request.POST.get('username', '').strip()
+            email = request.POST.get('email', '').strip()
+            password = request.POST.get('password', '').strip()
+            first_name = request.POST.get('first_name', '').strip()
+            last_name = request.POST.get('last_name', '').strip()
+            role = request.POST.get('role', 'Branch')
+            phone = request.POST.get('phone', '').strip()
+            address = request.POST.get('address', '').strip()
+            city = request.POST.get('city', '').strip()
+            zip_code = request.POST.get('zip_code', '').strip()
+
+            if not username or not password:
+                messages.error(request, "Username and password are required.")
+                return redirect('settings')
+
+            if User.objects.filter(username=username).exists():
+                messages.error(request, f"Username '{username}' already exists.")
+                return redirect('settings')
+
+            try:
+                new_user = User.objects.create_user(
+                    username=username,
+                    email=email,
+                    password=password,
+                    first_name=first_name,
+                    last_name=last_name,
+                )
+                # Assign role group
+                grp, _ = Group.objects.get_or_create(name=role)
+                new_user.groups.add(grp)
+                # Create UserProfile
+                profile, _ = UserProfile.objects.get_or_create(user=new_user)
+                profile.role = role
+                profile.phone = phone
+                profile.address = address
+                profile.city = city
+                profile.zip_code = zip_code
+                profile.save()
+                messages.success(request, f"User '{username}' created successfully!")
+            except Exception as e:
+                messages.error(request, f"Error creating user: {str(e)}")
+            return redirect('settings')
+
+        # ── Edit User ──────────────────────────────────────────────────────
+        elif action == 'edit_user':
+            user_id = request.POST.get('user_id')
+            if not user_id:
+                messages.error(request, "Invalid user.")
+                return redirect('settings')
+            try:
+                edit_user = User.objects.get(id=user_id)
+                # Update User fields
+                new_username = request.POST.get('username', '').strip()
+                new_email = request.POST.get('email', '').strip()
+                new_first_name = request.POST.get('first_name', '').strip()
+                new_last_name = request.POST.get('last_name', '').strip()
+                new_role = request.POST.get('role', '')
+                new_phone = request.POST.get('phone', '').strip()
+                new_address = request.POST.get('address', '').strip()
+                new_city = request.POST.get('city', '').strip()
+                new_zip_code = request.POST.get('zip_code', '').strip()
+                is_active = request.POST.get('is_active') == 'on'
+                new_password = request.POST.get('password', '').strip()
+
+                # Check username uniqueness (exclude current user)
+                if new_username and new_username != edit_user.username:
+                    if User.objects.filter(username=new_username).exclude(id=user_id).exists():
+                        messages.error(request, f"Username '{new_username}' is already taken.")
+                        return redirect('settings')
+                    edit_user.username = new_username
+
+                if new_email:
+                    edit_user.email = new_email
+                edit_user.first_name = new_first_name
+                edit_user.last_name = new_last_name
+                edit_user.is_active = is_active
+                if new_password:
+                    edit_user.set_password(new_password)
+                edit_user.save()
+
+                # Update role group
+                if new_role and new_role in ROLE_GROUPS:
+                    for rn in ROLE_GROUPS:
+                        g = Group.objects.filter(name=rn).first()
+                        if g and g in edit_user.groups.all():
+                            edit_user.groups.remove(g)
+                    grp, _ = Group.objects.get_or_create(name=new_role)
+                    edit_user.groups.add(grp)
+
+                # Update UserProfile
+                profile, _ = UserProfile.objects.get_or_create(user=edit_user)
+                if new_role:
+                    profile.role = new_role
+                profile.phone = new_phone
+                profile.address = new_address
+                profile.city = new_city
+                profile.zip_code = new_zip_code
+                profile.save()
+
+                messages.success(request, f"User '{edit_user.username}' updated successfully!")
+            except User.DoesNotExist:
+                messages.error(request, "User not found.")
+            except Exception as e:
+                messages.error(request, f"Error updating user: {str(e)}")
+            return redirect('settings')
+
+        # ── Toggle Active Status ───────────────────────────────────────────
+        elif action == 'toggle_status':
+            user_id = request.POST.get('user_id')
+            if user_id:
+                try:
+                    toggle_user = User.objects.get(id=user_id)
+                    if toggle_user.is_superuser:
+                        messages.error(request, "Cannot deactivate superuser accounts.")
+                    else:
+                        toggle_user.is_active = not toggle_user.is_active
+                        toggle_user.save()
+                        status_text = "activated" if toggle_user.is_active else "deactivated"
+                        messages.success(request, f"User '{toggle_user.username}' {status_text}.")
+                except User.DoesNotExist:
+                    messages.error(request, "User not found.")
+            return redirect('settings')
+
+        # ── Delete User (supports both 'delete' and 'delete_user') ────────
+        elif action in ['delete', 'delete_user']:
+            user_id = request.POST.get('user_id')
+            if user_id:
+                try:
+                    del_user = User.objects.get(id=user_id)
+                    if del_user.is_superuser:
+                        messages.error(request, "Cannot delete superuser accounts.")
+                    elif del_user == request.user:
+                        messages.error(request, "You cannot delete your own account.")
+                    else:
+                        del_username = del_user.username
+                        del_user.delete()
+                        messages.success(request, f"User '{del_username}' deleted successfully.")
+                except User.DoesNotExist:
+                    messages.error(request, "User not found.")
+            return redirect('settings')
+
+        elif action == 'update_notifications':
             form = NotificationSettingForm(request.POST, instance=notif_obj)
             if form.is_valid():
                 form.save()
@@ -1376,19 +1433,20 @@ def settings_view(request):
             except (User.DoesNotExist, Group.DoesNotExist):
                 messages.error(request, "User or group not found.")
 
-        elif action == 'delete_user':
-            user_id = request.POST.get('user_id')
-            try:
-                user = User.objects.get(id=user_id)
-                if user.is_superuser:
-                    messages.error(request, "Cannot delete superuser accounts.")
-                else:
-                    user.delete()
-                    messages.success(request, f"User {user.username} deleted.")
-            except User.DoesNotExist:
-                messages.error(request, "User not found.")
 
         return redirect('settings')
+
+    # Notification tab values (from NotificationSetting model)
+    email_notifications = notif_obj.email_notifications
+    low_stock_alert = notif_obj.low_stock_alert
+    new_request_alert = notif_obj.new_request_alert
+    task_assignment_alert = notif_obj.task_assignment_alert
+
+    # Log tab values (read from SystemSetting)
+    enable_logging_obj = SystemSetting.objects.filter(key='enable_logging').first()
+    log_level_obj = SystemSetting.objects.filter(key='log_level').first()
+    enable_logging = (enable_logging_obj.value == 'True') if enable_logging_obj else False
+    log_level = log_level_obj.value if log_level_obj else 'INFO'
 
     context = {
         'users': users,
@@ -1396,6 +1454,12 @@ def settings_view(request):
         'system_settings': system_settings,
         'setting_form': setting_form,
         'notif_form': notif_form,
+        'email_notifications': email_notifications,
+        'low_stock_alert': low_stock_alert,
+        'new_request_alert': new_request_alert,
+        'task_assignment_alert': task_assignment_alert,
+        'enable_logging': enable_logging,
+        'log_level': log_level,
     }
     return render(request, 'inventory/settings.html', context)
 
@@ -1478,7 +1542,7 @@ def used_materials_view(request):
                         messages.error(request, "You can only use approved materials.")
                         return redirect('used_materials')
                 else:
-                    messages.error(request, "Invalid data. Please check the form.")
+                    messages.error(request, "You have not avialable quantity for this material.")
             except UsedMaterial.DoesNotExist:
                 messages.error(request, "Record not found or access denied.")
             return redirect('used_materials')

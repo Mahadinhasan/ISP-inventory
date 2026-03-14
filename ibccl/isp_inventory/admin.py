@@ -57,7 +57,7 @@ class UsedMaterialAdmin(admin.ModelAdmin):
 
 # Register your models here.
 class materialAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name', 'category', 'quantity', 'min_stock_level', 'status']
+    list_display = ['id', 'name', 'category', 'quantity','Remaining_stock', 'min_stock_level', 'status']
     list_filter = ['category', 'status']
     search_fields = ['name', 'category']
 admin.site.register(Material, materialAdmin)

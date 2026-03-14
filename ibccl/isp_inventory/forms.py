@@ -31,7 +31,7 @@ class RegisterForm(UserCreationForm):
         model = User
         fields = ['username', 'first_name', 'last_name', 'email', 'password1', 'password2']
 
-    # ── Validation ────────────────────────────────────────────────────────────
+    # ── Validation ──────
 
     def clean_email(self):
         email = self.cleaned_data.get('email', '').strip()
@@ -76,7 +76,7 @@ class RegisterForm(UserCreationForm):
 class MaterialForm(forms.ModelForm):
     class Meta:
         model = Material
-        fields = ['name', 'category', 'quantity', 'min_stock_level']
+        fields = ['name', 'category', 'quantity', 'Remaining_stock', 'min_stock_level']
     
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
@@ -233,6 +233,52 @@ class UsedMaterialForm(forms.ModelForm):
                 ).order_by('name')
     
     
+    def clean(self):
+        cleaned_data = super().clean()
+        material = cleaned_data.get('material')
+        quantity = cleaned_data.get('quantity')
+        
+        if not self.user or not material or not quantity:
+            return cleaned_data
+            
+        try:
+            profile = ensure_userprofile(self.user)
+            if profile and profile.role == 'Branch':
+                # Calculate total approved for this material
+                from django.db.models import Sum
+                total_approved = MaterialRequest.objects.filter(
+                    requester=self.user,
+                    material=material,
+                    status='Approved'
+                ).aggregate(total=Sum('quantity'))['total'] or 0
+                
+                # Calculate total used/pending for this material
+                # We exclude the current instance if we're editing
+                used_query = UsedMaterial.objects.filter(
+                    technician=self.user,
+                    material=material
+                )
+                if self.instance and self.instance.pk:
+                    used_query = used_query.exclude(pk=self.instance.pk)
+                    
+                total_used = used_query.aggregate(total=Sum('quantity'))['total'] or 0
+                
+                available = total_approved - total_used
+                
+                if quantity > available:
+                    raise forms.ValidationError(
+                        f"Insufficient approved stock for {material.name}. "
+                        f"Total Approved: {total_approved}, Already Used: {total_used}, "
+                        f"Available: {available}. You tried to use: {quantity}."
+                    )
+        except forms.ValidationError:
+            raise
+        except Exception as e:
+            # For general exceptions, we can log or just let it pass
+            pass
+            
+        return cleaned_data
+
     def clean_material(self):
         """Validate that Branch only selects approved materials with Normal status"""
         material = self.cleaned_data.get('material')
@@ -240,22 +286,18 @@ class UsedMaterialForm(forms.ModelForm):
         if not material:
             raise forms.ValidationError("Material is required.")
         
-        # Check if material status is Normal
-        if material.status != 'Normal':
-            raise forms.ValidationError(
-                f"Can only use materials with Normal status. '{material.name}' has status: {material.status}"
-            )
+        # Check if material status is Normal (only for new records)
+        if not self.instance or not self.instance.pk:
+            if material.status != 'Normal':
+                raise forms.ValidationError(
+                    f"Can only use materials with Normal status. '{material.name}' has status: {material.status}"
+                )
         
         # Only validate approval for Branch
         if self.user:
             try:
                 profile = ensure_userprofile(self.user)
                 if profile and profile.role == 'Branch':
-                    # For edit: allow the currently selected material even if no longer approved
-                    if self.instance and self.instance.pk:
-                        if material.id == self.instance.material.id:
-                            return material
-                    
                     # Check if the selected material is in approved materials for this Branch
                     approved_material_ids = MaterialRequest.objects.filter(
                         requester=self.user,

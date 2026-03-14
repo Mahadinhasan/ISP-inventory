@@ -15,6 +15,7 @@ urlpatterns = [
     path('reports/export/excel/', views.reports_export_excel, name='reports_export_excel'),
     path('reports/export/pdf/', views.reports_export_pdf, name='reports_export_pdf'),
     path('used-materials/', views.used_materials_view, name='used_materials'),
+    path('monitoring/', views.materials_monitoring_view, name='materials_monitoring'),
     path('api/used-materials/<int:pk>/', views.get_used_material_api, name='get_used_material_api'),
     path('api/pending-requests/', views.pending_requests_api, name='pending_requests_api'),
 

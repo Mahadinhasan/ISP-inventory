@@ -11,7 +11,7 @@ class UserProfile(models.Model):
         ('Branch', 'Branch'),
         ('NOC', 'NOC'),
     ]
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='userprofile')
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='userprofile',unique=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='Branch')
     phone = models.CharField(max_length=20, blank=True)
     address = models.TextField(blank=True)
@@ -85,7 +85,7 @@ class UserProfile(models.Model):
     def is_noc(self):
         return self.role == 'NOC'
 
-    # ── Permission helpers ──────────────────────────────────────────────────
+    # ── Permission helpers ───────
     def get_permissions(self):
         """Return list of permission strings for this user's role."""
         permissions = {
@@ -100,7 +100,7 @@ class UserProfile(models.Model):
         """Return True if the user's role grants *permission*."""
         return permission in self.get_permissions()
 
-    # ── Lifecycle ────────────────────────────────────────────────────────────
+    # ── Lifecycle ────────────
     def update_last_login(self):
         """Manually stamp the last-login time."""
         self.last_login = timezone.now()
@@ -123,6 +123,7 @@ class Material(models.Model):
     name = models.CharField(max_length=100, unique=True)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)#select field (piece/meter)
     quantity = models.IntegerField(default=0)
+    Remaining_stock = models.IntegerField(default=0)
     min_stock_level = models.IntegerField(default=0)
     notes = models.TextField(blank=True)
     STATUS_CHOICES = [

@@ -11,6 +11,8 @@ cssselect2==0.8.0
 decouple==0.0.7
 diff-match-patch==20241021
 Django==6.0.1
+channels==4.0.0
+daphne==4.1.0
 django-import-export==4.3.14
 django-redis==6.0.0
 djangorestframework==3.16.1

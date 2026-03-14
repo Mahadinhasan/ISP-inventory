@@ -1,6 +1,6 @@
 <!-- templates/inventory/settings.html -->
 {% extends 'inventory/base.html' %}
-{% block title %}Settings{% endblock %}
+{% block title %}ISP-Inventory-Admin Settings{% endblock %}
 
 {% block content %}
 <div class="max-w-7xl mx-auto p-8 bg-white rounded-3xl shadow-2xl">
@@ -24,6 +24,8 @@
                     <button onclick="showLogTab()" class="w-full text-left px-6 py-4 bg-white rounded-2xl shadow-md font-bold text-indigo-700 hover:bg-indigo-100 transition">
                         <i class="fas fa-file-alt mr-3"></i>Log Settings
                     </button>
+                    <button onclick="authSettingsTab()" class="w-full text-left px-6 py-4 bg-white rounded-2xl shadow-md font-bold text-indigo-700 hover:bg-indigo-100 transition">
+                        <i class="fa-solid fa-users-gear mr-2"></i>Oauth Settings</button>
                 </div>
             </div>
         </div>
@@ -43,59 +45,70 @@
                     <table class="min-w-full divide-y divide-indigo-100">
                         <thead class="bg-indigo-50">
                             <tr>
-                                <th class="px-8 py-4 text-left text-sm font-bold text-indigo-700 uppercase">User</th>
-                                <th class="px-8 py-4 text-left text-sm font-bold text-indigo-700 uppercase">Role</th>
-                                <th class="px-8 py-4 text-left text-sm font-bold text-indigo-700 uppercase">Status</th>
-                                <th class="px-8 py-4 text-center text-sm font-bold text-indigo-700 uppercase">Actions</th>
+                                <th class="px-6 py-4 text-left text-sm font-bold text-indigo-700 uppercase">User</th>
+                                <th class="px-6 py-4 text-left text-sm font-bold text-indigo-700 uppercase">Role</th>
+                                <!-- <th class="px-6 py-4 text-left text-sm font-bold text-indigo-700 uppercase">Phone</th> -->
+                                <th class="px-6 py-4 text-left text-sm font-bold text-indigo-700 uppercase">Status</th>
+                                <th class="px-6 py-4 text-center text-sm font-bold text-indigo-700 uppercase">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-indigo-100">
                             {% for u in users %}
                             <tr class="hover:bg-indigo-50 transition">
-                                <td class="px-8 py-6">
+                                <td class="px-6 py-5">
                                     <div class="flex items-center gap-4">
-                                        <div class="w-12 h-12 bg-indigo-200 rounded-full flex items-center justify-center text-indigo-700 font-bold text-xl">
+                                        <div class="w-11 h-11 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md">
                                             {{ u.username|slice:":1"|upper }}
                                         </div>
                                         <div>
                                             <p class="font-bold text-gray-900">{{ u.get_full_name|default:u.username }}</p>
-                                            <p class="text-sm text-gray-500">{{ u.email }}</p>
+                                            <p class="text-sm text-gray-500">{{ u.email|default:"No email" }}</p>
                                         </div>
                                     </div>
                                 </td>
-                                <td class="px-8 py-6">
-                                    <form method="post">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="action" value="change_role">
-                                        <input type="hidden" name="user_id" value="{{ u.id }}">
-                                        <select name="role" onchange="this.form.submit()" class="px-4 py-2 bg-white border border-indigo-300 rounded-xl font-medium text-indigo-700 focus:ring-2 focus:ring-indigo-500">
-                                            <option value="Admin" {% if u.userprofile.role == 'Admin' %}selected{% endif %}>Admin</option>
-                                            <option value="Storekeeper" {% if u.userprofile.role == 'Storekeeper' %}selected{% endif %}>Storekeeper</option>
-                                            <option value="Branch" {% if u.userprofile.role == 'Branch' %}selected{% endif %}>Branch</option>
-                                            <option value="NOC" {% if u.userprofile.role == 'NOC' %}selected{% endif %}>NOC</option>
-                                        </select>
-                                    </form>
+                                <td class="px-6 py-5">
+                                    <span class="px-3 py-1 rounded-full text-xs font-bold
+                                        {% if u.userprofile.role == 'Admin' %}bg-purple-100 text-purple-800
+                                        {% elif u.userprofile.role == 'Storekeeper' %}bg-blue-100 text-blue-800
+                                        {% elif u.userprofile.role == 'NOC' %}bg-orange-100 text-orange-800
+                                        {% else %}bg-green-100 text-green-800{% endif %}">
+                                        {{ u.userprofile.role }}
+                                    </span>
                                 </td>
-                                <td class="px-8 py-6">
-                                    <span class="px-4 py-2 rounded-full text-xs font-bold {% if u.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                <!-- <td class="px-6 py-5 text-sm text-gray-600">
+                                    {{ u.userprofile.phone|default:"—" }}
+                                </td> -->
+                                <td class="px-6 py-5">
+                                    <span class="px-3 py-1.5 rounded-full text-xs font-bold {% if u.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
                                         {% if u.is_active %}Active{% else %}Inactive{% endif %}
                                     </span>
                                 </td>
-                                <td class="px-8 py-6 text-center space-x-4">
-                                   <form method="post" class="inline">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="action" value="toggle_status">
-                                        <input type="hidden" name="user_id" value="{{ u.id }}">
-                                        <button type="submit" class="text-blue-600 hover:text-blue-800 font-bold">
-                                            {% if u.is_active %}Deactivate{% else %}Activate{% endif %}
+                                <td class="px-6 py-5 text-center">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <!-- Edit Button -->
+                                        <button onclick="openEditModal('{{ u.id }}', '{{ u.username }}', '{{ u.email }}', '{{ u.first_name }}', '{{ u.last_name }}', '{{ u.userprofile.role }}', '{{ u.userprofile.phone }}', '{{ u.userprofile.address }}', '{{ u.userprofile.city }}', '{{ u.userprofile.zip_code }}', {{ u.is_active|yesno:'true,false' }})"
+                                            class="inline-flex items-center px-3 py-2 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition font-semibold text-sm">
+                                            <i class="fas fa-edit mr-1"></i>Edit
                                         </button>
-                                    </form>
-                                    <form method="post" class="inline">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="action" value="delete">
-                                        <input type="hidden" name="user_id" value="{{ u.id }}">
-                                        <button type="submit" onclick="return confirm('Delete user?')" class="text-red-600 hover:text-red-800 font-bold">Delete</button>
-                                    </form>
+                                        <!-- Toggle Status -->
+                                        <form method="post" class="inline">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="toggle_status">
+                                            <input type="hidden" name="user_id" value="{{ u.id }}">
+                                        </form>
+                                        <!-- Delete Button -->
+                                        <button onclick="openDeleteModal('{{ u.id }}', '{{ u.username }}')"
+                                            class="inline-flex items-center px-3 py-2 bg-red-50 text-red-700 rounded-xl hover:bg-red-100 transition font-semibold text-sm">
+                                            <i class="fas fa-trash-alt mr-1"></i>Delete
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="px-6 py-12 text-center text-gray-400">
+                                    <i class="fas fa-users text-5xl mb-3"></i><br>
+                                    No users found
                                 </td>
                             </tr>
                             {% endfor %}
@@ -144,14 +157,20 @@
                     </div>
                     <div class="mb-4">
                         <label class="flex items-center gap-3 cursor-pointer">
-                            <input type="checkbox" name="sms_notifications" class="form-checkbox h-5 w-5 text-green-600" {% if sms_notifications %}checked{% endif %}>
-                            <span class="text-gray-700 font-medium">SMS Notifications</span>
+                            <input type="checkbox" name="new_request_alert" class="form-checkbox h-5 w-5 text-green-600" {% if new_request_alert %}checked{% endif %}>
+                            <span class="text-gray-700 font-medium">Real-time Request Notifications (bell icon)</span>
                         </label>
                     </div>
                     <div class="mb-4">
                         <label class="flex items-center gap-3 cursor-pointer">
-                            <input type="checkbox" name="push_notifications" class="form-checkbox h-5 w-5 text-green-600" {% if push_notifications %}checked{% endif %}>
-                            <span class="text-gray-700 font-medium">Push Notifications</span>
+                            <input type="checkbox" name="low_stock_alert" class="form-checkbox h-5 w-5 text-green-600" {% if low_stock_alert %}checked{% endif %}>
+                            <span class="text-gray-700 font-medium">Low Stock Alerts</span>
+                        </label>
+                    </div>
+                    <div class="mb-6">
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" name="task_assignment_alert" class="form-checkbox h-5 w-5 text-green-600" {% if task_assignment_alert %}checked{% endif %}>
+                            <span class="text-gray-700 font-medium">Task Assignment Alerts</span>
                         </label>
                     </div>
                     <button type="submit" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
@@ -190,97 +209,305 @@
         </div>
     </div>
 </div>
-<!-- Create User Modal -->
-<div id="createModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
-    <div class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-lg">
-        <h3 class="text-3xl font-bold text-indigo-900 mb-6">Create New User</h3>
+<!--Oauth Settings Tab-->
+<div id="oauthSettingsTab" class="hidden bg-gradient-to-br from-purple-50 to-pink-50 rounded-3xl shadow-2xl p-8">
+    <h2 class="text-3xl font-bold text-purple-900 mb-6">Oauth Settings</h2>
+    <form method="post" class="bg-white rounded-2xl shadow-md p-6 max-w-lg">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="update_oauth">
+    </form>
+    <div class="mb-4">
+        <label class="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" name="email_notifications" class="form-checkbox h-5 w-5 text-purple-600" {% if email_notifications %}checked{% endif %}>
+            <span class="text-gray-700 font-medium">Email Notifications</span>
+        </label>
+    </div>
+    <div class="mb-4">
+</div>
+
+<div id="createModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50" onclick="if(event.target===this) closeCreateModal()">
+    <div class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-2xl font-bold text-indigo-900 flex items-center">
+                <i class="fas fa-user-plus mr-3 text-indigo-600"></i>Create New User
+            </h3>
+            <button onclick="closeCreateModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
         <form method="post">
             {% csrf_token %}
             <input type="hidden" name="action" value="create_user">
-            <div class="space-y-6">
-                <input type="text" name="username" placeholder="Username" required class="w-full px-6 py-4 border-2 border-indigo-200 rounded-2xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">
-                <input type="email" name="email" placeholder="Email" class="w-full px-6 py-4 border-2 border-indigo-200 rounded-2xl focus:border-indigo-500">
-                <input type="password" name="password" placeholder="Password" required class="w-full px-6 py-4 border-2 border-indigo-200 rounded-2xl focus:border-indigo-500">
-                <select name="role" class="w-full px-6 py-4 border-2 border-indigo-200 rounded-2xl focus:border-indigo-500">
-                    <option value="Branch">Branch</option>
-                    <option value="Storekeeper">Storekeeper</option>
-                    <option value="Admin">Admin</option>
-                    <option value="NOC">NOC</option>
-                </select>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <!-- Username -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Username <span class="text-red-500">*</span></label>
+                    <input type="text" name="username" placeholder="Enter username" required
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+                </div>
+                <!-- Email -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+                    <input type="email" name="email" placeholder="user@example.com"
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+                </div>
+                <!-- First Name -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">First Name</label>
+                    <input type="text" name="first_name" placeholder="First name"
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+                </div>
+                <!-- Last Name -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Last Name</label>
+                    <input type="text" name="last_name" placeholder="Last name"
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+                </div>
+                <!-- Password -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Password <span class="text-red-500">*</span></label>
+                    <input type="password" name="password" placeholder="Enter password" required
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+                </div>
+                <!-- Role -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Role</label>
+                    <select name="role" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+                        <option value="Branch">Branch</option>
+                        <option value="Storekeeper">Storekeeper</option>
+                        <option value="Admin">Admin</option>
+                        <option value="NOC">NOC</option>
+                    </select>
+                </div>
+                <!-- Phone -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Phone</label>
+                    <input type="text" name="phone" placeholder="Phone number"
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+                </div>
+                <!-- City -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">City</label>
+                    <input type="text" name="city" placeholder="City"
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+                </div>
+                <!-- Address -->
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Address</label>
+                    <input type="text" name="address" placeholder="Full address"
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+                </div>
+                <!-- Zip Code -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Zip Code</label>
+                    <input type="text" name="zip_code" placeholder="Zip code"
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+                </div>
             </div>
             <div class="mt-8 flex justify-end gap-4">
-                <button type="button" onclick="closeModal()" class="px-8 py-4 border-2 border-indigo-200 rounded-2xl hover:bg-indigo-50 font-bold text-indigo-700">
+                <button type="button" onclick="closeCreateModal()" class="px-6 py-3 border-2 border-gray-200 rounded-xl hover:bg-gray-50 font-bold text-gray-600 transition">
                     Cancel
                 </button>
-                <button type="submit" class="px-8 py-4 bg-gradient-to-r from-indigo-600 to-indigo-800 text-white rounded-2xl font-bold hover:shadow-xl transition">
-                    Create User
+                <button type="submit" class="px-6 py-3 bg-gradient-to-r from-indigo-600 to-indigo-800 text-white rounded-xl font-bold hover:shadow-xl transition">
+                    <i class="fas fa-user-plus mr-2"></i>Create User
                 </button>
             </div>
         </form>
     </div>
 </div>
 
-<!--added Backup-->
-<section class="mt-12" id="backupSection" class="hidden">
-</section>
-<!--added Notification-->
-<section class="mt-12" id="notificationSection" class="hidden">
-</section>
-<!--added log setting -->
-<section class="mt-12" id="logSection" class="hidden">
-</section>
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- EDIT USER MODAL                                                       -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50" onclick="if(event.target===this) closeEditModal()">
+    <div class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-2xl font-bold text-blue-900 flex items-center">
+                <i class="fas fa-user-edit mr-3 text-blue-600"></i>Edit User
+            </h3>
+            <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="edit_user">
+            <input type="hidden" name="user_id" id="edit_user_id">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <!-- Username -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Username <span class="text-red-500">*</span></label>
+                    <input type="text" name="username" id="edit_username" required
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                </div>
+                <!-- Email -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+                    <input type="email" name="email" id="edit_email"
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                </div>
+                <!-- First Name -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">First Name</label>
+                    <input type="text" name="first_name" id="edit_first_name"
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                </div>
+                <!-- Last Name -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Last Name</label>
+                    <input type="text" name="last_name" id="edit_last_name"
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                </div>
+                <!-- New Password (optional) -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">New Password <span class="text-gray-400 text-xs">(leave blank to keep)</span></label>
+                    <input type="password" name="password" placeholder="Enter new password"
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                </div>
+                <!-- Role -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Role</label>
+                    <select name="role" id="edit_role" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                        <option value="Admin">Admin</option>
+                        <option value="Storekeeper">Storekeeper</option>
+                        <option value="Branch">Branch</option>
+                        <option value="NOC">NOC</option>
+                    </select>
+                </div>
+                <!-- Phone -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Phone</label>
+                    <input type="text" name="phone" id="edit_phone"
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                </div>
+                <!-- City -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">City</label>
+                    <input type="text" name="city" id="edit_city"
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                </div>
+                <!-- Address -->
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Address</label>
+                    <input type="text" name="address" id="edit_address"
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                </div>
+                <!-- Zip Code -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Zip Code</label>
+                    <input type="text" name="zip_code" id="edit_zip_code"
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                </div>
+                <!-- Active Status -->
+                <div class="flex items-end">
+                    <label class="flex items-center gap-3 cursor-pointer bg-gray-50 px-4 py-3 rounded-xl w-full">
+                        <input type="checkbox" name="is_active" id="edit_is_active" class="form-checkbox h-5 w-5 text-green-600 rounded">
+                        <span class="text-sm font-semibold text-gray-700">Account Active</span>
+                    </label>
+                </div>
+            </div>
+            <div class="mt-8 flex justify-end gap-4">
+                <button type="button" onclick="closeEditModal()" class="px-6 py-3 border-2 border-gray-200 rounded-xl hover:bg-gray-50 font-bold text-gray-600 transition">
+                    Cancel
+                </button>
+                <button type="submit" class="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-xl font-bold hover:shadow-xl transition">
+                    <i class="fas fa-save mr-2"></i>Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- DELETE CONFIRMATION MODAL                                             -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="deleteModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50" onclick="if(event.target===this) closeDeleteModal()">
+    <div class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md m-4">
+        <div class="text-center mb-6">
+            <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-exclamation-triangle text-3xl text-red-600"></i>
+            </div>
+            <h3 class="text-2xl font-bold text-gray-900">Delete User</h3>
+            <p class="text-gray-500 mt-2">Are you sure you want to delete user <strong id="delete_username_display" class="text-red-600"></strong>?</p>
+            <p class="text-sm text-red-500 mt-2"><i class="fas fa-warning mr-1"></i>This action cannot be undone. All data associated with this user will be permanently removed.</p>
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="user_id" id="delete_user_id">
+            <div class="flex justify-center gap-4">
+                <button type="button" onclick="closeDeleteModal()" class="px-6 py-3 border-2 border-gray-200 rounded-xl hover:bg-gray-50 font-bold text-gray-600 transition">
+                    Cancel
+                </button>
+                <button type="submit" class="px-6 py-3 bg-gradient-to-r from-red-600 to-red-800 text-white rounded-xl font-bold hover:shadow-xl transition">
+                    <i class="fas fa-trash-alt mr-2"></i>Yes, Delete
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
+// ── Create Modal ──────────────────────────────────────────────────────────
 function openCreateModal() {
     document.getElementById('createModal').classList.remove('hidden');
 }
-
-function closeModal() {
+function closeCreateModal() {
     document.getElementById('createModal').classList.add('hidden');
 }
 
-function showTab(tab) {
-    // Hide all tabs
+// ── Edit Modal ────────────────────────────────────────────────────────────
+function openEditModal(id, username, email, firstName, lastName, role, phone, address, city, zipCode, isActive) {
+    document.getElementById('edit_user_id').value = id;
+    document.getElementById('edit_username').value = username;
+    document.getElementById('edit_email').value = email;
+    document.getElementById('edit_first_name').value = firstName;
+    document.getElementById('edit_last_name').value = lastName;
+    document.getElementById('edit_role').value = role;
+    document.getElementById('edit_phone').value = phone;
+    document.getElementById('edit_address').value = address;
+    document.getElementById('edit_city').value = city;
+    document.getElementById('edit_zip_code').value = zipCode;
+    document.getElementById('edit_is_active').checked = isActive;
+    document.getElementById('editModal').classList.remove('hidden');
+}
+function closeEditModal() {
+    document.getElementById('editModal').classList.add('hidden');
+}
+
+// ── Delete Modal ──────────────────────────────────────────────────────────
+function openDeleteModal(id, username) {
+    document.getElementById('delete_user_id').value = id;
+    document.getElementById('delete_username_display').textContent = username;
+    document.getElementById('deleteModal').classList.remove('hidden');
+}
+function closeDeleteModal() {
+    document.getElementById('deleteModal').classList.add('hidden');
+}
+
+// ── Tab Switching ─────────────────────────────────────────────────────────
+function hideAllTabs() {
     document.getElementById('usersTab').classList.add('hidden');
     document.getElementById('backupTab').classList.add('hidden');
     document.getElementById('notificationTab').classList.add('hidden');
     document.getElementById('logTab').classList.add('hidden');
-    
-    // Show selected tab
+}
+
+function showTab(tab) {
+    hideAllTabs();
     if (tab === 'users') {
         document.getElementById('usersTab').classList.remove('hidden');
     }
 }
 
 function showBackupTab() {
-    // Hide all tabs
-    document.getElementById('usersTab').classList.add('hidden');
-    document.getElementById('backupTab').classList.add('hidden');
-    document.getElementById('notificationTab').classList.add('hidden');
-    document.getElementById('logTab').classList.add('hidden');
-    
-    // Show backup tab
+    hideAllTabs();
     document.getElementById('backupTab').classList.remove('hidden');
 }
 
 function showNotificationTab() {
-    // Hide all tabs
-    document.getElementById('usersTab').classList.add('hidden');
-    document.getElementById('backupTab').classList.add('hidden');
-    document.getElementById('notificationTab').classList.add('hidden');
-    document.getElementById('logTab').classList.add('hidden');
-    
-    // Show notification tab
+    hideAllTabs();
     document.getElementById('notificationTab').classList.remove('hidden');
 }
 
 function showLogTab() {
-    // Hide all tabs
-    document.getElementById('usersTab').classList.add('hidden');
-    document.getElementById('backupTab').classList.add('hidden');
-    document.getElementById('notificationTab').classList.add('hidden');
-    document.getElementById('logTab').classList.add('hidden');
-    
-    // Show log tab
+    hideAllTabs();
     document.getElementById('logTab').classList.remove('hidden');
 }
 </script>

@@ -1,8 +1,60 @@
 from django.db.models.signals import post_save, post_delete
 from django.contrib.auth.models import User
 from django.dispatch import receiver
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from .utils import ensure_userprofile
-from .models import UsedMaterial, Material
+from .models import UsedMaterial, Material, MaterialRequest, NotificationSetting
+from .consumers import MATERIALS_MONITORING_GROUP, USER_NOTIFICATION_GROUP_PREFIX
+
+
+def _broadcast_used_material(instance):
+    """Notify admin monitoring clients of used material create/update."""
+    try:
+        channel_layer = get_channel_layer()
+        if not channel_layer:
+            return
+        payload = {
+            "id": instance.id,
+            "technician_username": instance.technician.username if instance.technician else "",
+            "technician_name": (instance.technician.get_full_name() or instance.technician.username)
+            if instance.technician
+            else "",
+            "material_name": instance.material.name if instance.material else "",
+            "quantity": instance.quantity,
+            "status": instance.status,
+            "added_at": instance.added_at.isoformat() if instance.added_at else None,
+        }
+        async_to_sync(channel_layer.group_send)(
+            MATERIALS_MONITORING_GROUP,
+            {"type": "used_material_update", "payload": payload},
+        )
+    except Exception:
+        pass
+
+
+def _notify_user(user, payload):
+    """Send a single notification event to one user's WebSocket group."""
+    if not user or not user.id:
+        return
+    try:
+        channel_layer = get_channel_layer()
+        if not channel_layer:
+            return
+        group_name = f"{USER_NOTIFICATION_GROUP_PREFIX}{user.id}"
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {"type": "notification_event", "payload": payload},
+        )
+    except Exception:
+        # Never break main flow due to notification issues
+        pass
+
+
+def _notify_users(users, payload):
+    """Broadcast the same notification payload to multiple users."""
+    for u in users:
+        _notify_user(u, payload)
 
 
 @receiver(post_save, sender=User)
@@ -21,6 +73,8 @@ def subtract_used_material_from_inventory(sender, instance, created, **kwargs):
     Automatically subtract used materials from the material's stock quantity.
     This is called when a UsedMaterial is created or updated.
     """
+    # Real-time broadcast to admin materials monitoring (branch user usage)
+    _broadcast_used_material(instance)
     if created:
         # When a new UsedMaterial is created, subtract its quantity from the material's stock
         material = instance.material
@@ -41,3 +95,59 @@ def restore_used_material_to_inventory(sender, instance, **kwargs):
         # Restore the deleted used material quantity back to inventory
         material.quantity += instance.quantity
         material.save(update_fields=['quantity'])
+
+
+@receiver(post_save, sender=MaterialRequest)
+def material_request_notifications(sender, instance, created, **kwargs):
+    """
+    Real-time notifications for MaterialRequest events:
+    - When Branch sends a new request (Pending) -> notify Admin & Storekeeper users (if enabled).
+    - When a request is Approved/Rejected -> notify the requester (if enabled).
+    """
+    try:
+        # New request created (typically Pending) -> notify admin/storekeeper
+        if created:
+            # Only notify if material request alerts are enabled
+            admin_store_users = User.objects.filter(
+                userprofile__role__in=["Admin", "Storekeeper"],
+                notificationsetting__new_request_alert=True,
+            ).distinct()
+
+            if admin_store_users.exists():
+                payload = {
+                    "category": "request",
+                    "event": "created",
+                    "request_id": instance.id,
+                    "material": instance.material.name if instance.material else "",
+                    "quantity": instance.quantity,
+                    "status": instance.status,
+                    "request_type": instance.request_type,
+                    "requester_username": instance.requester.username if instance.requester else "",
+                    "message": f"New material request from {instance.requester.username if instance.requester else 'Unknown'}",
+                }
+                _notify_users(admin_store_users, payload)
+
+        # Status-based notifications to requester
+        if instance.status in ("Approved", "Rejected") and instance.requester:
+            try:
+                notif_setting = NotificationSetting.objects.get(user=instance.requester)
+                if not notif_setting.new_request_alert:
+                    return
+            except NotificationSetting.DoesNotExist:
+                # Default: if no explicit settings, treat as enabled
+                pass
+
+            payload = {
+                "category": "request",
+                "event": instance.status.lower(),
+                "request_id": instance.id,
+                "material": instance.material.name if instance.material else "",
+                "quantity": instance.quantity,
+                "status": instance.status,
+                "request_type": instance.request_type,
+                "message": f"Your material request for {instance.material.name if instance.material else 'material'} was {instance.status}.",
+            }
+            _notify_user(instance.requester, payload)
+    except Exception:
+        # Do not break save flow due to notification errors
+        pass

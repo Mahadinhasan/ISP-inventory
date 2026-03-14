@@ -10,7 +10,7 @@
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
-     <!-- 1. Total Materials Card -->
+        <!-- 1. Total Materials Card -->
         {% if user.userprofile.role != 'Admin' %}
         <div onclick="document.getElementById('materialsModal').classList.remove('hidden')"
             class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
@@ -26,7 +26,7 @@
         </div>
         {% endif %}
         <!-- 2. Total User Card -->
-        {% if user.userprofile.role == 'Admin' %}
+         {% if user.userprofile.role == 'Admin' %}
         <div onclick="document.getElementById('usersModal').classList.remove('hidden')"
             class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
@@ -139,9 +139,9 @@
                 </div>
             </div>
         </div>
-         <!-- 3. Low Stock Card -->
+        <!-- 3. Low Stock Card -->
         {% if user.userprofile.role != 'Storekeeper' and user.userprofile.role != 'Admin' %}
-        <div onclick="document.getElementById('materialsModal').classList.remove('hidden')"
+        <div onclick="document.getElementById('lowStockModal').classList.remove('hidden')"
             class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
                 <div class="p-4 bg-blue-100 dark:bg-blue-900 rounded-full">
@@ -149,22 +149,36 @@
                 </div>
                 <div class="ml-6">
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Low Stock Materials</p>
-                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ low_stock_materials|default:"0" }}</p>
+                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ low_stock_materials|default:"0" }}
+                    </p>
                 </div>
             </div>
         </div>
         {% endif %}
-         <!-- 6. Used Materials Card -->
+        <!-- 6. Used Materials Card -->
         {% if user.userprofile.role != 'Branch' and user.userprofile.role != 'Storekeeper' %}
         <div onclick="document.getElementById('usedMaterialsModal').classList.remove('hidden')"
             class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
                 <div class="p-4 bg-teal-100 dark:bg-teal-900 rounded-full">
-                    <i class="fas fa-display text-3xl text-teal-600 dark:text-teal-400"></i>
+                    <i class="fas fa-chart-line mr-2 text-3xl text-teal-600 dark:text-teal-400"></i>
                 </div>
                 <div class="ml-6">
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Material Monitoring</p>
-                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ used_materials_count }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% if user.userprofile.role != 'Admin' and user.userprofile.role != 'Storekeeper' %}
+        <div onclick="document.getElementById('usedMaterialsModal').classList.remove('hidden')"
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            <div class="flex items-center">
+                <div class="p-4 bg-teal-100 dark:bg-teal-900 rounded-full">
+                    <i class="fas fa-poll-h mr-2 text-3xl text-teal-600 dark:text-teal-400"></i>
+                </div>
+                <div class="ml-6">
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">PoP</p>
+                    <p class="text-sm font-medium text-gray-1000 dark:text-gray-400">Server/PoP/Area</p>
                 </div>
             </div>
         </div>
@@ -189,7 +203,7 @@
 
 
     <!-- Materials Modal -->
-     <div id="materialsModal"
+    <div id="materialsModal"
         class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
         onclick="if(event.target === this) this.classList.add('hidden')">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
@@ -223,14 +237,21 @@
                         {% for req in technician_approved_materials %}
                         <tr>
                             <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ req.material.name }}</td>
-                            <td class="px-6 py-4 text-sm text-gray-900 font-bold">{{ req.quantity }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-900 font-bold">
+                                {% if req.available_quantity == 0 %}
+                                <span class="text-red-600">Out of Stock</span>
+                                {% else %}
+                                {{ req.available_quantity }}
+                                {% endif %}
+                            </td>
                             <td class="px-6 py-4 text-sm text-gray-500">{{ req.requested_at|date:"Y-m-d" }}</td>
                             <td class="px-6 py-4 text-sm">
                                 <span class="px-2 py-1 rounded-full text-xs font-semibold
-                                        {% if req.material.status == 'Normal' %}bg-green-100 text-green-800
+                                        {% if req.available_quantity == 0 %}bg-red-100 text-red-800
+                                        {% elif req.material.status == 'Normal' %}bg-green-100 text-green-800
                                         {% elif req.material.status == 'Low Stock' %}bg-yellow-100 text-yellow-800
                                         {% else %}bg-red-100 text-red-800{% endif %}">
-                                    {{ req.material.status }}
+                                    {% if req.available_quantity == 0 %}Low Stock Material / Out of Stock{% else %}{{ req.material.status }}{% endif %}
                                 </span>
                             </td>
                         </tr>
@@ -284,7 +305,7 @@
                     <thead class="bg-gray-50">
                         <tr>
                             {% if role != 'Branch' %}
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Requester</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
                             {% endif %}
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Material Name
                             </th>
@@ -300,10 +321,12 @@
                         <tr
                             class="hover:bg-gray-50 transition {% if req.request_type == 'Advance' %}border-l-4 border-indigo-400{% endif %}">
                             {% if role != 'Branch' %}
-                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{req.requester.get_full_name|default:req.requester.username }}</td>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">
+                                {{req.requester.get_full_name|default:req.requester.username }}</td>
                             {% endif %}
                             <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ req.material.name }}</td>
-                            <td class="px-6 py-4 text-sm text-gray-900 font-bold bg-gray-50 rounded text-center">{{req.quantity }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-900 font-bold bg-gray-50 rounded text-center">
+                                {{req.quantity }}</td>
                             <td class="px-6 py-4 text-sm text-gray-600">{{ req.requested_at|date:"Y-m-d H:i" }}</td>
                             <td class="px-6 py-4 text-sm">
                                 <span
@@ -339,13 +362,15 @@
         </div>
     </div>
 
-    <!-- Requests Modal -->
+    <!-- Pending Requests Modal -->
     <div id="requestsModal"
         class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
         onclick="if(event.target === this) this.classList.add('hidden')">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
             <div class="p-6 border-b flex justify-between items-center">
-                <h3 class="text-xl font-bold text-gray-900">Material Requests</h3>
+                <h3 class="text-xl font-bold text-gray-900">
+                    <i class="fas fa-clock mr-2 text-yellow-600"></i>Pending Requests
+                </h3>
                 <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'requestsTable')"
                     class="border rounded px-2 py-1 ml-4 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                 <button onclick="document.getElementById('requestsModal').classList.add('hidden')"
@@ -355,9 +380,12 @@
                 <table id="requestsTable" class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Requester</th>
+                            {% if role != 'Branch' %}
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
+                            {% endif %}
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Material</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                             {% if role == 'Admin' %}
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -365,36 +393,49 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
-                        {% for req in all_requests %}
-                        <tr>
-                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ req.requester.username }}</td>
-                            <td class="px-6 py-4 text-sm text-gray-500">{{ req.material.name }}</td>
-                            <td class="px-6 py-4 text-sm text-gray-900 font-bold">{{ req.quantity }}</td>
+                        {% for req in pending_requests_list %}
+                        <tr class="hover:bg-gray-50 transition">
+                            {% if role != 'Branch' %}
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">
+                                {{ req.requester.get_full_name|default:req.requester.username }}
+                            </td>
+                            {% endif %}
+                            <td class="px-6 py-4 text-sm text-gray-900">{{ req.material.name }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-900 font-bold bg-yellow-50 rounded text-center">
+                                {{ req.quantity }}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-600">
+                                {{ req.requested_at|date:"Y-m-d H:i" }}
+                            </td>
                             <td class="px-6 py-4 text-sm">
-                                <span class="px-2 py-1 rounded-full text-xs font-semibold
-                                    {% if req.status == 'Approved' %}bg-green-100 text-green-800
-                                    {% elif req.status == 'Rejected' %}bg-red-100 text-red-800
-                                    {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                <span class="px-3 py-1 text-xs font-semibold rounded-full border bg-yellow-100 text-yellow-800 border-yellow-200">
                                     {{ req.status }}
                                 </span>
                             </td>
                             {% if role == 'Admin' %}
-                            <td class="px-6 py-4 text-sm flex space-x-2">
-                                <form method="POST" action="{% url 'requests' %}" class="inline">
+                            <td class="px-6 py-4 text-sm">
+                                <form method="POST" action="{% url 'requests' %}" class="flex space-x-3">
                                     {% csrf_token %}
                                     <input type="hidden" name="req_id" value="{{ req.id }}">
-                                    {% if req.status == 'Pending' %}
-                                    <button name="action" value="accept" class="text-green-600 hover:text-green-900"
-                                        title="Approve"><i class="fas fa-check"></i></button>
-                                    <button name="action" value="reject" class="text-red-600 hover:text-red-900"
-                                        title="Reject"><i class="fas fa-times"></i></button>
-                                    {% endif %}
-                                    <button name="action" value="delete" class="text-gray-500 hover:text-red-700"
-                                        title="Delete" onclick="return confirm('Delete this request?');"><i
-                                            class="fas fa-trash"></i></button>
+                                    <button name="action" value="accept" class="text-green-600 hover:text-green-800 transition"
+                                        title="Approve Quick">
+                                        <i class="fas fa-check-circle text-lg"></i>
+                                    </button>
+                                    <button name="action" value="reject" class="text-red-600 hover:text-red-800 transition"
+                                        title="Reject Quick">
+                                        <i class="fas fa-times-circle text-lg"></i>
+                                    </button>
                                 </form>
                             </td>
                             {% endif %}
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="{% if role == 'Admin' %}6{% elif role == 'Branch' %}4{% else %}5{% endif %}"
+                                class="px-6 py-12 text-center text-gray-500">
+                                <i class="fas fa-check-circle text-4xl mb-3 text-green-100"></i><br>
+                                No pending requests found
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -557,6 +598,58 @@
     {% endif %}
 
     <!--internel communication massage template all user show massanager style design-->
+    <!-- Low Stock Materials Modal -->
+    <div id="lowStockModal"
+        class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+        onclick="if(event.target === this) this.classList.add('hidden')">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
+            <div class="p-6 border-b flex justify-between items-center">
+                <h3 class="text-xl font-bold text-gray-900">
+                    <i class="fas fa-exclamation-triangle mr-2 text-red-600"></i>Low Stock Materials
+                </h3>
+                <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'lowStockTable')"
+                    class="border rounded px-2 py-1 ml-4 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                <button onclick="document.getElementById('lowStockModal').classList.add('hidden')"
+                    class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <table id="lowStockTable" class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Material Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">In Stock</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        {% for item in low_stock_material_list %}
+                        <tr>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">
+                                {% if role == 'Branch' %}{{ item.material.name }}{% else %}{{ item.name }}{% endif %}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-900 font-bold">
+                                {% if role == 'Branch' %}{{ item.available_quantity }}{% else %}{{ item.quantity }}{% endif %}
+                            </td>
+                            <td class="px-6 py-4 text-sm">
+                                <span class="px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                                    {% if role == 'Branch' %}Low Stock Material / Out of Stock{% else %}{{ item.status }}{% endif %}
+                                </span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="px-6 py-8 text-center text-gray-500">
+                                <i class="fas fa-check-circle text-4xl mb-2 text-green-300"></i><br>
+                                No low stock materials
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <!-- Destroy Materials Modal -->
     <div id="destroyMaterialsModal"
         class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
@@ -702,100 +795,153 @@
 {% endif %}
 
 <!--Total usersModal-->
-{% if user.userprofile.role == 'Admin' %}
 <div id="usersModal"
     class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
     onclick="if(event.target === this) this.classList.add('hidden')">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-8 m-4">
-        <div class="flex flex-col items-center">
-            <h3 class="text-2xl font-bold text-gray-900 mb-4">Total Users</h3>
-            <div id="totalUsers" class="flex items-center space-x-4">
-                <!-- Total users count will be loaded here via JavaScript -->
-                <i class="fas fa-users text-3xl text-indigo-600"></i>
-                <span class="ml-2 text-lg font-medium text-gray-900">Loading...</span>
-            </div>
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h3 class="text-xl font-bold text-gray-900 flex items-center">
+                <i class="fas fa-users mr-2 text-indigo-600"></i>Total Users ({{ total_users }})
+            </h3>
+            <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'usersTable')"
+                class="border rounded px-2 py-1 ml-4 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+            <button onclick="document.getElementById('usersModal').classList.add('hidden')"
+                class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+        </div>
+        <div class="p-6 overflow-y-auto">
+            <table id="usersTable" class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for u in all_users_list %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-3">
+                                <div
+                                    class="w-10 h-10 bg-indigo-200 rounded-full flex items-center justify-center text-indigo-700 font-bold text-lg">
+                                    {{ u.username|slice:":1"|upper }}
+                                </div>
+                                <div>
+                                    <p class="font-bold text-gray-900 text-sm">{{ u.get_full_name|default:u.username }}
+                                    </p>
+                                    <p class="text-xs text-gray-500">{{ u.email }}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="px-3 py-1 rounded-full text-xs font-semibold
+                                {% if u.userprofile.role == 'Admin' %}bg-purple-100 text-purple-800
+                                {% elif u.userprofile.role == 'Storekeeper' %}bg-blue-100 text-blue-800
+                                {% elif u.userprofile.role == 'NOC' %}bg-orange-100 text-orange-800
+                                {% else %}bg-green-100 text-green-800{% endif %}">
+                                {{ u.userprofile.role }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span
+                                class="px-3 py-1 rounded-full text-xs font-bold
+                                {% if u.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                {% if u.is_active %}Active{% else %}Inactive{% endif %}
+                            </span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3" class="px-6 py-12 text-center text-gray-500">
+                            <i class="fas fa-users text-4xl mb-3 text-gray-300"></i><br>
+                            No users found
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
-    {% endif %}
-    <script>
-        function filterTable(input, tableId) {
-            var filter = input.value.toUpperCase();
-            var table = document.getElementById(tableId);
-            var tr = table.getElementsByTagName("tr");
+</div>
+<script>
+    function filterTable(input, tableId) {
+        var filter = input.value.toUpperCase();
+        var table = document.getElementById(tableId);
+        var tr = table.getElementsByTagName("tr");
 
-            for (var i = 1; i < tr.length; i++) { // Start from 1 to skip header
-                var visible = false;
-                var tds = tr[i].getElementsByTagName("td");
-                for (var j = 0; j < tds.length; j++) {
-                    if (tds[j] && tds[j].innerText.toUpperCase().indexOf(filter) > -1) {
-                        visible = true;
-                        break;
-                    }
+        for (var i = 1; i < tr.length; i++) { // Start from 1 to skip header
+            var visible = false;
+            var tds = tr[i].getElementsByTagName("td");
+            for (var j = 0; j < tds.length; j++) {
+                if (tds[j] && tds[j].innerText.toUpperCase().indexOf(filter) > -1) {
+                    visible = true;
+                    break;
                 }
-                tr[i].style.display = visible ? "" : "none";
             }
+            tr[i].style.display = visible ? "" : "none";
         }
-        //show total users in dashboard with name and role in dashboard
-        function showTotalUsers() {
-            fetch('/api/total-users/')
-                .then(response => response.json())
-                .then(data => {
-                    const totalUsersElement = document.getElementById('totalUsers');
-                    totalUsersElement.innerHTML = `<i class="fas fa-users text-3xl text-indigo-600"></i><span class="ml-2 text-lg font-medium text-gray-900">${data.total_users} Users</span>`;
-                })
-                .catch(error => console.error('Error fetching total users:', error));
-        }
-        // Style form fields in the Add Used Material modal
-        document.addEventListener('DOMContentLoaded', () => {
-            const formFields = document.querySelectorAll('#addUsedMaterialModal select, #addUsedMaterialModal input[type="number"], #addUsedMaterialModal input[type="text"], #addUsedMaterialModal textarea');
-            formFields.forEach(field => {
-                field.classList.add('mt-1', 'block', 'w-full', 'pl-3', 'pr-3', 'py-2', 'text-base', 'border-gray-300', 'focus:outline-none', 'focus:ring-indigo-500', 'focus:border-indigo-500', 'sm:text-sm', 'rounded-md', 'border', 'shadow-sm');
-            });
-
-            //used for redirecting to other pages when click on cards
-            function used_materials_redirect() {
-                window.location.href = "{% url 'used_materials' %}";
-            }
-            // Handle data-redirect cards
-            document.querySelectorAll('[data-redirect]').forEach(card => {
-                card.addEventListener('click', function () {
-                    window.location.href = this.getAttribute('data-redirect');
-                });
-            });
+    }
+    //show total users in dashboard with name and role in dashboard
+    function showTotalUsers() {
+        fetch('/api/total-users/')
+            .then(response => response.json())
+            .then(data => {
+                const totalUsersElement = document.getElementById('totalUsers');
+                totalUsersElement.innerHTML = `<i class="fas fa-users text-3xl text-indigo-600"></i><span class="ml-2 text-lg font-medium text-gray-900">${data.total_users} Users</span>`;
+            })
+            .catch(error => console.error('Error fetching total users:', error));
+    }
+    // Style form fields in the Add Used Material modal
+    document.addEventListener('DOMContentLoaded', () => {
+        const formFields = document.querySelectorAll('#addUsedMaterialModal select, #addUsedMaterialModal input[type="number"], #addUsedMaterialModal input[type="text"], #addUsedMaterialModal textarea');
+        formFields.forEach(field => {
+            field.classList.add('mt-1', 'block', 'w-full', 'pl-3', 'pr-3', 'py-2', 'text-base', 'border-gray-300', 'focus:outline-none', 'focus:ring-indigo-500', 'focus:border-indigo-500', 'sm:text-sm', 'rounded-md', 'border', 'shadow-sm');
         });
 
-        // Switch between tabs in Advance Materials Modal
-        function switchAdvanceTab(tabName) {
-            // Hide all tabs
-            const tabs = document.querySelectorAll('.tab-content');
-            tabs.forEach(tab => tab.classList.add('hidden'));
+        //used for redirecting to other pages when click on cards
+        function used_materials_redirect() {
+            window.location.href = "{% url 'used_materials' %}";
+        }
+        // Handle data-redirect cards
+        document.querySelectorAll('[data-redirect]').forEach(card => {
+            card.addEventListener('click', function () {
+                window.location.href = this.getAttribute('data-redirect');
+            });
+        });
+    });
 
-            // Show selected tab
-            const selectedTab = document.getElementById(tabName);
-            if (selectedTab) {
-                selectedTab.classList.remove('hidden');
-            }
+    // Switch between tabs in Advance Materials Modal
+    function switchAdvanceTab(tabName) {
+        // Hide all tabs
+        const tabs = document.querySelectorAll('.tab-content');
+        tabs.forEach(tab => tab.classList.add('hidden'));
 
-            //Internal Communication Card show all user massage and announcement
+        // Show selected tab
+        const selectedTab = document.getElementById(tabName);
+        if (selectedTab) {
+            selectedTab.classList.remove('hidden');
+        }
+
+        //Internal Communication Card show all user massage and announcement
 
 
-            // Update button styles
-            const advanceBtn = document.getElementById('advanceTabBtn');
-            const pendingBtn = document.getElementById('pendingTabBtn');
+        // Update button styles
+        const advanceBtn = document.getElementById('advanceTabBtn');
+        const pendingBtn = document.getElementById('pendingTabBtn');
 
-            if (advanceBtn && pendingBtn) {
-                if (tabName === 'advanceTab') {
-                    advanceBtn.classList.remove('bg-gray-200', 'text-gray-700');
-                    advanceBtn.classList.add('bg-indigo-600', 'text-white');
-                    pendingBtn.classList.remove('bg-indigo-600', 'text-white');
-                    pendingBtn.classList.add('bg-gray-200', 'text-gray-700');
-                } else {
-                    advanceBtn.classList.remove('bg-indigo-600', 'text-white');
-                    advanceBtn.classList.add('bg-gray-200', 'text-gray-700');
-                    pendingBtn.classList.remove('bg-gray-200', 'text-gray-700');
-                    pendingBtn.classList.add('bg-indigo-600', 'text-white');
-                }
+        if (advanceBtn && pendingBtn) {
+            if (tabName === 'advanceTab') {
+                advanceBtn.classList.remove('bg-gray-200', 'text-gray-700');
+                advanceBtn.classList.add('bg-indigo-600', 'text-white');
+                pendingBtn.classList.remove('bg-indigo-600', 'text-white');
+                pendingBtn.classList.add('bg-gray-200', 'text-gray-700');
+            } else {
+                advanceBtn.classList.remove('bg-indigo-600', 'text-white');
+                advanceBtn.classList.add('bg-gray-200', 'text-gray-700');
+                pendingBtn.classList.remove('bg-gray-200', 'text-gray-700');
+                pendingBtn.classList.add('bg-indigo-600', 'text-white');
             }
         }
-    </script>
-    {% endblock %}
+    }
+</script>
+{% endblock %}
