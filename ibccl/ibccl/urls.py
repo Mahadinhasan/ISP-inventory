@@ -7,6 +7,6 @@ handler404 = custom_404_view
 
 urlpatterns = [
     path('admin_developer/', admin.site.urls),
-    path('', include('isp_inventory.urls')),
+    path('ibccl/', include('isp_inventory.urls')),
     path('noc/', include('Noc.urls')),
 ]

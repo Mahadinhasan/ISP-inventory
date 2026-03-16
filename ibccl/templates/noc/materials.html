@@ -1,0 +1,51 @@
+{% extends 'noc/base.html' %}
+{% block title %}NOC Materials{% endblock %}
+{% block content %}
+<div class="fade-in">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Internet Materials</h1>
+        <a href="{% url 'add_material' %}" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition flex items-center shadow-lg">
+            <i class="fas fa-plus mr-2"></i> Add Material
+        </a>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Name</th>
+                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Quantity</th>
+                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Min Stock</th>
+                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for mat in materials %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                        <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{{ mat.name }}</td>
+                        <td class="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">{{ mat.quantity }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ mat.min_stock_level }}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-3 py-1 text-xs font-semibold rounded-full 
+                                {% if mat.status == 'Normal' %}bg-green-100 text-green-800{% elif mat.status == 'Low Stock' %}bg-yellow-100 text-yellow-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                {{ mat.status }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-right space-x-3">
+                            <a href="{% url 'edit_material' mat.pk %}" class="text-indigo-600 hover:text-indigo-900 transition"><i class="fas fa-edit"></i></a>
+                            <a href="{% url 'delete_material' mat.pk %}" class="text-red-600 hover:text-red-900 transition"><i class="fas fa-trash"></i></a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">No internet materials found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

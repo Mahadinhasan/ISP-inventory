@@ -3,13 +3,8 @@ from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth.models import User
 
-
-# Group name all admin monitoring clients join (import in signals for broadcast)
 MATERIALS_MONITORING_GROUP = 'materials_monitoring'
-
-# Prefix for per-user notification groups (import in signals for broadcast)
 USER_NOTIFICATION_GROUP_PREFIX = 'user_notifications_'
-
 
 def _get_user_role(user):
     """Sync helper: get role from UserProfile or None."""
@@ -21,8 +16,8 @@ def _get_user_role(user):
         return None
 
 
-def _get_initial_monitoring_data():
-    from django.db.models import Count, Sum
+def _get_initial_monitoring_data(user=None):
+    from django.db.models import Count, Sum, Q
     from .models import UserProfile, UsedMaterial
 
     branch_profiles = UserProfile.objects.filter(role='Branch').select_related('user')
@@ -30,19 +25,36 @@ def _get_initial_monitoring_data():
         'branch_users': [],
         'recent_used': [],
     }
+    
+    # Determine if we need to filter by NOC user
+    is_noc = user and hasattr(user, 'userprofile') and user.userprofile.role == 'NOC'
+
     for profile in branch_profiles:
         u = profile.user
-        used_count = UsedMaterial.objects.filter(technician=u).count()
-        used_qty = UsedMaterial.objects.filter(technician=u).aggregate(s=Sum('quantity'))['s'] or 0
-        result['branch_users'].append({
-            'id': u.id,
-            'username': u.username,
-            'full_name': u.get_full_name() or u.username,
-            'used_materials_count': used_count,
-            'used_quantity_total': used_qty,
-        })
+        used_filter = Q(technician=u)
+        if is_noc:
+            used_filter &= Q(material__created_by=user)
+            
+        used_count = UsedMaterial.objects.filter(used_filter).count()
+        used_qty = UsedMaterial.objects.filter(used_filter).aggregate(s=Sum('quantity'))['s'] or 0
+        
+        # Only add to list if they have usage data for this NOC, or if user is Admin
+        if not is_noc or used_count > 0:
+            result['branch_users'].append({
+                'id': u.id,
+                'username': u.username,
+                'full_name': u.get_full_name() or u.username,
+                'is_online': profile.is_online,
+                'used_materials_count': used_count,
+                'used_quantity_total': used_qty,
+            })
+            
     # Recent used materials (last 20) for live feed
-    recent = UsedMaterial.objects.select_related('technician', 'material').order_by('-added_at')[:20]
+    recent = UsedMaterial.objects.select_related('technician', 'material')
+    if is_noc:
+        recent = recent.filter(material__created_by=user)
+    
+    recent = recent.order_by('-added_at')[:20]
     for um in recent:
         result['recent_used'].append({
             'id': um.id,
@@ -62,27 +74,34 @@ def get_user_role(user):
 
 
 @database_sync_to_async
-def get_initial_data():
-    return _get_initial_monitoring_data()
+def get_initial_data(user=None):
+    return _get_initial_monitoring_data(user)
 
 
 class MaterialsMonitoringConsumer(AsyncJsonWebsocketConsumer):
-    """Real-time materials monitoring: Admin only; shows branch users and used materials."""
+    """Real-time materials monitoring: Admin & NOC; shows branch users and used materials."""
 
     async def connect(self):
         self.user = self.scope.get('user')
         role = await get_user_role(self.user) if self.user else None
-        if not self.user or not self.user.is_authenticated or role != 'Admin':
+        if not self.user or not self.user.is_authenticated or role not in ['Admin', 'NOC']:
             await self.close(code=4403)
             return
-        await self.channel_layer.group_add(MATERIALS_MONITORING_GROUP, self.channel_name)
+            
+        if role == 'Admin':
+            self.monitoring_group = MATERIALS_MONITORING_GROUP
+        else:
+            self.monitoring_group = f"materials_monitoring_noc_{self.user.id}"
+            
+        await self.channel_layer.group_add(self.monitoring_group, self.channel_name)
         await self.accept()
         # Send initial snapshot
-        data = await get_initial_data()
+        data = await get_initial_data(self.user)
         await self.send_json({'type': 'initial', 'payload': data})
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(MATERIALS_MONITORING_GROUP, self.channel_name)
+        if hasattr(self, 'monitoring_group'):
+            await self.channel_layer.group_discard(self.monitoring_group, self.channel_name)
 
     async def used_material_update(self, event):
         """Broadcast from channel layer: new or updated used material."""
@@ -91,10 +110,17 @@ class MaterialsMonitoringConsumer(AsyncJsonWebsocketConsumer):
             'payload': event.get('payload', {}),
         })
 
+    async def user_status_change(self, event):
+        """Broadcast from channel layer: user online/offline status change."""
+        await self.send_json({
+            'type': 'user_status_change',
+            'payload': event.get('payload', {}),
+        })
+
     async def receive_json(self, content):
         # Optional: handle ping/pong or refresh request
         if content.get('type') == 'refresh':
-            data = await get_initial_data()
+            data = await get_initial_data(self.user)
             await self.send_json({'type': 'initial', 'payload': data})
 
 
@@ -126,3 +152,100 @@ class NotificationsConsumer(AsyncJsonWebsocketConsumer):
                 "payload": event.get("payload", {}),
             }
         )
+
+
+# Group name for all status updates
+PRESENCE_GROUP = 'user_presence'
+
+
+@database_sync_to_async
+def set_user_online_status(user, is_online):
+    """Sync helper to update user profile's online status."""
+    if not user or not user.is_authenticated:
+        return False
+    try:
+        from .models import UserProfile
+        profile = UserProfile.objects.get(user=user)
+        profile.is_online = is_online
+        profile.save(update_fields=['is_online'])
+        return True
+    except Exception:
+        return False
+
+
+class PresenceConsumer(AsyncJsonWebsocketConsumer):
+    """Real-time presence: tracks online/offline status of users."""
+
+    async def connect(self):
+        self.user = self.scope.get('user')
+        if not self.user or not self.user.is_authenticated:
+            await self.close(code=4401)
+            return
+
+        await self.channel_layer.group_add(PRESENCE_GROUP, self.channel_name)
+        await self.accept()
+
+        # Mark user as online in DB
+        await set_user_online_status(self.user, True)
+
+        # Broadcast status update globally
+        await self.channel_layer.group_send(
+            PRESENCE_GROUP,
+            {
+                'type': 'status_update',
+                'payload': {
+                    'user_id': self.user.id,
+                    'username': self.user.username,
+                    'status': 'online'
+                }
+            }
+        )
+
+        # Also broadcast to materials monitoring group for admins
+        await self.channel_layer.group_send(
+            MATERIALS_MONITORING_GROUP,
+            {
+                'type': 'user_status_change',
+                'payload': {
+                    'user_id': self.user.id,
+                    'status': 'online'
+                }
+            }
+        )
+
+    async def disconnect(self, close_code):
+        if hasattr(self, 'user') and self.user.is_authenticated:
+            # Mark user as offline in DB
+            await set_user_online_status(self.user, False)
+
+            # Broadcast status update globally
+            await self.channel_layer.group_send(
+                PRESENCE_GROUP,
+                {
+                    'type': 'status_update',
+                    'payload': {
+                        'user_id': self.user.id,
+                        'username': self.user.username,
+                        'status': 'offline'
+                    }
+                }
+            )
+
+            # Also broadcast to materials monitoring group for admins
+            await self.channel_layer.group_send(
+                MATERIALS_MONITORING_GROUP,
+                {
+                    'type': 'user_status_change',
+                    'payload': {
+                        'user_id': self.user.id,
+                        'status': 'offline'
+                    }
+                }
+            )
+        
+        if hasattr(self, 'channel_name'):
+            await self.channel_layer.group_discard(PRESENCE_GROUP, self.channel_name)
+
+    async def status_update(self, event):
+        """Forward status updates from group to client."""
+        await self.send_json(event)

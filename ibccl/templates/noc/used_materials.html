@@ -1,4 +1,4 @@
-{% extends 'inventory/base.html' %}
+{% extends 'noc/base.html' %}
 
 {% block title %}ISP Inventory-Used Materials{% endblock %}
 
@@ -145,7 +145,7 @@
             </button>
         </div>
 
-        <form method="POST" action="{% url 'used_materials' %}" class="p-6 space-y-4">
+        <form method="POST" action="{% url 'noc_used_materials' %}" class="p-6 space-y-4">
             {% csrf_token %}
             <input type="hidden" name="action" id="modalAction" value="create">
             <input type="hidden" name="um_id" id="modalUmId" value="">
@@ -260,7 +260,7 @@
             <h3 class="text-2xl font-bold text-gray-900 mb-2">Delete Used Material?</h3>
             <p class="text-gray-600 mb-6">This action cannot be undone. Are you sure you want to delete this entry?</p>
             
-            <form method="POST" action="{% url 'used_materials' %}" class="inline">
+            <form method="POST" action="{% url 'noc_used_materials' %}" class="inline">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="delete">
                 <input type="hidden" name="um_id" id="deleteUmId" value="">
@@ -352,7 +352,7 @@
             </div>
 
             <div class="flex justify-end space-x-3">
-                <a href="{% url 'used_materials' %}"
+                <a href="{% url 'noc_used_materials' %}"
                     class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium">
                     Close
                 </a>

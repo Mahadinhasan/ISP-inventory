@@ -1,4 +1,4 @@
-{% extends 'inventory/base.html' %}
+{% extends 'noc/base.html' %}
 {% block title %}Reports & Analytics — ISP Inventory{% endblock %}
 
 {% block content %}
@@ -311,7 +311,7 @@
                     <option value="all" {% if report_type == 'all' %}selected{% endif %}>All Activity</option>
                     <option value="inventory" {% if report_type == 'inventory' %}selected{% endif %}>Inventory Only
                     </option>
-                    <option value="requests" {% if report_type == 'requests' %}selected{% endif %}>Material Requests
+                    <option value="noc_requests" {% if report_type == 'noc_requests' %}selected{% endif %}>Material Requests
                     </option>
                 </select>
             </div>

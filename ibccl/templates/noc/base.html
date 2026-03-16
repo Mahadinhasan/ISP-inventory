@@ -1,25 +1,700 @@
 <!DOCTYPE html>
 <html lang="en">
+{% load static %}
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NOC Dashboard</title>
+    <title>{% block title %}ISP Inventory{% endblock %}</title>
+    <!--added favicon-->
+    <link rel="icon" type="image" href="{% static 'static/image/favicon.png' %}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Configure Tailwind CSS with dark mode support
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {}
+            }
+        }
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Enable smooth theme transitions */
+        html {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        body {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.2s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card-hover {
+            transition: all 0.2s ease;
+        }
+
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+        }
+
+        .dropdown-menu {
+            animation: slideDown 0.2s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .status-online {
+            background-color: #10b981;
+        }
+
+        .status-offline {
+            background-color: #f00f2a;
+        }
+    </style>
 </head>
-<body>
-    {% block content %}
-    <!--noc dashboard underconstruction demo-->
-    <div class="container">
-        <div class="row">
-            <div class="col-md-12">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">NOC Dashboard</h5>
-                        <p class="card-text">NOC dashboard underconstruction</p>
+
+<body
+    class="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 min-h-screen transition-colors duration-300">
+
+    {% if user.is_authenticated %}
+    <!-- Navigation -->
+    <nav
+        class="bg-white dark:bg-gray-800 shadow-lg border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 transition-colors duration-300">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <!-- Logo and Desktop Menu -->
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 flex items-center">
+                        <div class="h-10 w-10 bg-indigo-600 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-network-wired text-white text-xl"></i>
+                        </div>
+                        <span class="ml-3 text-2xl font-bold text-gray-900"><a href="{% url 'noc_dashboard' %}">ISP
+                                Inventory</a></span>
+                    </div>
+                    <!-- Desktop Links -->
+                    <div class="hidden md:ml-10 md:flex md:space-x-6">
+                        <a href="{% url 'noc_dashboard' %}"
+                            class="nav-link border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
+                        </a>
+                        <a href="{% url 'noc_materials' %}"
+                            class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <i class="fas fa-boxes mr-2"></i>Materials
+                        </a>
+                        <a href="{% url 'noc_materials_monitoring' %}"
+                            class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <i class="fas fa-tv mr-2"></i>Material monitoring
+                        </a>
+                        <a href="{% url 'noc_requests' %}"
+                            class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <i class="fa-solid fa-paper-plane mr-2"></i>Request
+                        </a>
+                        <a href="{% url 'noc_reports' %}"
+                            class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <i class="fas fa-file-alt mr-2"></i>Report
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Right Side Buttons -->
+                <div class="flex items-center space-x-4">
+                    <!-- Notification Bell Dropdown -->
+                    <div class="relative">
+                        <button type="button" id="notification-bell" onclick="toggleNotificationMenu()"
+                            class="p-2 text-gray-500 hover:text-indigo-600 focus:outline-none transition-colors duration-200 relative">
+                            <i class="fas fa-bell text-xl"></i>
+                            <span id="notification-count"
+                                class="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold rounded-full bg-red-500 text-white transform scale-0 transition-transform duration-200">
+                                0
+                            </span>
+                        </button>
+
+                        <!-- Notification Dropdown Menu -->
+                        <div id="notification-dropdown"
+                            class="hidden absolute right-0 mt-3 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-100 dark:border-gray-700 z-50 overflow-hidden dropdown-menu">
+                            <div
+                                class="px-4 py-3 bg-indigo-50 dark:bg-gray-700 border-b border-indigo-100 dark:border-gray-600 flex justify-between items-center">
+                                <h3 class="text-sm font-semibold text-indigo-900 dark:text-white">Notifications</h3>
+                                <button onclick="clearNotifications()"
+                                    class="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">Mark
+                                    all as read</button>
+                            </div>
+                            <div id="notification-list" class="max-h-80 overflow-y-auto w-full custom-scrollbar">
+                                <div id="empty-notifications"
+                                    class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400 flex flex-col items-center">
+                                    <i class="fas fa-bell-slash text-3xl mb-3 text-gray-300 dark:text-gray-600"></i>
+                                    <p>No new notifications</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Profile Dropdown Menu -->
+                    <div class="relative group">
+                        <!-- Profile Button -->
+                        <button onclick="toggleProfileMenu()"
+                            class="flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-md transform hover:scale-105 transition-all duration-200">
+                            <div class="flex items-center">
+                                <div class="relative">
+                                    <img src="https://ui-avatars.com/api/?name={{ user.username }}&background=random"
+                                        alt="Profile" class="w-6 h-6 rounded-full mr-2">
+                                    <!-- Status Indicator -->
+                                    <div id="status-indicator"
+                                        class="absolute bottom-0 right-2 w-2 h-2 rounded-full {% if user.userprofile.is_online %}status-online{% else %}status-offline{% endif %} border-2 border-white">
+                                    </div>
+                                </div>
+                            </div>
+                            <i class="fas fa-chevron-down ml-2 text-xs"></i>
+                        </button>
+
+                        <!-- Dropdown Menu -->
+                        <div id="profile-dropdown"
+                            class="hidden dropdown-menu absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+                            <!-- User Info Header -->
+                            <div class="px-4 py-3 border-b border-gray-100">
+                                <p class="text-sm font-semibold text-gray-900">{{ user.username }}</p>
+                                <p class="text-xs text-gray-500">{{ user.email }}</p>
+                                <p class="text-xs text-gray-500 mt-1">Role: <span class="font-medium">NOC</span></p>
+                            </div>
+
+                            <!-- Menu Items -->
+                            <div class="py-2">
+                                <!-- Profile Option -->
+                                <a href="#"
+                                    class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors flex items-center">
+                                    <i class="fas fa-user-circle mr-3 text-indigo-500"></i>
+                                    My Profile
+                                </a>
+
+                                <!-- Appearance Option -->
+                                <button onclick="toggleAppearanceMenu()"
+                                    class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors flex items-center justify-between">
+                                    <span class="flex items-center">
+                                        <i class="fas fa-palette mr-3 text-indigo-500"></i>
+                                        Appearance
+                                    </span>
+                                    <i class="fas fa-chevron-right text-xs"></i>
+                                </button>
+
+                                <!-- Appearance Submenu (Hidden by default) -->
+                                <div id="appearance-submenu"
+                                    class="hidden bg-gray-50 dark:bg-gray-800 border-l-4 border-indigo-500 transition-colors duration-200">
+                                    <label
+                                        class="block px-6 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150">
+                                        <input type="radio" name="appearance" value="light"
+                                            class="mr-2 appearance-theme-radio" data-theme="light"> Light Mode
+                                    </label>
+                                    <label
+                                        class="block px-6 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150">
+                                        <input type="radio" name="appearance" value="dark"
+                                            class="mr-2 appearance-theme-radio" data-theme="dark"> Dark Mode
+                                    </label>
+                                    <label
+                                        class="block px-6 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150">
+                                        <input type="radio" name="appearance" value="auto"
+                                            class="mr-2 appearance-theme-radio" data-theme="auto"> Auto
+                                    </label>
+                                </div>
+
+                                <!-- Status Option -->
+                                <button onclick="toggleStatusMenu()"
+                                    class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors flex items-center justify-between">
+                                    <span class="flex items-center">
+                                        <i class="fas fa-circle mr-3 {% if user.userprofile.is_online %}text-green-500{% else %}text-gray-400{% endif %}"
+                                            id="status-icon"></i>
+                                        Set Status
+                                    </span>
+                                    <i class="fas fa-chevron-right text-xs"></i>
+                                </button>
+
+                                <!-- Status Submenu (Hidden by default) -->
+                                <div id="status-submenu" class="hidden bg-gray-50 border-l-4 border-indigo-500">
+                                    <button onclick="setStatus('online')"
+                                        class="w-full text-left px-6 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-white transition-colors flex items-center">
+                                        <span class="inline-block w-2 h-2 rounded-full bg-green-500 mr-2"></span>
+                                        Online
+                                    </button>
+                                    <button onclick="setStatus('offline')"
+                                        class="w-full text-left px-6 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-white transition-colors flex items-center">
+                                        <span class="inline-block w-2 h-2 rounded-full bg-red-400 mr-2"></span>
+                                        Offline
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Divider -->
+                            <div class="border-t border-gray-100"></div>
+
+                            <!-- Logout -->
+                            <div class="py-2">
+                                <a href="{% url 'logout' %}"
+                                    class="block px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center">
+                                    <i class="fas fa-sign-out-alt mr-3"></i>
+                                    Logout
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mobile Menu Button -->
+                    <div class="-mr-2 flex items-center md:hidden">
+                        <button type="button"
+                            onclick="document.getElementById('mobile-menu').classList.toggle('hidden')"
+                            class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
+                            aria-controls="mobile-menu" aria-expanded="false">
+                            <span class="sr-only">Open main menu</span>
+                            <i class="fas fa-bars text-xl"></i>
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-    {% endblock %}
+
+        <!-- Mobile Menu -->
+        <div class="hidden md:hidden" id="mobile-menu">
+            <div class="pt-2 pb-3 space-y-1">
+                <a href="{% url 'noc_dashboard' %}"
+                    class="block pl-3 pr-4 py-2 border-l-4 border-indigo-500 text-base font-medium text-indigo-700 bg-indigo-50">Dashboard</a>
+                <a href="{% url 'noc_materials' %}"
+                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Materials</a>
+                <a href="{% url 'noc_requests' %}"
+                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Request</a>
+                <a href="{% url 'noc_reports' %}"
+                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Report</a>
+                <a href="{% url 'noc_notifications' %}"
+                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Notification</a>
+                <a href="{% url 'noc_profile' %}"
+                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Profile</a>
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+
+    <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        {% if messages %}
+        {% for message in messages %}
+        <div
+            class="mb-6 p-4 rounded-lg {% if message.tags == 'error' %}bg-red-100 text-red-700{% else %}bg-green-100 text-green-700{% endif %}">
+            <i class="fas fa-info-circle mr-2"></i>{{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <!--added footer-->
+    <footer class="bg-white shadow-inner border-t border-gray-200 mt-10">
+        <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-500">
+            &copy; <span class="current-year"></span> ISP Inventory System. All rights reserved.
+        </div>
+    </footer>
+
+    <script>
+        // NavLink active state
+        document.querySelectorAll('.nav-link').forEach(link => {
+            if (link.href === window.location.href) {
+                link.classList.add('border-indigo-500', 'text-gray-900');
+                link.classList.remove('border-transparent', 'text-gray-500');
+            }
+        });
+
+        //current year for footer
+        const year = new Date().getFullYear();
+        document.querySelectorAll('.current-year').forEach(el => {
+            el.textContent = year;
+        });
+        // Profile Dropdown Toggle
+        function toggleProfileMenu() {
+            const dropdown = document.getElementById('profile-dropdown');
+            const notifDropdown = document.getElementById('notification-dropdown');
+
+            // Close other dropdowns
+            if (!notifDropdown.classList.contains('hidden')) {
+                notifDropdown.classList.add('hidden');
+            }
+
+            dropdown.classList.toggle('hidden');
+        }
+
+        // Notification Dropdown Toggle
+        function toggleNotificationMenu() {
+            const dropdown = document.getElementById('notification-dropdown');
+            const profileDropdown = document.getElementById('profile-dropdown');
+
+            // Close other dropdowns
+            if (!profileDropdown.classList.contains('hidden')) {
+                profileDropdown.classList.add('hidden');
+            }
+
+            dropdown.classList.toggle('hidden');
+
+            // Hide notification badge when menu is opened
+            if (!dropdown.classList.contains('hidden')) {
+                const countEl = document.getElementById('notification-count');
+                countEl.classList.remove('scale-100');
+                countEl.classList.add('scale-0');
+
+                // Keep the current number, but hide badge
+                setTimeout(() => { countEl.textContent = '0'; }, 200);
+                unseenCount = 0;
+            }
+        }
+
+        // Clear all notifications dummy function
+        function clearNotifications() {
+            const list = document.getElementById('notification-list');
+            const empty = document.getElementById('empty-notifications');
+            if (empty) return; // Already empty
+
+            list.innerHTML = `
+                <div id="empty-notifications" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400 flex flex-col items-center fade-in">
+                    <i class="fas fa-bell-slash text-3xl mb-3 text-gray-300 dark:text-gray-600"></i>
+                    <p>No new notifications</p>
+                </div>
+            `;
+
+            unseenCount = 0;
+            const countEl = document.getElementById('notification-count');
+            countEl.classList.remove('scale-100');
+            countEl.classList.add('scale-0');
+            countEl.textContent = '0';
+        }
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function (event) {
+            const profileDropdown = document.getElementById('profile-dropdown');
+            const profileBtn = event.target.closest('button[onclick="toggleProfileMenu()"]');
+
+            const notifDropdown = document.getElementById('notification-dropdown');
+            const notifBtn = event.target.closest('button[onclick="toggleNotificationMenu()"]');
+
+            if (profileDropdown && !profileDropdown.contains(event.target) && !profileBtn) {
+                profileDropdown.classList.add('hidden');
+            }
+
+            if (notifDropdown && !notifDropdown.contains(event.target) && !notifBtn) {
+                notifDropdown.classList.add('hidden');
+            }
+        });
+
+        // Appearance Menu Toggle
+        function toggleAppearanceMenu() {
+            const submenu = document.getElementById('appearance-submenu');
+            submenu.classList.toggle('hidden');
+        }
+
+        // ========== Dark Mode Theme Manager ==========
+        const ThemeManager = {
+            STORAGE_KEY: 'theme-preference',
+            LIGHT: 'light',
+            DARK: 'dark',
+            AUTO: 'auto',
+
+            // Get system preference (respects prefers-color-scheme)
+            getSystemTheme() {
+                return window.matchMedia('(prefers-color-scheme: dark)').matches ? this.DARK : this.LIGHT;
+            },
+
+            // Get effective theme (considering auto mode)
+            getEffectiveTheme(preference) {
+                return preference === this.AUTO ? this.getSystemTheme() : preference;
+            },
+
+            // Apply theme to DOM
+            applyTheme(theme) {
+                const htmlElement = document.documentElement;
+                const effectiveTheme = this.getEffectiveTheme(theme);
+
+                if (effectiveTheme === this.DARK) {
+                    htmlElement.classList.add('dark');
+                    document.body.style.colorScheme = 'dark';
+                } else {
+                    htmlElement.classList.remove('dark');
+                    document.body.style.colorScheme = 'light';
+                }
+
+                // Update radio button state
+                const radios = document.querySelectorAll('.appearance-theme-radio');
+                radios.forEach(radio => {
+                    radio.checked = radio.dataset.theme === theme;
+                });
+            },
+
+            // Get current preference (from storage)
+            getPreference() {
+                return localStorage.getItem(this.STORAGE_KEY) || this.AUTO;
+            },
+
+            // Save preference to storage
+            savePreference(theme) {
+                localStorage.setItem(this.STORAGE_KEY, theme);
+            },
+
+            // Initialize theme on page load
+            init() {
+                const preference = this.getPreference();
+                this.applyTheme(preference);
+
+                // Listen to system theme changes (when in auto mode)
+                const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+                mediaQuery.addEventListener('change', () => {
+                    const currentPref = this.getPreference();
+                    if (currentPref === this.AUTO) {
+                        this.applyTheme(this.AUTO);
+                    }
+                });
+
+                // Attach event listeners to radio buttons
+                document.querySelectorAll('.appearance-theme-radio').forEach(radio => {
+                    radio.addEventListener('change', (e) => {
+                        const theme = e.target.dataset.theme;
+                        this.savePreference(theme);
+                        this.applyTheme(theme);
+                    });
+                });
+            }
+        };
+
+        // Status Menu Toggle
+        function toggleStatusMenu() {
+            const submenu = document.getElementById('status-submenu');
+            submenu.classList.toggle('hidden');
+        }
+
+        // Set Status Function
+        function setStatus(status) {
+            const indicator = document.getElementById('status-indicator');
+            const icon = document.getElementById('status-icon');
+
+            // Update visual indicator
+            if (status === 'online') {
+                indicator.classList.remove('status-offline');
+                indicator.classList.add('status-online');
+                icon.classList.remove('text-gray-400');
+                icon.classList.add('text-green-500');
+            } else {
+                indicator.classList.remove('status-online');
+                indicator.classList.add('status-offline');
+                icon.classList.remove('text-green-500');
+                icon.classList.add('text-gray-400');
+            }
+
+            // Store in localStorage
+            localStorage.setItem('userStatus', status);
+
+            // You can also send this to the server via AJAX if needed
+            // Example: fetch('/api/update-status/', { method: 'POST', body: JSON.stringify({status}) })
+
+            // Close the submenu
+            document.getElementById('status-submenu').classList.add('hidden');
+        }
+
+        // Initialize theme and status on page load
+        document.addEventListener('DOMContentLoaded', function () {
+            // Initialize theme manager
+            ThemeManager.init();
+
+            // ========== Real-time Presence via Django Channels ==========
+            (function setupPresence() {
+                const indicator = document.getElementById('status-indicator');
+                const icon = document.getElementById('status-icon');
+                if (!indicator) return;
+
+                const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+                const wsUrl = scheme + '://' + window.location.host + '/ws/presence/';
+                let ws;
+
+                function updateStatusUI(status) {
+                    if (status === 'online') {
+                        indicator.classList.remove('status-offline');
+                        indicator.classList.add('status-online');
+                        if (icon) {
+                            icon.classList.remove('text-gray-400');
+                            icon.classList.add('text-green-500');
+                        }
+                    } else {
+                        indicator.classList.remove('status-online');
+                        indicator.classList.add('status-offline');
+                        if (icon) {
+                            icon.classList.remove('text-green-500');
+                            icon.classList.add('text-gray-400');
+                        }
+                    }
+                }
+
+                function connect() {
+                    try {
+                        ws = new WebSocket(wsUrl);
+                    } catch (e) {
+                        return;
+                    }
+
+                    ws.onopen = function () {
+                        updateStatusUI('online');
+                        console.log('Presence Connected');
+                    };
+
+                    ws.onmessage = function (event) {
+                        try {
+                            const data = JSON.parse(event.data);
+                            // Handle potential status updates for other users here if needed
+                        } catch (err) {
+                            console.warn('Presence parse error', err);
+                        }
+                    };
+
+                    ws.onclose = function () {
+                        updateStatusUI('offline');
+                        setTimeout(connect, 5000);
+                    };
+
+                    ws.onerror = function () {
+                        updateStatusUI('offline');
+                    }
+                }
+
+                if (window.WebSocket) { connect(); }
+            })();
+
+            // ========== Global unread count tracker ==========
+            window.unseenCount = 0;
+
+            // ========== Real-time Notifications via Django Channels ==========
+            (function setupNotifications() {
+                const countEl = document.getElementById('notification-count');
+                const list = document.getElementById('notification-list');
+
+                if (!countEl || !list) return;
+
+                function pushNotification(payload) {
+                    const emptyState = document.getElementById('empty-notifications');
+                    if (emptyState) {
+                        emptyState.remove();
+                    }
+
+                    const item = document.createElement('div');
+                    item.className = 'px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer fade-in relative';
+
+                    const title = payload.title || (payload.category === 'request'
+                        ? 'Material Request Update'
+                        : 'Notification');
+                    const message = payload.message || '';
+
+                    const meta = [];
+                    if (payload.material) meta.push(`<span class="font-medium">${payload.material}</span>`);
+                    if (payload.status) {
+                        const statusColor = payload.status === 'Approved' ? 'text-green-600' : (payload.status === 'Rejected' ? 'text-red-500' : 'text-blue-500');
+                        meta.push(`<span class="${statusColor}">${payload.status}</span>`);
+                    }
+                    if (payload.quantity != null) meta.push(`Qty: ${payload.quantity}`);
+
+                    let icon = '<i class="fas fa-bell text-indigo-500"></i>';
+                    if (payload.category === 'request') {
+                        icon = '<i class="fas fa-clipboard-list text-blue-500"></i>';
+                    } else if (payload.category === 'message') {
+                        icon = '<i class="fas fa-envelope text-green-500"></i>';
+                    } else if (payload.category === 'stock') {
+                        icon = '<i class="fas fa-exclamation-triangle text-red-500"></i>';
+                    }
+
+                    item.innerHTML = `
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 mt-1 mr-3">
+                                <div class="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center">
+                                    ${icon}
+                                </div>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">${title}</p>
+                                <p class="text-xs text-gray-600 dark:text-gray-300 mt-0.5 line-clamp-2">${message}</p>
+                                ${meta.length ? `<p class="text-[11px] text-gray-400 dark:text-gray-400 mt-1">${meta.join(' &bull; ')}</p>` : ''}
+                            </div>
+                        </div>
+                    `;
+
+                    list.insertBefore(item, list.firstChild);
+
+                    // Check if dropdown is closed to increment counter
+                    const dropdown = document.getElementById('notification-dropdown');
+                    if (dropdown.classList.contains('hidden')) {
+                        window.unseenCount += 1;
+                        countEl.textContent = window.unseenCount > 99 ? '99+' : window.unseenCount;
+                        countEl.classList.remove('scale-0');
+                        countEl.classList.add('scale-100');
+
+                        // Shake the bell slightly
+                        const bellIcon = document.querySelector('#notification-bell i');
+                        if (bellIcon) {
+                            bellIcon.classList.add('animate-bounce');
+                            setTimeout(() => bellIcon.classList.remove('animate-bounce'), 1000);
+                        }
+                    }
+                }
+
+                // Initial UI tests mapping - normally this listens via WebSocket below
+                // setTimeout(() => { pushNotification({category: "request", status: "Approved", message: "Your material request for Fiber was Approved.", material: "Fiber", quantity: 50}); }, 3000);
+
+                if (!window.WebSocket) return;
+
+                const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+                const wsUrl = scheme + '://' + window.location.host + '/ws/notifications/';
+                let ws;
+
+                function connect() {
+                    try {
+                        ws = new WebSocket(wsUrl);
+                    } catch (e) {
+                        return;
+                    }
+
+                    ws.onmessage = function (event) {
+                        try {
+                            const data = JSON.parse(event.data);
+                            if (data.type === 'notification' && data.payload) {
+                                pushNotification(data.payload);
+                            }
+                        } catch (err) {
+                            console.warn('Notification parse error', err);
+                        }
+                    };
+
+                    ws.onclose = function () {
+                        // Lightweight reconnect
+                        setTimeout(connect, 5000);
+                    };
+                }
+
+                connect();
+            })();
+        });
+    </script>
 </body>
+
 </html>

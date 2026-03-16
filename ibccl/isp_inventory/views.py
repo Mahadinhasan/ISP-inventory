@@ -132,9 +132,6 @@ def dashboard(request):
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
 
-    #Internal Communication Card show all user massage and announcement (fetch from external API websocket or database)
-
-
     # Request send by Branch materials approved by admin and auto update total materials count unique materials False
     if role == 'Branch':
         # For Branch: Count all approved requests with Normal stock status (not unique materials)
@@ -143,13 +140,18 @@ def dashboard(request):
             status='Approved',
             material__status='Normal'  # Only count materials with Normal stock status
         ).count()  # Count all approved requests, not distinct materials
+    elif role == 'NOC':
+        # For NOC: Count only Internet category materials
+        total_materials = Material.objects.filter(category='Internet').count()
     else:
         # For Admin & Storekeeper: Total count of all materials in system
         total_materials = Material.objects.count()
     
     active_tasks = Task.objects.filter(status='In Progress').count()
-    if role in ['Admin', 'Storekeeper']:
+    if role in ['Admin', 'Storekeeper', 'NOC']:
         pending_requests_qs = MaterialRequest.objects.filter(status='Pending')
+        if role == 'NOC':
+            pending_requests_qs = pending_requests_qs.filter(material__category='Internet')
     else:
         pending_requests_qs = MaterialRequest.objects.filter(status='Pending', requester=request.user)
     
@@ -485,9 +487,11 @@ def requests_view(request):
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
     
-    # For Admin/Storekeeper, show all requests instead of just their own
-    if role in ['Admin', 'Storekeeper']:
+    # For Admin/Storekeeper/NOC, show relevant requests instead of just their own
+    if role in ['Admin', 'Storekeeper', 'NOC']:
         base_requests = MaterialRequest.objects.all().order_by('-requested_at')
+        if role == 'NOC':
+            base_requests = base_requests.filter(material__category='Internet')
 
     #Request count (pending/approved/rejected)
     pending_count = base_requests.filter(status='Pending').count()
@@ -1472,6 +1476,8 @@ def used_materials_view(request):
     # Determine which used materials to display based on role
     if role == 'Branch':
         used_materials_qs = UsedMaterial.objects.filter(technician=request.user).order_by('-added_at')
+    elif role == 'NOC':
+        used_materials_qs = UsedMaterial.objects.filter(material__category='Internet').order_by('-added_at')
     else:
         # Admin/Storekeeper see all used materials
         used_materials_qs = UsedMaterial.objects.all().order_by('-added_at')

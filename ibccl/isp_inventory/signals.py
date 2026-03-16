@@ -4,12 +4,13 @@ from django.dispatch import receiver
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from .utils import ensure_userprofile
-from .models import UsedMaterial, Material, MaterialRequest, NotificationSetting
+from .models import UsedMaterial, Material, MaterialRequest, NotificationSetting, InternalMessage
+from django.db.models import Sum
 from .consumers import MATERIALS_MONITORING_GROUP, USER_NOTIFICATION_GROUP_PREFIX
 
 
 def _broadcast_used_material(instance):
-    """Notify admin monitoring clients of used material create/update."""
+    """Notify admin & noc monitoring clients of used material create/update."""
     try:
         channel_layer = get_channel_layer()
         if not channel_layer:
@@ -25,10 +26,19 @@ def _broadcast_used_material(instance):
             "status": instance.status,
             "added_at": instance.added_at.isoformat() if instance.added_at else None,
         }
+        # Broadcast to admin group
         async_to_sync(channel_layer.group_send)(
             MATERIALS_MONITORING_GROUP,
             {"type": "used_material_update", "payload": payload},
         )
+        
+        # Broadcast to NOC group if material has a creator
+        if instance.material and instance.material.created_by:
+            noc_group = f"materials_monitoring_noc_{instance.material.created_by.id}"
+            async_to_sync(channel_layer.group_send)(
+                noc_group,
+                {"type": "used_material_update", "payload": payload},
+            )
     except Exception:
         pass
 
@@ -66,6 +76,33 @@ def create_user_profile(sender, instance, created, **kwargs):
             # Avoid raising during user creation if profile can't be created
             pass
 
+@receiver(post_save, sender=Material)
+def material_stock_notifications(sender, instance, **kwargs):
+    """
+    Notify Admin & Storekeeper when global material stock is low or out of stock.
+    (Self notification for Admin/Store roles based on their responsibility)
+    """
+    if instance.status in ['Low Stock', 'Out of Stock']:
+        from django.db.models import Q
+        admin_store_users = User.objects.filter(
+            userprofile__role__in=["Admin", "Storekeeper"]
+        ).filter(
+            Q(notificationsetting__isnull=True) | 
+            Q(notificationsetting__low_stock_alert=True)
+        ).distinct()
+
+        if admin_store_users.exists():
+            payload = {
+                "category": "stock",
+                "event": "low_stock",
+                "title": "Stock Alert",
+                "material": instance.name,
+                "quantity": instance.quantity,
+                "status": instance.status,
+                "message": f"{instance.name} is currently {instance.status} (Qty: {instance.quantity}). Please restock.",
+            }
+            _notify_users(admin_store_users, payload)
+
 
 @receiver(post_save, sender=UsedMaterial)
 def subtract_used_material_from_inventory(sender, instance, created, **kwargs):
@@ -82,6 +119,22 @@ def subtract_used_material_from_inventory(sender, instance, created, **kwargs):
             # Deduct the used quantity from available material stock
             material.quantity = max(0, material.quantity - instance.quantity)
             material.save(update_fields=['quantity'])
+            
+        # Self-notification for Branch users if their available personal stock is Low or Out of Stock
+        total_in = MaterialRequest.objects.filter(requester=instance.technician, status='Approved').aggregate(s=Sum('quantity'))['s'] or 0
+        total_out = UsedMaterial.objects.filter(technician=instance.technician).aggregate(s=Sum('quantity'))['s'] or 0
+        branch_stock = total_in - total_out
+        
+        # Consider <= 2 as Low Stock for branch, and 0 as Out of Stock
+        if branch_stock <= 2:
+            status_text = "Out of Stock" if branch_stock <= 0 else "Low Stock"
+            payload = {
+                "category": "stock",
+                "event": "branch_stock",
+                "title": f"Self Stock Alert: {status_text}",
+                "message": f"Your personal remaining stock is {status_text} (Remaining total: {branch_stock}). Please request more materials if needed.",
+            }
+            _notify_user(instance.technician, payload)
 
 
 @receiver(post_delete, sender=UsedMaterial)
@@ -108,9 +161,12 @@ def material_request_notifications(sender, instance, created, **kwargs):
         # New request created (typically Pending) -> notify admin/storekeeper
         if created:
             # Only notify if material request alerts are enabled
+            from django.db.models import Q
             admin_store_users = User.objects.filter(
-                userprofile__role__in=["Admin", "Storekeeper"],
-                notificationsetting__new_request_alert=True,
+                userprofile__role__in=["Admin", "Storekeeper"]
+            ).filter(
+                Q(notificationsetting__isnull=True) | 
+                Q(notificationsetting__new_request_alert=True)
             ).distinct()
 
             if admin_store_users.exists():
@@ -151,3 +207,19 @@ def material_request_notifications(sender, instance, created, **kwargs):
     except Exception:
         # Do not break save flow due to notification errors
         pass
+
+@receiver(post_save, sender=InternalMessage)
+def internal_message_notification(sender, instance, created, **kwargs):
+    """
+    Real-time notifications for the upcoming Internal Communication feature.
+    When a message is sent, the receiver gets a live system notification.
+    """
+    if created and instance.receiver:
+        payload = {
+            "category": "message",
+            "event": "new_message",
+            "title": "New Internal Message",
+            "sender": instance.sender.username,
+            "message": f"Message from {instance.sender.username}: {instance.content[:60]}...",
+        }
+        _notify_user(instance.receiver, payload)

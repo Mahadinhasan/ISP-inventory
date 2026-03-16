@@ -1,16 +1,150 @@
 {% extends 'noc/base.html' %}
-
+{% block title %}NOC Dashboard{% endblock %}
 {% block content %}
-<!--noc dashboard underconstruction demo-->
-<div class="container">
-    <div class="row">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">NOC Dashboard</h5>
-                    <p class="card-text">NOC dashboard underconstruction</p>
+<div class="fade-in">
+    <div class="mb-8">
+        <h1 class="text-4xl font-bold text-gray-900 dark:text-white">NOC Dashboard</h1>
+        <p class="mt-2 text-lg text-gray-600 dark:text-gray-400">Welcome, {{ user.username }} !</p>
+    </div>
+
+    <!-- Dashboard Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
+        <!-- 1. In Stock Card -->
+        <div onclick="window.location.href='{% url 'noc_materials' %}'"
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105">
+            <div class="flex items-center">
+                <div class="p-4 bg-blue-100 dark:bg-blue-900 rounded-full">
+                    <i class="fas fa-box text-3xl text-blue-600 dark:text-blue-400"></i>
+                </div>
+                <div class="ml-6">
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">In stock</p>
+                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ stats.in_stock }}</p>
                 </div>
             </div>
+        </div>
+
+        <!-- 2. Pending Request Card -->
+        <div onclick="window.location.href='{% url 'noc_requests' %}'"
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105">
+            <div class="flex items-center">
+                <div class="p-4 bg-yellow-100 dark:bg-yellow-900 rounded-full">
+                    <i class="fas fa-clock text-3xl text-yellow-600 dark:text-yellow-400"></i>
+                </div>
+                <div class="ml-6">
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Pending Request</p>
+                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ stats.pending_requests }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Used Materials Card -->
+        <div onclick="window.location.href='{% url 'noc_reports' %}'"
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105">
+            <div class="flex items-center">
+                <div class="p-4 bg-teal-100 dark:bg-teal-900 rounded-full">
+                    <i class="fas fa-history text-3xl text-teal-600 dark:text-teal-400"></i>
+                </div>
+                <div class="ml-6">
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Used Materials</p>
+                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ stats.used_materials }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Low Stock Card -->
+        <div onclick="window.location.href='{% url 'noc_materials' %}?filter=low_stock'"
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105">
+            <div class="flex items-center">
+                <div class="p-4 bg-red-100 dark:bg-red-900 rounded-full">
+                    <i class="fas fa-exclamation-triangle text-3xl text-red-600 dark:text-red-400"></i>
+                </div>
+                <div class="ml-6">
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Low Stock Materials</p>
+                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ stats.low_stock }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. Internal Communication Card -->
+        <div onclick="window.location.href='{% url 'noc_notifications' %}'"
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105">
+            <div class="flex items-center">
+                <div class="p-4 bg-indigo-100 dark:bg-indigo-900 rounded-full">
+                    <i class="fas fa-comments text-3xl text-indigo-600 dark:text-indigo-400"></i>
+                </div>
+                <div class="ml-6">
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Internal Communication</p>
+                    <p class="text-xl font-bold text-gray-900 dark:text-white">View</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. Reports Card -->
+        <div onclick="window.location.href='{% url 'noc_reports' %}'"
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105">
+            <div class="flex items-center">
+                <div class="p-4 bg-purple-100 dark:bg-purple-900 rounded-full">
+                    <i class="fas fa-chart-bar text-3xl text-purple-600 dark:text-purple-400"></i>
+                </div>
+                <div class="ml-6">
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Reports</p>
+                    <p class="text-xl font-bold text-gray-900 dark:text-white">View</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 7. Destroy Materials Log Card -->
+        <div onclick="alert('Destroy Materials Log feature coming soon!')"
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105">
+            <div class="flex items-center">
+                <div class="p-4 bg-gray-100 dark:bg-gray-700 rounded-full">
+                    <i class="fas fa-trash-alt text-3xl text-gray-600 dark:text-gray-400"></i>
+                </div>
+                <div class="ml-6">
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Destroy Materials</p>
+                    <p class="text-xl font-bold text-gray-900 dark:text-white">Log</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Requests Section -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+        <div class="px-8 py-6 border-b border-gray-200 dark:border-gray-700">
+            <h3 class="text-2xl font-bold text-gray-900 dark:text-white">Recent Requests</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
+                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Requester</th>
+                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Material</th>
+                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Qty</th>
+                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for req in recent_requests %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">{{ req.requested_at|date:"d M Y" }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">{{ req.requester.username }}</td>
+                        <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{{ req.material.name }}</td>
+                        <td class="px-6 py-4 text-sm font-bold text-indigo-600 dark:text-indigo-400">{{ req.quantity }}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                {% if req.status == 'Approved' %}bg-green-100 text-green-800{% elif req.status == 'Pending' %}bg-yellow-100 text-yellow-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                {{ req.status }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No recent requests</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>

@@ -10,4 +10,8 @@ websocket_urlpatterns = [
         r"ws/notifications/$",
         consumers.NotificationsConsumer.as_asgi(),
     ),
+    re_path(
+        r"ws/presence/$",
+        consumers.PresenceConsumer.as_asgi(),
+    ),
 ]

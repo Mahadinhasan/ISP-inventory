@@ -18,12 +18,11 @@ class UserProfile(models.Model):
     city = models.CharField(max_length=100, blank=True)
     zip_code = models.CharField(max_length=20, blank=True)
     image = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
-    # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     last_login = models.DateTimeField(null=True, blank=True)
-    # Status / Preferences
     is_active = models.BooleanField(default=True)
+    is_online = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
     email_notifications = models.BooleanField(default=True)
 
@@ -40,35 +39,28 @@ class UserProfile(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.role}"
 
-    # ── Convenience properties (delegate to User) ──────────────────────────
     @property
     def username(self):
-        """Read-only alias for User.username."""
         return self.user.username
 
     @property
     def email(self):
-        """Read-only alias for User.email."""
         return self.user.email
 
     @property
     def full_name(self):
-        """User's full name, falls back to username."""
         return f"{self.user.first_name} {self.user.last_name}".strip() or self.user.username
 
     @property
     def profile_image_url(self):
-        """Profile image URL, with a default fallback."""
         if self.image:
             return self.image.url
         return '/static/images/default_profile.png'
 
     @property
     def role_display(self):
-        """Human-readable role label."""
         return dict(self.ROLE_CHOICES).get(self.role, self.role)
 
-    # ── Role helpers ────────────────────────────────────────────────────────
     @property
     def is_admin(self):
         return self.role == 'Admin'
@@ -85,9 +77,7 @@ class UserProfile(models.Model):
     def is_noc(self):
         return self.role == 'NOC'
 
-    # ── Permission helpers ───────
     def get_permissions(self):
-        """Return list of permission strings for this user's role."""
         permissions = {
             'Admin': ['create', 'read', 'update', 'delete', 'manage_users', 'manage_settings'],
             'Storekeeper': ['create', 'read', 'update', 'manage_inventory', 'approve_requests'],
@@ -97,17 +87,13 @@ class UserProfile(models.Model):
         return permissions.get(self.role, [])
 
     def has_permission(self, permission):
-        """Return True if the user's role grants *permission*."""
         return permission in self.get_permissions()
 
-    # ── Lifecycle ────────────
     def update_last_login(self):
-        """Manually stamp the last-login time."""
         self.last_login = timezone.now()
         self.save(update_fields=['last_login'])
 
     def save(self, *args, **kwargs):
-        """Sync last_login from Django's User on first save."""
         if not self.last_login and self.user.last_login:
             self.last_login = self.user.last_login
         super().save(*args, **kwargs)
@@ -121,7 +107,7 @@ class Material(models.Model):
         ('Work shop', 'Work shop'),
     ]
     name = models.CharField(max_length=100, unique=True)
-    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)#select field (piece/meter)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
     quantity = models.IntegerField(default=0)
     Remaining_stock = models.IntegerField(default=0)
     min_stock_level = models.IntegerField(default=0)
@@ -133,9 +119,9 @@ class Material(models.Model):
     ]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Normal')
     added_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_materials')
 
     def __str__(self):
-        """Display material name with stock status indicator."""
         stock_indicator = " (in stock)" if self.quantity > 0 else ""
         return f"{self.name}{stock_indicator}"
 
@@ -376,3 +362,18 @@ class backupandrestore(models.Model):
 
     def __str__(self):
         return f"Backup from {self.created_at.strftime('%Y-%m-%d %H:%M:%S')}"
+
+
+class InternalMessage(models.Model):
+    """Upcoming feature: Internal Communication / SMS"""
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
+    receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_messages')
+    content = models.TextField(verbose_name="Message Content")
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Message from {self.sender.username} to {self.receiver.username}"
