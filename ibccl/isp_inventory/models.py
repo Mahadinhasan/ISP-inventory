@@ -22,9 +22,10 @@ class UserProfile(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     last_login = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
-    is_online = models.BooleanField(default=False)
+    last_active = models.DateTimeField(null=True, blank=True)
     is_verified = models.BooleanField(default=False)
     email_notifications = models.BooleanField(default=True)
+    is_online = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['-created_at']

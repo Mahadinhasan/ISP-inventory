@@ -249,3 +249,77 @@ class PresenceConsumer(AsyncJsonWebsocketConsumer):
     async def status_update(self, event):
         """Forward status updates from group to client."""
         await self.send_json(event)
+
+
+class ChatConsumer(AsyncJsonWebsocketConsumer):
+    """Real-time one-to-one chat."""
+
+    async def connect(self):
+        self.user = self.scope.get('user')
+        if not self.user or not self.user.is_authenticated:
+            await self.close(code=4401)
+            return
+
+        # Personal group for receiving messages
+        self.user_group = f"user_chat_{self.user.id}"
+        await self.channel_layer.group_add(self.user_group, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        if hasattr(self, 'user_group'):
+            await self.channel_layer.group_discard(self.user_group, self.channel_name)
+
+    async def receive_json(self, content):
+        """Handle incoming message from the user's browser."""
+        msg_type = content.get('type')
+        if msg_type == 'chat_message':
+            receiver_id = content.get('receiver_id')
+            message_text = content.get('message', '').strip()
+
+            if not receiver_id or not message_text:
+                return
+
+            # Save to DB
+            saved_msg = await self.save_message(receiver_id, message_text)
+            if not saved_msg:
+                return
+
+            # Send to receiver's group
+            receiver_group = f"user_chat_{receiver_id}"
+            message_data = {
+                'type': 'chat_message',
+                'message': {
+                    'id': saved_msg['id'],
+                    'sender_id': self.user.id,
+                    'sender_username': self.user.username,
+                    'content': message_text,
+                    'created_at': saved_msg['created_at'],
+                }
+            }
+
+            await self.channel_layer.group_send(receiver_group, message_data)
+            
+            # Send back to sender for confirmation/UI update
+            await self.send_json(message_data)
+
+    async def chat_message(self, event):
+        """Receive message from group and send to WebSocket."""
+        await self.send_json(event)
+
+    @database_sync_to_async
+    def save_message(self, receiver_id, content):
+        from .models import InternalMessage
+        try:
+            receiver = User.objects.get(id=receiver_id)
+            msg = InternalMessage.objects.create(
+                sender=self.user,
+                receiver=receiver,
+                content=content
+            )
+            return {
+                'id': msg.id,
+                'created_at': msg.created_at.isoformat()
+            }
+        except Exception as e:
+            print(f"Error saving chat message: {e}")
+            return None

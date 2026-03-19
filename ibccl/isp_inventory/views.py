@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth.models import User, Group
 from .forms import RegisterForm, MaterialForm, TaskForm, RequestForm, SystemSettingForm, NotificationSettingForm, UsedMaterialForm
-from .models import Material, Task, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial, MaterialMonthlyCount
+from .models import Material, Task, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial, MaterialMonthlyCount, InternalMessage
 from .utils import ensure_userprofile
 from django.db.models import Sum, Q, F, Case, When, IntegerField, Count
 from django.db import transaction
@@ -12,6 +12,8 @@ from django.utils import timezone
 from datetime import datetime
 from django.http import HttpResponse, JsonResponse
 from django.core.management import call_command
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 import json
 import io
 from io import StringIO
@@ -66,42 +68,6 @@ def process_month_end_reset():
     
     return True
 
-
-def register_view(request):
-    if request.method == 'POST':
-        form = RegisterForm(request.POST, request.FILES)
-        if form.is_valid():
-            user = form.save()
-
-            # Ensure role groups exist and add user to selected group
-            role = form.cleaned_data.get('role', 'Branch')
-            for r in ['Admin', 'Storekeeper', 'Branch', 'NOC']:
-                Group.objects.get_or_create(name=r)
-            grp = Group.objects.get(name=role)
-            user.groups.add(grp)
-
-            # Create / update the associated UserProfile
-            try:
-                profile = ensure_userprofile(user)
-                if profile:
-                    profile.role     = role
-                    profile.phone    = form.cleaned_data.get('phone', '')
-                    profile.address  = form.cleaned_data.get('address', '')
-                    profile.city     = form.cleaned_data.get('city', '')
-                    profile.zip_code = form.cleaned_data.get('zip_code', '')
-                    if form.cleaned_data.get('image'):
-                        profile.image = form.cleaned_data['image']
-                    profile.save()
-            except Exception:
-                pass
-
-            login(request, user)
-            messages.success(request, f"Welcome, {user.username}! Your account has been created.")
-            return redirect('dashboard')
-    else:
-        form = RegisterForm()
-    return render(request, 'inventory/register.html', {'form': form})
-
 def login_view(request):
     if request.method == "POST":
         user = authenticate(
@@ -116,6 +82,14 @@ def login_view(request):
                 request.session.set_expiry(0)  # browser close
             else:
                 request.session.set_expiry(60 * 60 * 1)  # 1 hour
+
+            # Role-based redirection
+            try:
+                profile = ensure_userprofile(user)
+                if profile.role == 'NOC':
+                    return redirect('noc_dashboard')
+            except Exception:
+                pass
 
             return redirect('dashboard')
         else:
@@ -132,6 +106,27 @@ def dashboard(request):
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
 
+    if role == 'NOC':
+        return redirect('noc_dashboard')
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'toggle_status' and role == 'Admin':
+            user_id = request.POST.get('user_id')
+            if user_id:
+                try:
+                    toggle_user = User.objects.get(id=user_id)
+                    if toggle_user.is_superuser:
+                        messages.error(request, "Cannot deactivate superuser accounts.")
+                    else:
+                        toggle_user.is_active = not toggle_user.is_active
+                        toggle_user.save()
+                        status_text = "activated" if toggle_user.is_active else "deactivated"
+                        messages.success(request, f"User '{toggle_user.username}' {status_text}.")
+                except User.DoesNotExist:
+                    messages.error(request, "User not found.")
+            return redirect('dashboard')
+
     # Request send by Branch materials approved by admin and auto update total materials count unique materials False
     if role == 'Branch':
         # For Branch: Count all approved requests with Normal stock status (not unique materials)
@@ -140,18 +135,13 @@ def dashboard(request):
             status='Approved',
             material__status='Normal'  # Only count materials with Normal stock status
         ).count()  # Count all approved requests, not distinct materials
-    elif role == 'NOC':
-        # For NOC: Count only Internet category materials
-        total_materials = Material.objects.filter(category='Internet').count()
     else:
         # For Admin & Storekeeper: Total count of all materials in system
         total_materials = Material.objects.count()
     
     active_tasks = Task.objects.filter(status='In Progress').count()
-    if role in ['Admin', 'Storekeeper', 'NOC']:
+    if role in ['Admin', 'Storekeeper']:
         pending_requests_qs = MaterialRequest.objects.filter(status='Pending')
-        if role == 'NOC':
-            pending_requests_qs = pending_requests_qs.filter(material__category='Internet')
     else:
         pending_requests_qs = MaterialRequest.objects.filter(status='Pending', requester=request.user)
     
@@ -284,6 +274,9 @@ def materials_monitoring_view(request):
     """Real-time materials monitoring for Admin: branch users and used materials (Django Channels)."""
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else None
+    
+    if role == 'NOC':
+        return redirect('noc_dashboard')
     if role != 'Admin':
         messages.error(request, 'Only Admin can access Materials Monitoring.')
         return redirect('dashboard')
@@ -302,6 +295,9 @@ def materials_view(request):
     """Materials management: Admin and Storekeeper can create, edit, delete; others read-only."""
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
+
+    if role == 'NOC':
+        return redirect('noc_dashboard')
 
     # Base queryset - Admin/Storekeeper see all; Branch sees all (read-only)
     materials = Material.objects.all().order_by('-added_at')
@@ -487,11 +483,13 @@ def requests_view(request):
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
     
-    # For Admin/Storekeeper/NOC, show relevant requests instead of just their own
-    if role in ['Admin', 'Storekeeper', 'NOC']:
+    if role == 'NOC':
+        return redirect('noc_dashboard')
+    
+    # For Admin/Storekeeper, show relevant requests instead of just their own
+    if role in ['Admin', 'Storekeeper']:
         base_requests = MaterialRequest.objects.all().order_by('-requested_at')
-        if role == 'NOC':
-            base_requests = base_requests.filter(material__category='Internet')
+    
 
     #Request count (pending/approved/rejected)
     pending_count = base_requests.filter(status='Pending').count()
@@ -751,6 +749,9 @@ def reports_view(request):
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
 
+    if role == 'NOC':
+        return redirect('noc_dashboard')
+
     # ── Date range ──
     preset    = request.GET.get('preset', '')
     from_date = request.GET.get('from_date', '')
@@ -922,6 +923,9 @@ def reports_view(request):
 def reports_export_excel(request):
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
+
+    if role == 'NOC':
+        return redirect('noc_dashboard')
 
     from_date = request.GET.get('from_date', (timezone.now() - timezone.timedelta(days=30)).strftime('%Y-%m-%d'))
     to_date   = request.GET.get('to_date',   timezone.now().strftime('%Y-%m-%d'))
@@ -1113,6 +1117,9 @@ def reports_export_pdf(request):
     profile = ensure_userprofile(request.user)
     role    = profile.role if profile else 'Branch'
 
+    if role == 'NOC':
+        return redirect('noc_dashboard')
+
     from_date = request.GET.get('from_date', (timezone.now() - timezone.timedelta(days=30)).strftime('%Y-%m-%d'))
     to_date   = request.GET.get('to_date',   timezone.now().strftime('%Y-%m-%d'))
     try:
@@ -1168,6 +1175,12 @@ def reports_export_pdf(request):
 
 @login_required
 def settings_view(request):
+    profile = ensure_userprofile(request.user)
+    role = profile.role if profile else 'Branch'
+
+    if role == 'NOC':
+        return redirect('noc_dashboard')
+
     # Ensure role groups exist
     ROLE_GROUPS = ['Admin', 'Storekeeper', 'Branch', 'NOC']
     for r in ROLE_GROUPS:
@@ -1226,6 +1239,14 @@ def settings_view(request):
                 messages.error(request, "Username and password are required.")
                 return redirect('settings')
 
+            # Validate password strength
+            try:
+                validate_password(password)
+            except ValidationError as e:
+                for msg in e.messages:
+                    messages.error(request, msg)
+                return redirect('settings')
+
             if User.objects.filter(username=username).exists():
                 messages.error(request, f"Username '{username}' already exists.")
                 return redirect('settings')
@@ -1248,6 +1269,9 @@ def settings_view(request):
                 profile.address = address
                 profile.city = city
                 profile.zip_code = zip_code
+                image = request.FILES.get('image')
+                if image:
+                    profile.image = image
                 profile.save()
                 messages.success(request, f"User '{username}' created successfully!")
             except Exception as e:
@@ -1288,7 +1312,14 @@ def settings_view(request):
                 edit_user.last_name = new_last_name
                 edit_user.is_active = is_active
                 if new_password:
-                    edit_user.set_password(new_password)
+                    # Validate new password strength
+                    try:
+                        validate_password(new_password, edit_user)
+                        edit_user.set_password(new_password)
+                    except ValidationError as e:
+                        for msg in e.messages:
+                            messages.error(request, msg)
+                        return redirect('settings')
                 edit_user.save()
 
                 # Update role group
@@ -1308,6 +1339,9 @@ def settings_view(request):
                 profile.address = new_address
                 profile.city = new_city
                 profile.zip_code = new_zip_code
+                new_image = request.FILES.get('image')
+                if new_image:
+                    profile.image = new_image
                 profile.save()
 
                 messages.success(request, f"User '{edit_user.username}' updated successfully!")
@@ -1381,15 +1415,13 @@ def settings_view(request):
                     if g and g in user.groups.all():
                         user.groups.remove(g)
                 user.groups.add(grp)
-                # update UserProfile if exists
-                try:
-                    profile, _ = UserProfile.objects.get_or_create(user=user)
-                    profile.role = new_role
-                    profile.save()
-                except Exception:
-                    pass
-                messages.success(request, f"Role updated for {user.username}")
-
+                
+                # Update UserProfile role
+                prof = ensure_userprofile(user)
+                prof.role = new_role
+                prof.save()
+                messages.success(request, f"Role for '{user.username}' changed to {new_role}.")
+            return redirect('settings')
         # Group management: create/delete groups, add/remove members
         elif action == 'create_group':
             group_name = request.POST.get('group_name', '').strip()
@@ -1469,15 +1501,76 @@ def settings_view(request):
 
 
 @login_required
+def profile_view(request):
+    """View and update current user's profile."""
+    profile = ensure_userprofile(request.user)
+    role = profile.role
+
+    if request.method == 'POST':
+        email = request.POST.get('email', '').strip()
+        first_name = request.POST.get('first_name', '').strip()
+        last_name = request.POST.get('last_name', '').strip()
+        phone = request.POST.get('phone', '').strip()
+        address = request.POST.get('address', '').strip()
+        city = request.POST.get('city', '').strip()
+        zip_code = request.POST.get('zip_code', '').strip()
+        new_password = request.POST.get('password', '').strip()
+        image = request.FILES.get('image')
+
+        # Username editing restriction
+        if role == 'Admin':
+            username = request.POST.get('username', '').strip()
+            if username and username != request.user.username:
+                if User.objects.filter(username=username).exclude(id=request.user.id).exists():
+                    messages.error(request, f"Username '{username}' is already taken.")
+                else:
+                    request.user.username = username
+        
+        request.user.email = email
+        request.user.first_name = first_name
+        request.user.last_name = last_name
+
+        if new_password:
+            try:
+                validate_password(new_password, request.user)
+                request.user.set_password(new_password)
+                from django.contrib.auth import update_session_auth_hash
+                update_session_auth_hash(request, request.user)
+            except ValidationError as e:
+                for msg in e.messages:
+                    messages.error(request, msg)
+                return redirect('profile')
+
+        request.user.save()
+
+        profile.phone = phone
+        profile.address = address
+        profile.city = city
+        profile.zip_code = zip_code
+        if image:
+            profile.image = image
+        profile.save()
+
+        messages.success(request, "Profile updated successfully!")
+        return redirect('profile')
+
+    return render(request, 'inventory/profile.html', {
+        'profile': profile,
+        'user': request.user,
+    })
+
+
+@login_required
 def used_materials_view(request):
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
 
+    if role == 'NOC':
+        return redirect('noc_dashboard')
+
     # Determine which used materials to display based on role
     if role == 'Branch':
         used_materials_qs = UsedMaterial.objects.filter(technician=request.user).order_by('-added_at')
-    elif role == 'NOC':
-        used_materials_qs = UsedMaterial.objects.filter(material__category='Internet').order_by('-added_at')
     else:
         # Admin/Storekeeper see all used materials
         used_materials_qs = UsedMaterial.objects.all().order_by('-added_at')
@@ -1487,6 +1580,9 @@ def used_materials_view(request):
     page_number = request.GET.get('page')
     used_materials_page = paginator.get_page(page_number)
 
+     # Handle user dropdown filter - filter used materials by selected branch user
+    
+    
     if request.method == 'POST':
         action = request.POST.get('action')
         
@@ -1691,6 +1787,12 @@ def used_materials_view(request):
 @login_required
 def get_used_material_api(request, pk):
     """API endpoint to get used material data for editing via AJAX"""
+    profile = ensure_userprofile(request.user)
+    role = profile.role if profile else 'Branch'
+
+    if role == 'NOC':
+        return JsonResponse({'error': 'NOC role restricted from this API.'}, status=403)
+
     try:
         used_material = UsedMaterial.objects.get(pk=pk, technician=request.user)
     except UsedMaterial.DoesNotExist:
@@ -1719,6 +1821,9 @@ def pending_requests_api(request):
     """
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
+
+    if role == 'NOC':
+        return JsonResponse({'error': 'NOC role restricted from this API.'}, status=403)
     
     try:
         # Get pending requests ordered by most recent first
@@ -1771,6 +1876,57 @@ def pending_requests_api(request):
             'success': False,
             'error': str(e)
         }, status=400)
+
+@login_required
+def chat_view(request):
+    profile = ensure_userprofile(request.user)
+    # Get all users except current
+    users = User.objects.exclude(id=request.user.id).select_related('userprofile').order_by('username')
+    
+    # For each user, attach their last message with current user
+    for u in users:
+        last_msg = InternalMessage.objects.filter(
+            Q(sender=request.user, receiver=u) | Q(sender=u, receiver=request.user)
+        ).order_by('-created_at').first()
+        u.last_message = last_msg
+
+    return render(request, 'inventory/chat.html', {
+        'role': profile.role,
+        'users': users,
+        'user': request.user,
+    })
+
+@login_required
+def chat_history_api(request, user_id):
+    """Fetch chat history between current user and target user."""
+    target_user = get_object_or_404(User, id=user_id)
+    messages = InternalMessage.objects.filter(
+        Q(sender=request.user, receiver=target_user) | 
+        Q(sender=target_user, receiver=request.user)
+    ).order_by('created_at')
+    
+    # Mark received messages from this user as read
+    messages.filter(receiver=request.user, is_read=False).update(is_read=True)
+    
+    messages_data = []
+    for m in messages:
+        messages_data.append({
+            'id': m.id,
+            'sender_id': m.sender.id,
+            'content': m.content,
+            'created_at': m.created_at.isoformat(),
+            'is_me': m.sender_id == request.user.id
+        })
+    
+    return JsonResponse({
+        'success': True,
+        'messages': messages_data,
+        'target_user': {
+            'id': target_user.id,
+            'username': target_user.username,
+            'full_name': target_user.get_full_name() or target_user.username
+        }
+    })
 
 # Custom 404 handler
 def custom_404_view(request, exception=None):

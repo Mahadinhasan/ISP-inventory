@@ -8,26 +8,6 @@ from django.contrib.auth import authenticate, login, logout
 
 # Create your views here.
 
-def login_view(request):
-    if request.method == "POST":
-        user = authenticate(
-            username=request.POST['username'],
-            password=request.POST['password']
-        )
-
-        if user:
-            login(request, user)
-
-            if not request.POST.get('remember_me'):
-                request.session.set_expiry(0)  # browser close
-            else:
-                request.session.set_expiry(60 * 60 * 1)  # 1 hour
-
-            return redirect('dashboard')
-        else:
-            messages.error(request, "Invalid credentials")
-    return render(request, 'noc/login.html')
-  
 @login_required
 def logout_view(request):
     logout(request)
@@ -205,7 +185,7 @@ def noc_reports(request):
             from_date = start.strftime('%Y-%m-%d')
             to_date   = end.strftime('%Y-%m-%d')
 
-    # ── Base queryset (NOC specific) ───────────────────────────────────────────
+    # ── Base queryset (NOC specific) ────────
     # We only care about materials created by THIS NOC user
     noc_materials_qs = Material.objects.filter(category='Internet', created_by=request.user)
     
@@ -215,7 +195,7 @@ def noc_reports(request):
         requested_at__date__lte=end
     ).select_related('material', 'requester')
 
-    # ── Summary Stats ─────────────────────────────────────────────────────────
+    # ── Summary Stats ────────
     total_requests   = requests_qs.count()
     approved_count   = requests_qs.filter(status='Approved').count()
     pending_count    = requests_qs.filter(status='Pending').count()
@@ -238,7 +218,7 @@ def noc_reports(request):
     total_used_records = used_qs.count()
     total_used_qty     = used_qs.aggregate(total=Sum('quantity'))['total'] or 0
 
-    # ── Top 10 materials by approved quantity ─────────────────────────────────
+    # ── Top 10 materials by approved quantity ────────
     from django.db.models import Sum, Count, Q
     from django.db.models.functions import TruncDate
     import json as _json
@@ -250,7 +230,7 @@ def noc_reports(request):
         .order_by('-total_qty')[:10]
     )
 
-    # ── Chart data: daily request counts ─────────────────────────────────────
+    # ── Chart data: daily request counts ────────
     daily_data = (
         requests_qs
         .annotate(day=TruncDate('requested_at'))
@@ -277,10 +257,10 @@ def noc_reports(request):
     cat_labels = [d['material__name'] or 'Unknown' for d in category_data][:10]
     cat_values = [d['qty'] or 0 for d in category_data][:10]
 
-    # ── Recent requests (up to 50 for table) ─────────────────────────────────
+    # ── Recent requests (up to 50 for table) ────────
     recent_requests = requests_qs.order_by('-requested_at')[:50]
 
-    # ── Low-stock materials list ──────────────────────────────────────────────
+    # ── Low-stock materials list ────────
     low_stock_list = noc_materials_qs.filter(
         status__in=['Low Stock', 'Out of Stock']
     ).order_by('status', 'name')[:20]
@@ -333,3 +313,10 @@ def noc_notifications(request):
 def noc_profile(request):
     profile = request.user.userprofile
     return render(request, 'noc/profile.html', {'profile': profile})
+
+def custom_404_view(request, exception=None):
+    """Render a beautiful custom 404 page."""
+    context = {
+        'request_path': request.path,
+    }
+    return render(request, '404.html', context, status=404)

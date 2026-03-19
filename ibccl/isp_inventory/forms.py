@@ -62,8 +62,6 @@ class RegisterForm(UserCreationForm):
                 raise forms.ValidationError('Allowed formats: PNG, JPG, JPEG, GIF, WEBP.')
         return image
 
-    # ── Save ──────────────────────────────────────────────────────────────────
-
     def save(self, commit=True):
         user = super().save(commit=False)
         user.first_name = self.cleaned_data.get('first_name', '')

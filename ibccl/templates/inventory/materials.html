@@ -3,51 +3,81 @@
 {% block title %}Materials{% endblock %}
 
 {% block content %}
-<div class="fade-in">
-    <h1 class="text-4xl font-bold text-gray-900 mb-8">Materials Management</h1>
+<div class="fade-in px-4 py-6">
+    <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-8 tracking-tight">Materials Management</h1>
 
     {% if role == 'Storekeeper'%}
     <button onclick="openAddModal()"
-        class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium mb-6">
+        class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3.5 rounded-2xl font-bold mb-8 transition-all hover:shadow-lg shadow-indigo-200 dark:shadow-indigo-900/20 flex items-center">
         <i class="fas fa-plus mr-2"></i>Add Material
     </button>
     {% endif %}
 
     <!--Materials count normal/Low stock/Out of stock-->
     {% if role == 'Admin' or role == 'Storekeeper' %}
-    <div class="flex gap-4 mb-6">
-        <div class="px-4 py-2 bg-green-100 text-green-800 rounded-lg border border-green-200 flex items-center gap-2">
-            <i class=" fas fa-check-circle"></i>Total Normal Stock: {{ total_normal_stock }}
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+        <div class="px-6 py-4 bg-white dark:bg-midnight-900 shadow-sm border border-green-100 dark:border-green-900/30 rounded-2xl flex items-center gap-4 group transition-all hover:bg-green-50/50 dark:hover:bg-green-900/10">
+            <div class="p-3 bg-green-100 dark:bg-green-900/30 rounded-xl text-green-600 dark:text-green-400">
+                <i class="fas fa-check-circle text-xl"></i>
+            </div>
+            <div>
+                <p class="text-xs font-bold text-green-600/70 dark:text-green-400/50 uppercase tracking-wider">Normal Stock</p>
+                <p class="text-2xl font-black text-green-700 dark:text-green-400">{{ total_normal_stock }}</p>
+            </div>
         </div>
-        <div
-            class="px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg border border-yellow-200 flex items-center gap-2">
-            <i class="fas fa-info-circle"></i> Total Low Stock: {{ total_low_stock }}
+        <div class="px-6 py-4 bg-white dark:bg-midnight-900 shadow-sm border border-yellow-100 dark:border-yellow-900/30 rounded-2xl flex items-center gap-4 group transition-all hover:bg-yellow-50/50 dark:hover:bg-yellow-900/10">
+            <div class="p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-xl text-yellow-600 dark:text-yellow-400">
+                <i class="fas fa-info-circle text-xl"></i>
+            </div>
+            <div>
+                <p class="text-xs font-bold text-yellow-600/70 dark:text-yellow-400/50 uppercase tracking-wider">Low Stock</p>
+                <p class="text-2xl font-black text-yellow-700 dark:text-yellow-400">{{ total_low_stock }}</p>
+            </div>
         </div>
-        <div class="px-4 py-2 bg-red-100 text-red-800 rounded-lg border border-red-200 flex items-center gap-2">
-            <i class="fas fa-times-circle"></i> Total Out of Stock: {{ total_out_of_stock }}
+        <div class="px-6 py-4 bg-white dark:bg-midnight-900 shadow-sm border border-red-100 dark:border-red-900/30 rounded-2xl flex items-center gap-4 group transition-all hover:bg-red-50/50 dark:hover:bg-red-900/10">
+            <div class="p-3 bg-red-100 dark:bg-red-900/30 rounded-xl text-red-600 dark:text-red-400">
+                <i class="fas fa-times-circle text-xl"></i>
+            </div>
+            <div>
+                <p class="text-xs font-bold text-red-600/70 dark:text-red-400/50 uppercase tracking-wider">Out of Stock</p>
+                <p class="text-2xl font-black text-red-700 dark:text-red-400">{{ total_out_of_stock }}</p>
+            </div>
         </div>
     </div>
     {% endif %}
 
     <!--Filter-->
-    <form method="get" class="mb-8 grid grid-cols-1 md:grid-cols-4 gap-4">
-        <input type="text" name="search" value="{{ search }}" placeholder="Search..."
-            class="px-4 py-3 border rounded-lg">
-        <select name="category" class="px-4 py-3 border rounded-lg">
-            <option value="">All Categories</option>
-            <option value="Internet" {% if category == 'Internet' %}selected{% endif %}>Internet</option>
-            <option value="Dish" {% if category == 'Dish' %}selected{% endif %}>Dish</option>
-            <option value="Fiber" {% if category == 'Fiber' %}selected{% endif %}>Fiber</option>
-            <option value="Common item" {% if category == 'Common item' %}selected{% endif %}>Common item</option>
-            <option value="Work shop" {% if category == 'Work shop' %}selected{% endif %}>Work shop</option>
-        </select>
-        <select name="stock_status" class="px-4 py-3 border rounded-lg">
-            <option value="">All Stock Status</option>
-            <option value="low" {% if stock_status == 'low' %}selected{% endif %}>Low Stock</option>
-            <option value="normal" {% if stock_status == 'normal' %}selected{% endif %}>Normal Stock</option>
-            <option value="out_of_stock" {% if stock_status == 'out_of_stock' %}selected{% endif %}>Out of Stock</option>
-        </select>
-        <button type="submit" class="bg-indigo-600 text-white px-4 py-3 rounded-lg font-medium">Filter</button>
+    <form method="get" class="mb-8 p-6 bg-white dark:bg-midnight-900/40 glass-card rounded-2xl grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div class="flex flex-col gap-2">
+            <label class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider ml-1">Search</label>
+            <input type="text" name="search" value="{{ search }}" placeholder="Item name..."
+                class="px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-100 dark:border-midnight-800 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white">
+        </div>
+        <div class="flex flex-col gap-2">
+            <label class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider ml-1">Category</label>
+            <select name="category" class="px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-100 dark:border-midnight-800 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white">
+                <option value="">All Categories</option>
+                <option value="Internet" {% if category == 'Internet' %}selected{% endif %}>Internet</option>
+                <option value="Dish" {% if category == 'Dish' %}selected{% endif %}>Dish</option>
+                <option value="Fiber" {% if category == 'Fiber' %}selected{% endif %}>Fiber</option>
+                <option value="Common item" {% if category == 'Common item' %}selected{% endif %}>Common item</option>
+                <option value="Work shop" {% if category == 'Work shop' %}selected{% endif %}>Work shop</option>
+            </select>
+        </div>
+        <div class="flex flex-col gap-2">
+            <label class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider ml-1">Stock Status</label>
+            <select name="stock_status" class="px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-100 dark:border-midnight-800 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white">
+                <option value="">All Stock Status</option>
+                <option value="low" {% if stock_status == 'low' %}selected{% endif %}>Low Stock</option>
+                <option value="normal" {% if stock_status == 'normal' %}selected{% endif %}>Normal Stock</option>
+                <option value="out_of_stock" {% if stock_status == 'out_of_stock' %}selected{% endif %}>Out of Stock</option>
+            </select>
+        </div>
+        <div class="flex items-end">
+            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-xl font-bold transition-all shadow-md active:scale-95">
+                <i class="fas fa-filter mr-2"></i>Filter
+            </button>
+        </div>
     </form>
 
     <!--Active filters summary-->
@@ -67,18 +97,18 @@
     </div>
 
     <!-- Table -->
-    <div class="overflow-x-auto bg-white rounded-lg shadow">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
+    <div class="overflow-x-auto bg-white dark:bg-midnight-900/40 glass-card rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-midnight-800">
+        <table class="min-w-full divide-y divide-gray-100 dark:divide-midnight-800">
+            <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Materials Name</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">in Stock</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remaining stock</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Min Level</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">ID</th>
+                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Materials Name</th>
+                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Category</th>
+                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Status</th>
+                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">in Stock</th>
+                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Remaining stock</th>
+                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Min Level</th>
+                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Date</th>
                     {% if role == 'Storekeeper' %}
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                     {% endif %}
@@ -134,8 +164,8 @@
 
     <!-- Material Modal (Add/Edit) -->
     <div id="materialModal"
-        class="fixed inset-0 bg-gray-500 bg-opacity-75 hidden flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        class="fixed inset-0 bg-midnight-950/80 hidden flex items-center justify-center z-50 backdrop-blur-md">
+        <div class="bg-white dark:bg-midnight-900 rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] shadow-2xl border border-gray-100 dark:border-midnight-800 overflow-y-auto">
             <h2 id="modalTitle" class="text-2xl font-bold mb-6">Add Material</h2>
             <form method="post" id="materialForm">
                 {% csrf_token %}

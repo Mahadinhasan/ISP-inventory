@@ -1,9 +1,7 @@
-from django.urls import path
+from django.urls import path, re_path
 from . import views
 
 urlpatterns = [
-    path('login/', views.login_view, name='login'),
-    path('logout/', views.logout_view, name='logout'),
     path('dashboard/', views.noc_dashboard, name='noc_dashboard'),
     path('materials/', views.noc_materials, name='noc_materials'),
     path('materials/add/', views.add_material, name='add_material'),
@@ -16,4 +14,5 @@ urlpatterns = [
     path('reports/', views.noc_reports, name='noc_reports'),
     path('notifications/', views.noc_notifications, name='noc_notifications'),
     path('profile/', views.noc_profile, name='noc_profile'),
+    re_path(r'^.*$', views.custom_404_view, name='custom_404'),
 ]
