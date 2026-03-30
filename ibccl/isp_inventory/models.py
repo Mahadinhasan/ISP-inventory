@@ -109,6 +109,11 @@ class Material(models.Model):
     ]
     name = models.CharField(max_length=100, unique=True)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
+    TYPE_CHOICES = [
+        ('Meter', 'Meter'),
+        ('Piece', 'Piece'),
+    ]
+    Type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='Piece')
     quantity = models.IntegerField(default=0)
     Remaining_stock = models.IntegerField(default=0)
     min_stock_level = models.IntegerField(default=0)
@@ -120,6 +125,7 @@ class Material(models.Model):
     ]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Normal')
     added_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_materials')
 
     def __str__(self):
@@ -141,7 +147,7 @@ class Material(models.Model):
     
     def get_monthly_count(self):
         """Get or create monthly count for current month."""
-        now = timezone.now()
+        now = timezone.datetime(2026, 3, 31)  # For testing, we can set this to a specific date. In production, use timezone.now()
         current_month = datetime(now.year, now.month, 1)
         
         monthly_count, created = MaterialMonthlyCount.objects.get_or_create(

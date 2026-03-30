@@ -74,7 +74,7 @@ class RegisterForm(UserCreationForm):
 class MaterialForm(forms.ModelForm):
     class Meta:
         model = Material
-        fields = ['name', 'category', 'quantity', 'Remaining_stock', 'min_stock_level']
+        fields = ['name', 'category', 'quantity', 'min_stock_level','Type']
     
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
@@ -113,7 +113,7 @@ class RequestForm(forms.ModelForm):
         model = MaterialRequest
         fields = ['material', 'quantity', 'request_type', 'send_by']
         labels = {
-            'user_note': 'User Notes',
+            'send_by': 'User Notes',
             'request_type': 'Request Type',
             'send_by': 'Send By',
         }

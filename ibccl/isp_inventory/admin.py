@@ -8,7 +8,7 @@ class MaterialRequestAdmin(admin.ModelAdmin):
     """Admin interface for MaterialRequest with used materials display."""
     list_display = ['id', 'requester', 'material', 'quantity', 'status', 'used_materials_count', 'used_materials_display', 'requested_at']
     list_filter = ['status', 'requested_at', 'material__category']
-    search_fields = ['requester__username', 'material__name', 'user_note']
+    search_fields = ['requester__username', 'material__name', 'send_by']
     readonly_fields = ['requested_at', 'used_materials_display', 'used_materials_count']
     fieldsets = (
         ('Request Info', {
@@ -57,7 +57,7 @@ class UsedMaterialAdmin(admin.ModelAdmin):
 
 # Register your models here.
 class materialAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name', 'category', 'quantity','Remaining_stock', 'min_stock_level', 'status']
+    list_display = ['id', 'name', 'category', 'quantity','Remaining_stock', 'min_stock_level', 'status', 'updated_at']
     list_filter = ['category', 'status']
     search_fields = ['name', 'category']
 admin.site.register(Material, materialAdmin)
@@ -65,7 +65,7 @@ admin.site.register(Task, admin.ModelAdmin)
 class MaterialRequestAdmin(admin.ModelAdmin):
     list_display = ['id', 'requester', 'material', 'quantity', 'status', 'requested_at']
     list_filter = ['status', 'requested_at']
-    search_fields = ['requester__username', 'material__name', 'user_note']
+    search_fields = ['requester__username', 'material__name', 'send_by']
 admin.site.register(MaterialRequest, MaterialRequestAdmin)
 class UserProfileAdmin(admin.ModelAdmin):
     list_display = ['id', 'username', 'email', 'role', 'is_active', 'is_verified', 'email_notifications']

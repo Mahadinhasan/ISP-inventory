@@ -31,7 +31,7 @@ def process_month_end_reset():
     Check if month has ended and reset quantities if needed.
     Archives current month quantities to MaterialMonthlyCount.
     """
-    now = timezone.now()
+    now = timezone.datetime(2026, 3, 31)  # For testing, we can set this to a specific date. In production, use timezone.now()
     current_month_start = datetime(now.year, now.month, 1)
     
     # Check if this month's reset has already been processed
@@ -56,7 +56,9 @@ def process_month_end_reset():
             monthly_count.count = material.quantity
             monthly_count.save()
         
-        # Reset quantity to 0
+        # Accumulate leftover quantity into Remaining_stock
+        material.Remaining_stock += material.quantity
+        # Reset quantity (in stock) to 0 for the new month
         material.quantity = 0
         material.save()
     
@@ -137,7 +139,10 @@ def dashboard(request):
         ).count()  # Count all approved requests, not distinct materials
     else:
         # For Admin & Storekeeper: Total count of all materials in system
-        total_materials = Material.objects.count()
+        if role == 'Storekeeper':
+            total_materials = Material.objects.filter(quantity__gt=0).count()  # In stock materials for Storekeeper
+        else:
+            total_materials = Material.objects.count()
     
     active_tasks = Task.objects.filter(status='In Progress').count()
     if role in ['Admin', 'Storekeeper']:
@@ -212,7 +217,7 @@ def dashboard(request):
     
     # Branch specific stats
     my_stock_count = 0
-    used_materials_count = 0
+    used_materials_count = 0  
     used_material_form = None
     
     if role == 'Branch':
@@ -242,9 +247,51 @@ def dashboard(request):
                     low_stock_material_list.append(req)
     else:
         # For Admin/Storekeeper: Materials with status 'Low Stock' or 'Out of Stock'
-        low_stock_items = Material.objects.filter(Q(status='Low Stock') | Q(status='Out of Stock'))
+        if role == 'Storekeeper':
+            # For Storekeeper: Materials with Remaining_stock > 0 (materials that were reset)
+            low_stock_items = Material.objects.filter(Remaining_stock__gt=0)
+        else:
+            low_stock_items = Material.objects.filter(Q(status='Low Stock') | Q(status='Out of Stock'))
         low_stock_materials = low_stock_items.count()
         low_stock_material_list = low_stock_items
+
+    # Materials monitoring for Admin
+    materials_monitoring = []
+    if role == 'Admin':
+        branch_users = User.objects.filter(userprofile__role='Branch')
+        for branch_user in branch_users:
+            approved_qs = MaterialRequest.objects.filter(
+                requester=branch_user,
+                status='Approved',
+                material__status='Normal'
+            ).select_related('material').order_by('requested_at')
+            
+            used_totals = {}
+            used_qs = UsedMaterial.objects.filter(
+                technician=branch_user,
+                status='Accepted',
+            ).values('material_id').annotate(total=Sum('quantity'))
+            
+            for u in used_qs:
+                used_totals[u['material_id']] = u['total']
+            
+            for req in approved_qs:
+                mat_id = req.material.id
+                available_for_this_req = req.quantity
+                
+                if mat_id in used_totals and used_totals[mat_id] > 0:
+                    amount_to_deduct = min(used_totals[mat_id], req.quantity)
+                    available_for_this_req -= amount_to_deduct
+                    used_totals[mat_id] -= amount_to_deduct
+                
+                if available_for_this_req > 0:
+                    materials_monitoring.append({
+                        'branch': branch_user,
+                        'material': req.material,
+                        'quantity': available_for_this_req,
+                        'status': req.material.status,
+                        'date': req.requested_at,
+                    })
 
     return render(request, 'inventory/dashboard.html', {
         'total_materials': total_materials,
@@ -266,6 +313,7 @@ def dashboard(request):
         'low_stock_materials': low_stock_materials,
         'low_stock_material_list': low_stock_material_list,
         'pending_requests_list': pending_requests_qs.select_related('requester', 'material').order_by('-requested_at'),
+        'materials_monitoring': materials_monitoring,
     })
 
 
@@ -280,13 +328,62 @@ def materials_monitoring_view(request):
     if role != 'Admin':
         messages.error(request, 'Only Admin can access Materials Monitoring.')
         return redirect('dashboard')
+    
     ws_scheme = 'wss' if request.scheme == 'https' else 'ws'
     ws_host = request.get_host()
     ws_path = '/ws/inventory/materials-monitoring/'
     ws_url = f'{ws_scheme}://{ws_host}{ws_path}'
+    
+    # Get branch users' approved materials that haven't been fully used
+    materials_monitoring = []
+    branch_users = User.objects.filter(userprofile__role='Branch')
+    branch_list = branch_users
+    for branch_user in branch_users:
+        approved_qs = MaterialRequest.objects.filter(
+            requester=branch_user,
+            status='Approved',
+            material__status='Normal'
+        ).select_related('material').order_by('requested_at')
+        
+        used_totals = {}
+        used_qs = UsedMaterial.objects.filter(
+            technician=branch_user,
+            status='Accepted',
+        ).values('material_id').annotate(total=Sum('quantity'))
+        
+        for u in used_qs:
+            used_totals[u['material_id']] = u['total']
+        
+        for req in approved_qs:
+            mat_id = req.material.id
+            available_for_this_req = req.quantity
+            
+            if mat_id in used_totals and used_totals[mat_id] > 0:
+                amount_to_deduct = min(used_totals[mat_id], req.quantity)
+                available_for_this_req -= amount_to_deduct
+                used_totals[mat_id] -= amount_to_deduct
+            
+            if available_for_this_req > 0:
+                materials_monitoring.append({
+                    'branch': {
+                        'id': branch_user.id,
+                        'username': branch_user.username,
+                        'full_name': branch_user.get_full_name(),
+                    },
+                    'material': {
+                        'id': req.material.id,
+                        'name': req.material.name,
+                    },
+                    'quantity': available_for_this_req,
+                    'status': req.material.status,
+                    'date': req.requested_at.isoformat(),
+                })
+    
     return render(request, 'inventory/materials_monitoring.html', {
         'role': role,
         'ws_url': ws_url,
+        'materials_monitoring': materials_monitoring,
+        'branch_list': branch_list,
     })
 
 
@@ -325,14 +422,14 @@ def materials_view(request):
         materials = materials.filter(status=db_status)
 
     # Pagination
-    paginator = Paginator(materials, 10)
+    paginator = Paginator(materials, 20)
     page_number = request.GET.get('page')
     materials_page = paginator.get_page(page_number)
 
     # POST: Create, Edit, Delete (Admin/Storekeeper only)
     if request.method == 'POST':
-        if role not in ['Storekeeper', 'Admin']:
-            messages.error(request, "Only Admin and Storekeeper can add, edit, or delete materials.")
+        if role != 'Storekeeper':
+            messages.error(request, "Only Storekeeper can add, edit, or delete materials.")
             return redirect('materials')
 
         action = request.POST.get('action')
@@ -379,6 +476,14 @@ def materials_view(request):
             return redirect('materials')
 
     form = MaterialForm(user=request.user)
+    type_summary = []
+    if role == 'Storekeeper':
+        type_summary = list(Material.objects.values('Type').annotate(
+            in_stock=Sum('quantity'),
+            remaining_stock=Sum('Remaining_stock'),
+            min_stock=Sum('min_stock_level')
+        ))
+
     context = {
         'search': search,
         'category': category,
@@ -391,6 +496,7 @@ def materials_view(request):
         'role': role,
         'user': request.user,
         'materials_page': materials_page,
+        'type_summary': type_summary,
     }
     return render(request, 'inventory/materials.html', context)
 
@@ -406,8 +512,8 @@ def material_json(request, pk):
 
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
-    # Only Admin/Storekeeper can fetch material data for edit form
-    if role not in ['Storekeeper', 'Admin']:
+    # Only Storekeeper can fetch material data for edit form
+    if role != 'Storekeeper':
         return JsonResponse({'error': 'Permission denied'}, status=403)
 
     data = {
@@ -415,6 +521,7 @@ def material_json(request, pk):
         'name': mat.name,
         'category': mat.category,
         'quantity': mat.quantity,
+        'Remaining_stock': mat.Remaining_stock,
         'min_stock_level': mat.min_stock_level,
         'status': mat.status,
     }
@@ -538,7 +645,7 @@ def requests_view(request):
     if search_query:
         base_requests = base_requests.filter(
             Q(material__name__icontains=search_query) | 
-            Q(user_note__icontains=search_query) | 
+            Q(send_by__icontains=search_query) | 
             Q(notes__icontains=search_query)|
             #type of request search
             Q(request_type__icontains=search_query)
@@ -874,8 +981,8 @@ def reports_view(request):
     cat_labels = [d['material__category'] or 'Unknown' for d in category_data]
     cat_values = [d['qty'] or 0 for d in category_data]
 
-    # ── Recent requests (up to 50 for table) ─────────────────────────────────
-    recent_requests = requests_qs.order_by('-requested_at')[:50]
+    # ── Recent requests (up to 20 for table) ─────────────────────────────────
+    recent_requests = requests_qs.order_by('-requested_at')[:20]
 
     # ── Low-stock materials list ──────────────────────────────────────────────
     low_stock_list = Material.objects.filter(
@@ -1576,13 +1683,34 @@ def used_materials_view(request):
         used_materials_qs = UsedMaterial.objects.all().order_by('-added_at')
 
     # Pagination
-    paginator = Paginator(used_materials_qs, 10)  # Show 10 records per page
+    paginator = Paginator(used_materials_qs, 20)  # Show 20 records per page
     page_number = request.GET.get('page')
     used_materials_page = paginator.get_page(page_number)
 
      # Handle user dropdown filter - filter used materials by selected branch user
-    
-    
+    if role in ['Admin', 'Storekeeper']:
+        branch_users = User.objects.filter(groups__name='Branch').order_by('username')
+        selected_user_id = request.GET.get('user_id')
+        if selected_user_id:
+            try:
+                selected_user = User.objects.get(id=selected_user_id, groups__name='Branch')
+                used_materials_qs = used_materials_qs.filter(technician=selected_user)
+                used_materials_page = paginator.get_page(page_number)  # Re-paginate after filtering
+            except User.DoesNotExist:
+                messages.error(request, "Selected user not found.")
+    else:
+        branch_users = None  # Branch users don't see the filter
+    #search functionality
+    search_query = request.GET.get('search', '').strip()
+    if search_query:
+        used_materials_qs = used_materials_qs.filter(
+            Q(material__name__icontains=search_query) |
+            Q(technician__username__icontains=search_query) |
+            Q(technician__first_name__icontains=search_query) |
+            Q(technician__last_name__icontains=search_query)
+        ).distinct()
+        used_materials_page = paginator.get_page(page_number)  # Re-paginate after filtering
+
     if request.method == 'POST':
         action = request.POST.get('action')
         
@@ -1782,6 +1910,8 @@ def used_materials_view(request):
         'page_obj': used_materials_page,
         'selected_used_material': selected_used_material,
         'for_approval': for_approval,
+        'branch_users': branch_users,
+        'search_query': search_query,
     })
 
 @login_required

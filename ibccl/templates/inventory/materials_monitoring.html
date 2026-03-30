@@ -2,66 +2,120 @@
 {% block title %}Materials Monitoring (Live){% endblock %}
 {% block content %}
 <div class="fade-in">
-    <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Materials Monitoring</h1>
-            <p class="mt-1 text-gray-600 dark:text-gray-400">Real-time branch user usage (Admin only)</p>
-        </div>
-        <div class="flex items-center gap-3">
-            <span id="ws-status" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300">
-                <span id="ws-dot" class="w-2 h-2 rounded-full bg-gray-500"></span>
-                Connecting…
-            </span>
-            <button type="button" id="btn-refresh" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition opacity-75">
-                <i class="fas fa-sync-alt mr-2"></i>Refresh
-            </button>
-        </div>
-    </div>
-
-    <!-- Branch users summary -->
     <div class="mb-8">
-        <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Branch Users</h2>
-        <div id="branch-users-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            <p class="text-gray-500 dark:text-gray-400 col-span-full">Loading…</p>
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+                <h1 class="text-5xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent dark:from-indigo-400 dark:via-purple-400 dark:to-pink-400">Materials Monitoring</h1>
+                <p class="mt-2 text-lg text-gray-600 dark:text-gray-300 font-medium">Real-time branch user usage (Admin only)</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-md">
+                    <span id="ws-dot" class="w-3 h-3 rounded-full bg-gray-400 animate-pulse"></span>
+                    <span id="ws-status" class="text-gray-700 dark:text-gray-300">Connecting…</span>
+                </div>
+                <button type="button" id="btn-refresh" class="btn-primary px-6 py-2.5 rounded-xl flex items-center gap-2">
+                    <i class="fas fa-sync-alt"></i>Refresh
+                </button>
+            </div>
         </div>
     </div>
 
-    <!-- Live feed: recent used materials -->
-    <div>
-        <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Live feed – Used materials</h2>
+    <!-- Branch users grid -->
+    <div class="mb-12">
+        <div class="mb-6">
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                <div class="w-1 h-8 bg-gradient-to-b from-indigo-600 to-purple-600 rounded-full"></div>
+                Branch Users Overview
+            </h2>
+            <p class="text-gray-600 dark:text-gray-400 mt-2 ml-4">Click "Details" on any branch to view their in-stock materials</p>
+        </div>
+        <div id="branch-users-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            <div class="col-span-full py-12 text-center">
+                <div class="inline-flex flex-col items-center gap-3">
+                    <div class="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center">
+                        <i class="fas fa-spinner fa-spin text-indigo-600 dark:text-indigo-400 text-lg"></i>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400 font-medium">Loading branch data…</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{ materials_monitoring|json_script:"materials-data" }}
+    
+
+    <!-- Hero: In-stock materials (hidden unless detail clicked) -->
+    <div id="instockSection" class="mb-8 hidden">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h2 class="text-xl font-semibold text-gray-900 dark:text-white">In-stock Materials for <span id="selectedBranchName"></span></h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Branch User In-Stock Overview</p>
+            </div>
+            <button onclick="document.getElementById('instockSection').classList.add('hidden')" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 text-2xl">&times;</button>
+        </div>
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div class="overflow-x-auto max-h-[480px] overflow-y-auto">
+            <div class="overflow-x-auto max-h-[360px] overflow-y-auto">
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
                     <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0">
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Branch user</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Material</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Qty</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Status</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Time</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Date</th>
                         </tr>
                     </thead>
-                    <tbody id="recent-used-tbody" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">
-                        <tr><td colspan="5" class="px-4 py-6 text-center text-gray-500 dark:text-gray-400">Loading…</td></tr>
+                    <tbody id="instockTableBody" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">
+                        <tr><td colspan="4" class="px-4 py-6 text-center text-gray-500 dark:text-gray-400">Detail click will show results here.</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
-</div>
+
+    <!-- Side by side: Live feed and Legacy table -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Live feed: recent used materials -->
+        <div>
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Live feed – Used materials</h2>
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div class="overflow-x-auto max-h-[720px] overflow-y-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
+                        <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Branch user</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Material</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Qty</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recent-used-tbody" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">
+                            <tr><td colspan="5" class="px-4 py-6 text-center text-gray-500 dark:text-gray-400">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
 
 <script>
+const materialsData = JSON.parse(document.getElementById('materials-data').textContent || '[]');
+
 (function() {
     const wsUrl = '{{ ws_url|escapejs }}';
     const statusEl = document.getElementById('ws-status');
     const dotEl = document.getElementById('ws-dot');
     const branchContainer = document.getElementById('branch-users-container');
     const recentTbody = document.getElementById('recent-used-tbody');
+    const instockSection = document.getElementById('instockSection');
+    const instockTableBody = document.getElementById('instockTableBody');
+    const selectedBranchName = document.getElementById('selectedBranchName');
     const btnRefresh = document.getElementById('btn-refresh');
 
     let ws = null;
     let reconnectTimer = null;
     const reconnectDelay = 3000;
+    let currentSelectedBranchId = null;
+    let allBranchUsers = []; // Store branch users for jumpToBranchStock
 
     function setStatus(connected, text) {
         statusEl.textContent = text;
@@ -70,11 +124,63 @@
         dotEl.className = 'w-2 h-2 rounded-full ' + (connected ? 'bg-green-500' : 'bg-gray-500');
     }
 
+    function renderInStockTable(items) {
+        if (!items || items.length === 0) {
+            instockTableBody.innerHTML = '<tr><td colspan="4" class="px-4 py-6 text-center text-gray-500 dark:text-gray-400">No in-stock materials found.</td></tr>';
+            return;
+        }
+
+        instockTableBody.innerHTML = items.map(function(item) {
+            var statusClassName = item.status === 'Normal' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
+                item.status === 'Low Stock' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' :
+                'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
+
+            return '<tr id="branch-stock-' + item.branch.id + '-' + item.material.id + '" data-branch-stock-row="' + item.branch.id + '" class="hover:bg-gray-50 dark:hover:bg-gray-700">' +
+                '<td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-300">' + item.material.name + '</td>' +
+                '<td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-300 font-bold">' + item.quantity + '</td>' +
+                '<td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-semibold ' + statusClassName + '">' + item.status + '</span></td>' +
+                '<td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">' + (new Date(item.date).toLocaleDateString()) + '</td>' +
+                '</tr>';
+        }).join('');
+    }
+
+    function jumpToBranchStock(branchId) {
+        instockSection.classList.remove('hidden');
+        currentSelectedBranchId = branchId;
+        
+        // Find the branch user to get their name
+        const branchUser = allBranchUsers.find(u => u.id === branchId);
+        if (branchUser) {
+            selectedBranchName.textContent = branchUser.full_name || branchUser.username;
+        }
+        
+        // Filter materials for this branch only
+        const filteredItems = materialsData.filter(function(item) {
+            return item.branch.id === branchId;
+        });
+        
+        renderInStockTable(filteredItems);
+
+        var target = document.querySelector('[data-branch-stock-row="' + branchId + '"]');
+        if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            target.classList.add('ring-2', 'ring-indigo-500', 'dark:ring-indigo-300');
+            setTimeout(function() {
+                target.classList.remove('ring-2', 'ring-indigo-500', 'dark:ring-indigo-300');
+            }, 1500);
+        }
+    }
+
     function renderBranchUsers(data) {
         if (!data || !data.branch_users || !data.branch_users.length) {
             branchContainer.innerHTML = '<p class="text-gray-500 dark:text-gray-400 col-span-full">No branch users.</p>';
+            allBranchUsers = [];
             return;
         }
+        
+        // Store branch users for jumpToBranchStock function
+        allBranchUsers = data.branch_users;
+        
         branchContainer.innerHTML = data.branch_users.map(function(u) {
             const statusColor = u.is_online ? 'bg-green-500' : 'bg-gray-400 shadow-inner';
             return '<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 p-4 shadow-sm" id="user-card-' + u.id + '">' +
@@ -88,6 +194,7 @@
                 '<div class="mt-3 flex gap-4 text-sm">' +
                 '<span class="text-indigo-600 dark:text-indigo-400">' + (u.used_materials_count || 0) + ' entries</span>' +
                 '<span class="text-gray-600 dark:text-gray-300">' + (u.used_quantity_total || 0) + ' units</span>' +
+                '<a href="javascript:void(0)" onclick="jumpToBranchStock(' + u.id + ')" class="text-indigo-600 dark:text-indigo-300">' + (u.updated_at || 'Details') + '</a>' +
                 '</div></div>';
         }).join('');
     }
