@@ -329,7 +329,7 @@ class UsedMaterial(models.Model):
     quantity = models.IntegerField(default=1)
     issue = models.TextField(blank=True, verbose_name='Technical Issue / Notes')
     # Status and Notes
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Accepted')
     admin_note = models.TextField(blank=True, verbose_name='Admin Notes')
     # Timestamps
     added_at = models.DateTimeField(auto_now_add=True)

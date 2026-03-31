@@ -31,7 +31,7 @@ def process_month_end_reset():
     Check if month has ended and reset quantities if needed.
     Archives current month quantities to MaterialMonthlyCount.
     """
-    now = timezone.datetime(2026, 3, 31)  # For testing, we can set this to a specific date. In production, use timezone.now()
+    now = timezone.datetime(2026, 4, 1)  # For testing, we can set this to a specific date. In production, use timezone.now()
     current_month_start = datetime(now.year, now.month, 1)
     
     # Check if this month's reset has already been processed
@@ -155,7 +155,7 @@ def dashboard(request):
     # Data for dashboard modals - Role-specific
     all_tasks = Task.objects.all().order_by('-created_at')
     all_requests = MaterialRequest.objects.filter(requester=request.user).order_by('-requested_at')
-    all_used_materials = UsedMaterial.objects.all().select_related('technician', 'material').order_by('-added_at')
+    all_used_materials = UsedMaterial.objects.all().select_related('technician', 'material').order_by('-added_at')[:10]  # Limit to 10 most recent
     
     # Role-specific material data for the materials modal
     technician_approved_materials = None
@@ -1682,12 +1682,7 @@ def used_materials_view(request):
         # Admin/Storekeeper see all used materials
         used_materials_qs = UsedMaterial.objects.all().order_by('-added_at')
 
-    # Pagination
-    paginator = Paginator(used_materials_qs, 20)  # Show 20 records per page
-    page_number = request.GET.get('page')
-    used_materials_page = paginator.get_page(page_number)
-
-     # Handle user dropdown filter - filter used materials by selected branch user
+    # Handle user dropdown filter - filter used materials by selected branch user
     if role in ['Admin', 'Storekeeper']:
         branch_users = User.objects.filter(groups__name='Branch').order_by('username')
         selected_user_id = request.GET.get('user_id')
@@ -1695,21 +1690,28 @@ def used_materials_view(request):
             try:
                 selected_user = User.objects.get(id=selected_user_id, groups__name='Branch')
                 used_materials_qs = used_materials_qs.filter(technician=selected_user)
-                used_materials_page = paginator.get_page(page_number)  # Re-paginate after filtering
             except User.DoesNotExist:
                 messages.error(request, "Selected user not found.")
     else:
         branch_users = None  # Branch users don't see the filter
-    #search functionality
+
+    # Search functionality
     search_query = request.GET.get('search', '').strip()
     if search_query:
         used_materials_qs = used_materials_qs.filter(
             Q(material__name__icontains=search_query) |
             Q(technician__username__icontains=search_query) |
             Q(technician__first_name__icontains=search_query) |
-            Q(technician__last_name__icontains=search_query)
+            Q(technician__last_name__icontains=search_query)|
+            #client name search and phone search (if applicable, assuming UsedMaterial has client_name and client_phone fields)
+            Q(client_name__icontains=search_query) |
+            Q(client_phone__icontains=search_query)
         ).distinct()
-        used_materials_page = paginator.get_page(page_number)  # Re-paginate after filtering
+
+    # Pagination - AFTER all filters are applied
+    paginator = Paginator(used_materials_qs, 20)  # Show 20 records per page
+    page_number = request.GET.get('page')
+    used_materials_page = paginator.get_page(page_number)
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -1736,7 +1738,7 @@ def used_materials_view(request):
                     um.technician = request.user
                     um.status = 'Pending'  # Set initial status to Pending - quantity won't be deducted until approved
                     um.save()
-                    messages.success(request, "Used Material recorded successfully! Awaiting Admin approval.")
+                    messages.success(request, "Used Material recorded successfully!")
                     return redirect('used_materials')
                 else:
                     messages.error(request, "You can only record usage for approved materials.")
@@ -1772,7 +1774,13 @@ def used_materials_view(request):
                         messages.error(request, "You can only use approved materials.")
                         return redirect('used_materials')
                 else:
-                    messages.error(request, "You have not avialable quantity for this material.")
+                    # Get form errors for display
+                    error_messages = []
+                    for field, errors in form.errors.items():
+                        if isinstance(errors, list):
+                            error_messages.extend(errors)
+                    error_msg = " ".join(error_messages) if error_messages else "Invalid form data. Please check your inputs."
+                    messages.error(request, error_msg)
             except UsedMaterial.DoesNotExist:
                 messages.error(request, "Record not found or access denied.")
             return redirect('used_materials')
@@ -1803,8 +1811,8 @@ def used_materials_view(request):
                 used_material = UsedMaterial.objects.get(pk=um_id, technician=request.user)
                 
                 # Only accept if status is Pending
-                if used_material.status != 'Pending':
-                    messages.warning(request, f"Can only approve 'Pending' used materials. Current status: {used_material.status}")
+                if used_material.status != 'Accepted':
+                    messages.warning(request, f"Can only approve 'Accepted' used materials. Current status: {used_material.status}")
                     return redirect('used_materials')
                 
                 # Perform atomic transaction for approval
@@ -1939,6 +1947,73 @@ def get_used_material_api(request, pk):
         'status': used_material.status,
     }
     return JsonResponse(data)
+
+@login_required
+def manage_used_material_api(request, pk):
+    """API endpoint to manage (approve/reject) used materials for admins"""
+    profile = ensure_userprofile(request.user)
+    role = profile.role if profile else 'Branch'
+
+    # Only Admin and Storekeeper can manage used materials
+    if role not in ['Admin', 'Storekeeper']:
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    try:
+        used_material = UsedMaterial.objects.get(pk=pk)
+    except UsedMaterial.DoesNotExist:
+        return JsonResponse({'error': 'Record not found'}, status=404)
+
+    action = request.POST.get('action')
+    admin_note = request.POST.get('admin_note', '')
+
+    try:
+        with transaction.atomic():
+            if action == 'accept':
+                if used_material.status != 'Pending':
+                    return JsonResponse({'error': f'Can only approve pending materials. Current status: {used_material.status}'}, status=400)
+
+                material = Material.objects.select_for_update().get(pk=used_material.material.id)
+                
+                if material.status == 'Normal':
+                    if material.quantity < used_material.quantity:
+                        return JsonResponse({'error': f'Insufficient stock. Available: {material.quantity}, Used: {used_material.quantity}'}, status=400)
+                    
+                    material.quantity -= used_material.quantity
+                    material.save()
+                    
+                    used_material.status = 'Accepted'
+                    used_material.admin_note = admin_note
+                    used_material.save()
+                    
+                    return JsonResponse({'success': True, 'message': f'Approved. {used_material.quantity} units deducted from {material.name}.'})
+                else:
+                    return JsonResponse({'error': f'Material status is {material.status}. Only Normal stock can be used.'}, status=400)
+
+            elif action == 'reject':
+                if used_material.status == 'Rejected':
+                    return JsonResponse({'error': 'This record is already rejected'}, status=400)
+
+                if used_material.status == 'Accepted':
+                    material = Material.objects.select_for_update().get(pk=used_material.material.id)
+                    material.quantity += used_material.quantity
+                    material.save()
+                    return_msg = f'Rejected. {used_material.quantity} units returned to {material.name}.'
+                else:
+                    return_msg = 'Rejected.'
+
+                used_material.status = 'Rejected'
+                used_material.admin_note = admin_note
+                used_material.save()
+
+                return JsonResponse({'success': True, 'message': return_msg})
+            else:
+                return JsonResponse({'error': 'Invalid action'}, status=400)
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 @login_required
 def pending_requests_api(request):
