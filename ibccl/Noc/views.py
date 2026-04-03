@@ -1,22 +1,67 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from isp_inventory.models import UserProfile, Material, MaterialRequest, UsedMaterial, InternalMessage
-from django.db.models import Sum, Count
-from django.utils import timezone
 from django.contrib.auth import authenticate, login, logout
+from isp_inventory.models import UserProfile, Material, MaterialRequest, UsedMaterial, InternalMessage
+from django.db.models import Sum, Count, Q
+from django.db.models.functions import TruncDate
+from django.utils import timezone
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from datetime import datetime
+from functools import wraps
+import json as _json
 
 # Create your views here.
 
-@login_required
-def logout_view(request):
+def noc_login_view(request):
+    """NOC-only login page"""
+    if request.method == "POST":
+        user = authenticate(
+            username=request.POST.get('username'),
+            password=request.POST.get('password')
+        )
+
+        if user:
+            try:
+                profile = UserProfile.objects.get(user=user)
+                if profile.role != 'NOC':
+                    messages.error(request, "Access denied. This login page is for NOC role only.")
+                    return render(request, 'noc/login.html')
+                
+                if not user.is_active:
+                    messages.error(request, "Your account is inactive. Please contact administrator.")
+                    return render(request, 'noc/login.html')
+                
+                # User is NOC and active - proceed with login
+                login(request, user)
+
+                if not request.POST.get('remember_me'):
+                    request.session.set_expiry(0)  # browser close
+                else:
+                    request.session.set_expiry(60 * 60 * 1)  # 1 hour
+
+                return redirect('noc:dashboard')
+            except UserProfile.DoesNotExist:
+                messages.error(request, "User profile not found. Please contact administrator.")
+                return render(request, 'noc/login.html')
+        else:
+            messages.error(request, "Invalid credentials. Please try again.")
+    
+    return render(request, 'noc/login.html')
+
+def noc_logout_view(request):
+    """NOC logout"""
     logout(request)
-    return redirect('login')
+    return redirect('noc:login')
 
 def noc_role_required(view_func):
+    @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):
-        if request.user.is_authenticated and request.user.userprofile.role == 'NOC':
-            return view_func(request, *args, **kwargs)
+        try:
+            if request.user.is_authenticated and hasattr(request.user, 'userprofile') and request.user.userprofile.role == 'NOC':
+                return view_func(request, *args, **kwargs)
+        except (AttributeError, UserProfile.DoesNotExist):
+            pass
         messages.error(request, "Access denied. NOC role required.")
         return redirect('dashboard')
     return _wrapped_view
@@ -45,17 +90,64 @@ def noc_dashboard(request):
 @login_required
 @noc_role_required
 def noc_materials(request):
-    materials = Material.objects.filter(category='Internet', created_by=request.user).order_by('-added_at')
-    return render(request, 'noc/materials.html', {'materials': materials})
+    # Get search query from GET parameters
+    search_query = request.GET.get('search', '').strip()
+    
+    # Base queryset - all Internet materials created by the NOC user
+    materials_qs = Material.objects.filter(category='Internet', created_by=request.user).order_by('-added_at')
+    
+    # Apply search filter if provided
+    if search_query:
+        materials_qs = materials_qs.filter(
+            Q(name__icontains=search_query) | 
+            Q(notes__icontains=search_query)
+        )
+    
+    # Calculate stock summary statistics dynamically based on quantity and min_stock_level
+    all_materials = Material.objects.filter(category='Internet', created_by=request.user)
+    
+    total_normal_stock = 0
+    total_low_stock = 0
+    total_out_of_stock = 0
+    
+    for material in all_materials:
+        if material.quantity <= 0:
+            total_out_of_stock += 1
+        elif material.quantity < (material.min_stock_level or 0):
+            total_low_stock += 1
+        else:
+            total_normal_stock += 1
+    
+    # Pagination setup
+    paginator = Paginator(materials_qs, 20)  # Show 10 materials per page
+    page = request.GET.get('page', 1)
+    
+    try:
+        materials = paginator.page(page)
+    except PageNotAnInteger:
+        materials = paginator.page(1)
+    except EmptyPage:
+        materials = paginator.page(paginator.num_pages)
+    
+    context = {
+        'materials': materials,
+        'search_query': search_query,
+        'total_normal_stock': total_normal_stock,
+        'total_low_stock': total_low_stock,
+        'total_out_of_stock': total_out_of_stock,
+        'paginator': paginator,
+        'page_obj': materials,
+    }
+    
+    return render(request, 'noc/materials.html', context)
 
 @login_required
 @noc_role_required
 def add_material(request):
     if request.method == 'POST':
         name = request.POST.get('name')
-        quantity = request.POST.get('quantity')
-        min_stock = request.POST.get('min_stock_level')
-        notes = request.POST.get('notes')
+        quantity = int(request.POST.get('quantity', 0))
+        min_stock = int(request.POST.get('min_stock_level', 0))
         
         Material.objects.create(
             name=name,
@@ -63,11 +155,10 @@ def add_material(request):
             quantity=quantity,
             Remaining_stock=quantity,
             min_stock_level=min_stock,
-            notes=notes,
             created_by=request.user
         )
         messages.success(request, "Material added successfully.")
-        return redirect('noc_materials')
+        return redirect('noc:materials')
     return render(request, 'noc/add_material.html')
 
 @login_required
@@ -75,13 +166,12 @@ def add_material(request):
 def edit_material(request, pk):
     material = get_object_or_404(Material, pk=pk, category='Internet', created_by=request.user)
     if request.method == 'POST':
-        material.name = request.POST.get('name')
-        material.quantity = request.POST.get('quantity')
-        material.min_stock_level = request.POST.get('min_stock_level')
-        material.notes = request.POST.get('notes')
+        # NOC can only edit quantity and min_stock_level, NOT the name
+        material.quantity = int(request.POST.get('quantity', material.quantity))
+        material.min_stock_level = int(request.POST.get('min_stock_level', material.min_stock_level))
         material.save()
         messages.success(request, "Material updated successfully.")
-        return redirect('noc_materials')
+        return redirect('noc:materials')
     return render(request, 'noc/edit_material.html', {'material': material})
 
 @login_required
@@ -91,7 +181,7 @@ def delete_material(request, pk):
     if request.method == 'POST':
         material.delete()
         messages.success(request, "Material deleted successfully.")
-        return redirect('noc_materials')
+        return redirect('noc:materials')
     return render(request, 'noc/delete_confirm.html', {'material': material})
 
 @login_required
@@ -113,7 +203,7 @@ def approve_request(request, pk):
             messages.success(request, "Request approved.")
         else:
             messages.error(request, "Insufficient stock.")
-    return redirect('noc_requests')
+    return redirect('noc:requests')
 
 @login_required
 @noc_role_required
@@ -123,7 +213,7 @@ def reject_request(request, pk):
         mat_request.status = 'Rejected'
         mat_request.save()
         messages.success(request, "Request rejected.")
-    return redirect('noc_requests')
+    return redirect('noc:requests')
 
 @login_required
 @noc_role_required
@@ -175,15 +265,10 @@ def noc_reports(request):
         start = datetime.strptime(from_date, '%Y-%m-%d').date()
         end   = datetime.strptime(to_date,   '%Y-%m-%d').date()
     except ValueError:
-        try:
-            from datetime import datetime as dt
-            start = dt.strptime(from_date, '%Y-%m-%d').date()
-            end   = dt.strptime(to_date,   '%Y-%m-%d').date()
-        except Exception:
-            start = (now - timezone.timedelta(days=30)).date()
-            end   = now.date()
-            from_date = start.strftime('%Y-%m-%d')
-            to_date   = end.strftime('%Y-%m-%d')
+        start = (now - timezone.timedelta(days=30)).date()
+        end   = now.date()
+        from_date = start.strftime('%Y-%m-%d')
+        to_date   = end.strftime('%Y-%m-%d')
 
     # ── Base queryset (NOC specific) ────────
     # We only care about materials created by THIS NOC user
@@ -219,10 +304,6 @@ def noc_reports(request):
     total_used_qty     = used_qs.aggregate(total=Sum('quantity'))['total'] or 0
 
     # ── Top 10 materials by approved quantity ────────
-    from django.db.models import Sum, Count, Q
-    from django.db.models.functions import TruncDate
-    import json as _json
-
     top_materials = (
         requests_qs.filter(status='Approved')
         .values('material__name')

@@ -76,22 +76,22 @@ def login_view(request):
             username=request.POST['username'],
             password=request.POST['password']
         )
-
         if user:
+            try:
+                profile = UserProfile.objects.get(user=user)
+                if profile.role not in ['Admin', 'Storekeeper', 'Branch']:
+                    messages.error(request, "Access denied.")
+                    return render(request, 'inventory/login.html')
+            except UserProfile.DoesNotExist:
+                messages.error(request, "Access denied.")
+                return render(request, 'inventory/login.html')
+
             login(request, user)
 
             if not request.POST.get('remember_me'):
                 request.session.set_expiry(0)  # browser close
             else:
                 request.session.set_expiry(60 * 60 * 1)  # 1 hour
-
-            # Role-based redirection
-            try:
-                profile = ensure_userprofile(user)
-                if profile.role == 'NOC':
-                    return redirect('noc_dashboard')
-            except Exception:
-                pass
 
             return redirect('dashboard')
         else:
@@ -109,7 +109,7 @@ def dashboard(request):
     role = profile.role if profile else 'Branch'
 
     if role == 'NOC':
-        return redirect('noc_dashboard')
+        return redirect('noc:dashboard')
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -324,7 +324,7 @@ def materials_monitoring_view(request):
     role = profile.role if profile else None
     
     if role == 'NOC':
-        return redirect('noc_dashboard')
+        return redirect('noc:dashboard')
     if role != 'Admin':
         messages.error(request, 'Only Admin can access Materials Monitoring.')
         return redirect('dashboard')
@@ -394,7 +394,7 @@ def materials_view(request):
     role = profile.role if profile else 'Branch'
 
     if role == 'NOC':
-        return redirect('noc_dashboard')
+        return redirect('noc:dashboard')
 
     # Base queryset - Admin/Storekeeper see all; Branch sees all (read-only)
     materials = Material.objects.all().order_by('-added_at')
@@ -591,7 +591,7 @@ def requests_view(request):
     role = profile.role if profile else 'Branch'
     
     if role == 'NOC':
-        return redirect('noc_dashboard')
+        return redirect('noc:dashboard')
     
     # For Admin/Storekeeper, show relevant requests instead of just their own
     if role in ['Admin', 'Storekeeper']:
@@ -857,7 +857,7 @@ def reports_view(request):
     role = profile.role if profile else 'Branch'
 
     if role == 'NOC':
-        return redirect('noc_dashboard')
+        return redirect('noc:dashboard')
 
     # ── Date range ──
     preset    = request.GET.get('preset', '')
@@ -1032,7 +1032,7 @@ def reports_export_excel(request):
     role = profile.role if profile else 'Branch'
 
     if role == 'NOC':
-        return redirect('noc_dashboard')
+        return redirect('noc:dashboard')
 
     from_date = request.GET.get('from_date', (timezone.now() - timezone.timedelta(days=30)).strftime('%Y-%m-%d'))
     to_date   = request.GET.get('to_date',   timezone.now().strftime('%Y-%m-%d'))
@@ -1225,7 +1225,7 @@ def reports_export_pdf(request):
     role    = profile.role if profile else 'Branch'
 
     if role == 'NOC':
-        return redirect('noc_dashboard')
+        return redirect('noc:dashboard')
 
     from_date = request.GET.get('from_date', (timezone.now() - timezone.timedelta(days=30)).strftime('%Y-%m-%d'))
     to_date   = request.GET.get('to_date',   timezone.now().strftime('%Y-%m-%d'))
@@ -1286,7 +1286,7 @@ def settings_view(request):
     role = profile.role if profile else 'Branch'
 
     if role == 'NOC':
-        return redirect('noc_dashboard')
+        return redirect('noc:dashboard')
 
     # Ensure role groups exist
     ROLE_GROUPS = ['Admin', 'Storekeeper', 'Branch', 'NOC']
@@ -1673,7 +1673,7 @@ def used_materials_view(request):
     role = profile.role if profile else 'Branch'
 
     if role == 'NOC':
-        return redirect('noc_dashboard')
+        return redirect('noc:dashboard')
 
     # Determine which used materials to display based on role
     if role == 'Branch':

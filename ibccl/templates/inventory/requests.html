@@ -126,8 +126,8 @@
                             <span class="text-gray-500 italic max-w-xs truncate">{{ req.received_by }}</span>
                             {% if role == 'Branch' and req.status == 'Approved' and req.requester == user and not req.received_by %}
                             <button onclick="openReceivedByModal('{{ req.id }}')"
-                                class="ml-2 text-green-600 hover:text-green-900 font-medium bg-green-50 px-2 py-1 rounded hover:bg-green-100 transition text-xs whitespace-nowrap">
-                                <i class="fas fa-plus mr-1"></i> Add
+                                class="ml-1 text-green-600 hover:text-green-900 font-medium bg-green-50 px-2 py-1 rounded hover:bg-green-100 transition text-xs whitespace-nowrap">
+                                <i class="fas fa-plus"></i> Add
                             </button>
                             {% endif %}
                         </div>

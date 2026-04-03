@@ -23,5 +23,5 @@ urlpatterns = [
     path('api/chat/<int:user_id>/', views.chat_history_api, name='chat_history_api'),
 
     # Catch-all: show custom 404 for any unrecognised URL (works in DEBUG=True too)
-    re_path(r'^.*$', views.custom_404_view, name='custom_404'),
+    # re_path(r'^.*$', views.custom_404_view, name='custom_404'),
 ]

@@ -98,7 +98,7 @@
             <tbody class="divide-y divide-gray-200">
                 {% for material in materials_page %}
                 <tr {% if material.stock_status == 'low' %}class="bg-red-50" {% endif %}>
-                    <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ material.id }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ forloop.counter }}</td>
                     <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ material.name }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">{{ material.category }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">

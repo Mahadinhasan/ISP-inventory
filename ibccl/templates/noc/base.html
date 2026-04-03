@@ -95,30 +95,30 @@
                         <div class="h-10 w-10 bg-indigo-600 rounded-lg flex items-center justify-center">
                             <i class="fas fa-network-wired text-white text-xl"></i>
                         </div>
-                        <span class="ml-3 text-2xl font-bold text-gray-900"><a href="{% url 'noc_dashboard' %}">ISP
+                        <span class="ml-3 text-2xl font-bold text-gray-900"><a href="{% url 'noc:dashboard' %}">ISP
                                 Inventory</a></span>
                     </div>
                     <!-- Desktop Links -->
-                    <div class="hidden md:ml-10 md:flex md:space-x-6">
-                        <a href="{% url 'noc_dashboard' %}"
-                            class="nav-link border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                    <div class="hidden md:ml-10 md:flex md:space-x-1">
+                        <a href="{% url 'noc:dashboard' %}"
+                            class="nav-link border-indigo-500 text-gray-900 inline-flex items-center px-3 py-2 border-b-2 text-sm font-medium hover:text-indigo-600 transition">
                             <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
                         </a>
-                        <a href="{% url 'noc_materials' %}"
-                            class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                        <a href="{% url 'noc:materials' %}"
+                            class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-3 py-2 border-b-2 text-sm font-medium transition">
                             <i class="fas fa-boxes mr-2"></i>Materials
                         </a>
-                        <a href="{% url 'noc_materials_monitoring' %}"
-                            class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            <i class="fas fa-tv mr-2"></i>Material monitoring
+                        <a href="{% url 'noc:requests' %}"
+                            class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-3 py-2 border-b-2 text-sm font-medium transition">
+                            <i class="fas fa-paper-plane mr-2"></i>Requests
                         </a>
-                        <a href="{% url 'noc_requests' %}"
-                            class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            <i class="fa-solid fa-paper-plane mr-2"></i>Request
+                        <a href="{% url 'noc:reports' %}"
+                            class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-3 py-2 border-b-2 text-sm font-medium transition">
+                            <i class="fas fa-file-chart-line mr-2"></i>Reports
                         </a>
-                        <a href="{% url 'noc_reports' %}"
-                            class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            <i class="fas fa-file-alt mr-2"></i>Report
+                        <a href="{% url 'chat' %}"
+                            class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-3 py-2 border-b-2 text-sm font-medium transition">
+                            <i class="fas fa-envelope mr-2"></i>Messages
                         </a>
                     </div>
                 </div>
@@ -187,7 +187,7 @@
                             <!-- Menu Items -->
                             <div class="py-2">
                                 <!-- Profile Option -->
-                                <a href="#"
+                                <a href="{% url 'noc:profile' %}"
                                     class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors flex items-center">
                                     <i class="fas fa-user-circle mr-3 text-indigo-500"></i>
                                     My Profile
@@ -254,7 +254,7 @@
 
                             <!-- Logout -->
                             <div class="py-2">
-                                <a href="{% url 'logout' %}"
+                                <a href="{% url 'noc:logout' %}"
                                     class="block px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center">
                                     <i class="fas fa-sign-out-alt mr-3"></i>
                                     Logout
@@ -280,18 +280,30 @@
         <!-- Mobile Menu -->
         <div class="hidden md:hidden" id="mobile-menu">
             <div class="pt-2 pb-3 space-y-1">
-                <a href="{% url 'noc_dashboard' %}"
-                    class="block pl-3 pr-4 py-2 border-l-4 border-indigo-500 text-base font-medium text-indigo-700 bg-indigo-50">Dashboard</a>
-                <a href="{% url 'noc_materials' %}"
-                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Materials</a>
-                <a href="{% url 'noc_requests' %}"
-                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Request</a>
-                <a href="{% url 'noc_reports' %}"
-                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Report</a>
-                <a href="{% url 'noc_notifications' %}"
-                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Notification</a>
-                <a href="{% url 'noc_profile' %}"
-                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">Profile</a>
+                <a href="{% url 'noc:dashboard' %}"
+                    class="block pl-3 pr-4 py-2 border-l-4 border-indigo-500 text-base font-medium text-indigo-700 bg-indigo-50">
+                    <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
+                </a>
+                <a href="{% url 'noc:materials' %}"
+                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 transition">
+                    <i class="fas fa-boxes mr-2"></i>Materials
+                </a>
+                <a href="{% url 'noc:requests' %}"
+                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 transition">
+                    <i class="fas fa-paper-plane mr-2"></i>Requests
+                </a>
+                <a href="{% url 'noc:reports' %}"
+                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 transition">
+                    <i class="fas fa-file-chart-line mr-2"></i>Reports
+                </a>
+                <a href="{% url 'chat' %}"
+                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 transition">
+                    <i class="fas fa-envelope mr-2"></i>Messages
+                </a>
+                <a href="{% url 'noc:profile' %}"
+                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 transition">
+                    <i class="fas fa-user mr-2"></i>Profile
+                </a>
             </div>
         </div>
     </nav>

@@ -74,7 +74,11 @@ CHANNEL_LAYERS = {
     },
 }
 
-
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    )
+}
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
@@ -187,4 +191,6 @@ CACHES = {
 }
 
 SESSION_COOKIE_AGE = 60 * 60 * 12
-SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'dashboard'
