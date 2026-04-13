@@ -147,7 +147,7 @@ class Material(models.Model):
     
     def get_monthly_count(self):
         """Get or create monthly count for current month."""
-        now = timezone.datetime(2026, 3, 31)  # For testing, we can set this to a specific date. In production, use timezone.now()
+        now = timezone.now()  # For testing, we can set this to a specific date. In production, use timezone.now()
         current_month = datetime(now.year, now.month, 1)
         
         monthly_count, created = MaterialMonthlyCount.objects.get_or_create(
@@ -156,9 +156,14 @@ class Material(models.Model):
             defaults={'count': 0}
         )
         
-        # Reset count if it's a new month
+        # Reset count if it's a new month, unless role is NOC
         if created:
-            monthly_count.count = 0
+            is_noc = self.created_by and hasattr(self.created_by, 'userprofile') and self.created_by.userprofile.role == 'NOC'
+            if is_noc:
+                prev = self.get_previous_month_count()
+                monthly_count.count = prev.count if prev else self.quantity
+            else:
+                monthly_count.count = 0
             monthly_count.save()
         
         return monthly_count
@@ -172,6 +177,10 @@ class Material(models.Model):
     
     def reset_monthly_count(self):
         """Reset monthly count to 0."""
+        # For NOC materials, do not reset
+        if self.created_by and hasattr(self.created_by, 'userprofile') and self.created_by.userprofile.role == 'NOC':
+            return self.get_monthly_count()
+            
         monthly_count = self.get_monthly_count()
         monthly_count.count = 0
         monthly_count.save()
@@ -279,6 +288,10 @@ class MaterialRequest(models.Model):
     received_by = models.TextField(blank=True) # Who received the material (filled by branch user when approved)
     received_at = models.DateTimeField(null=True, blank=True) # When the received_by was last updated
     requested_at = models.DateTimeField(auto_now_add=True)
+    
+    # Archive System Fields
+    is_archived = models.BooleanField(default=False, help_text="Auto-archived for previous months")
+    archived_at = models.DateTimeField(null=True, blank=True, help_text="When the request was archived")
 
     def __str__(self):
         return f"{self.requester} - {self.material.name}"
@@ -305,11 +318,40 @@ class SystemSetting(models.Model):
         return self.key
 
 class NotificationSetting(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    email_notifications = models.BooleanField(default=True)
-    low_stock_alert = models.BooleanField(default=True)
-    new_request_alert = models.BooleanField(default=True)
-    task_assignment_alert = models.BooleanField(default=True)
+    """User notification preferences"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='notification_setting')
+    
+    # Email & General
+    email_notifications = models.BooleanField(default=True, help_text="Receive email notifications")
+    in_app_notifications = models.BooleanField(default=True, help_text="Show in-app notifications")
+    
+    # Request & Approval
+    request_approved_alert = models.BooleanField(default=True, help_text="Notify when request is approved")
+    request_rejected_alert = models.BooleanField(default=True, help_text="Notify when request is rejected")
+    new_request_alert = models.BooleanField(default=True, help_text="Notify on new material requests")
+    
+    # Stock & Inventory
+    low_stock_alert = models.BooleanField(default=True, help_text="Alert when stock is low")
+    out_of_stock_alert = models.BooleanField(default=True, help_text="Alert when item is out of stock")
+    material_destroyed_alert = models.BooleanField(default=True, help_text="Notify when material is destroyed")
+    
+    # Tasks & Assignments
+    task_assignment_alert = models.BooleanField(default=True, help_text="Notify when task is assigned")
+    task_completed_alert = models.BooleanField(default=True, help_text="Notify when task is completed")
+    
+    # Messages
+    message_alert = models.BooleanField(default=True, help_text="Notify on new messages")
+    
+    # System
+    backup_alert = models.BooleanField(default=True, help_text="Notify on backup operations")
+    system_alert = models.BooleanField(default=False, help_text="System-level alerts")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Notification Setting"
+        verbose_name_plural = "Notification Settings"
 
     def __str__(self):
         return f"Notifications for {self.user.username}"
@@ -334,6 +376,10 @@ class UsedMaterial(models.Model):
     # Timestamps
     added_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    # Archive System Fields
+    is_archived = models.BooleanField(default=False, help_text="Auto-archived for previous months")
+    archived_at = models.DateTimeField(null=True, blank=True, help_text="When the used material was archived")
     
     class Meta:
         ordering = ['-added_at']
@@ -362,13 +408,133 @@ class UsedMaterial(models.Model):
     
     def __str__(self):
         return f"{self.technician_full_name} - {self.material_name} ({self.quantity}x) - {self.added_at.strftime('%Y-%m-%d')}"
+
+
+class BackupRestore(models.Model):
+    """Professional Backup & Restore model with role-based access and recovery"""
+    BACKUP_TYPES = [
+        ('full', 'Full Backup'),
+        ('partial', 'Partial Backup'),
+    ]
     
-class backupandrestore(models.Model):
-    backup_file = models.FileField(upload_to='backups/')
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('deleted', 'Deleted (Recoverable)'),
+        ('purged', 'Permanently Purged'),
+    ]
+
+    # Backup metadata
+    backup_file = models.FileField(upload_to='backups/%Y/%m/%d/')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='backups_created')
     created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Backup details
+    backup_type = models.CharField(max_length=20, choices=BACKUP_TYPES, default='full')
+    backup_size = models.BigIntegerField(default=0, help_text="Size in bytes")
+    description = models.TextField(blank=True, null=True, help_text="Optional backup description")
+    
+    # Recovery tracking
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='backups_deleted')
+    restored_at = models.DateTimeField(null=True, blank=True)
+    restored_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='backups_restored')
+    
+    # Audit fields
+    data_records_count = models.IntegerField(default=0, help_text="Number of data records in backup")
+    checksum = models.CharField(max_length=64, blank=True, null=True, help_text="SHA256 checksum for integrity verification")
+    notes = models.TextField(blank=True, null=True, help_text="Admin notes about this backup")
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Backup & Restore"
+        verbose_name_plural = "Backups & Restores"
 
     def __str__(self):
-        return f"Backup from {self.created_at.strftime('%Y-%m-%d %H:%M:%S')}"
+        creator = self.created_by.username if self.created_by else "System"
+        return f"{self.backup_type.capitalize()} Backup by {creator} - {self.created_at.strftime('%Y-%m-%d %H:%M:%S')}"
+    
+    @property
+    def is_recoverable(self):
+        """Check if backup can be recovered"""
+        return self.status in ['active', 'deleted']
+    
+    @property
+    def is_recoverable_deleted(self):
+        """Check if deleted backup can be recovered"""
+        return self.status == 'deleted'
+    
+    def get_file_size_display(self):
+        """Return human-readable file size"""
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if self.backup_size < 1024:
+                return f"{self.backup_size:.2f} {unit}"
+            self.backup_size /= 1024
+        return f"{self.backup_size:.2f} TB"
+
+
+class ActivityLog(models.Model):
+    """Track user activities like login, logout, and actions"""
+    ACTIVITY_TYPES = [
+        ('login', 'User Login'),
+        ('logout', 'User Logout'),
+        ('create', 'Create Action'),
+        ('update', 'Update Action'),
+        ('delete', 'Delete Action'),
+        ('approve', 'Approval Action'),
+        ('reject', 'Rejection Action'),
+        ('download', 'Download Action'),
+        ('restore', 'Restore Action'),
+        ('other', 'Other Action'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activity_logs')
+    activity_type = models.CharField(max_length=20, choices=ACTIVITY_TYPES, default='other')
+    description = models.TextField(blank=True, help_text="Action description")
+    ip_address = models.GenericIPAddressField(null=True, blank=True, help_text="User's IP address")
+    user_agent = models.TextField(blank=True, help_text="Browser/Device info")
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name = "Activity Log"
+        verbose_name_plural = "Activity Logs"
+        indexes = [
+            models.Index(fields=['user', '-timestamp']),
+            models.Index(fields=['activity_type', '-timestamp']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.get_activity_type_display()} at {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
+
+
+class LogSettings(models.Model):
+    """System-wide logging configuration"""
+    LOG_LEVELS = [
+        ('DEBUG', 'Debug - Detailed information'),
+        ('INFO', 'Info - General information'),
+        ('WARNING', 'Warning - Warning messages'),
+        ('ERROR', 'Error - Error messages'),
+        ('CRITICAL', 'Critical - Critical errors'),
+    ]
+    
+    log_level = models.CharField(max_length=20, choices=LOG_LEVELS, default='INFO')
+    enable_file_logging = models.BooleanField(default=True, help_text="Save logs to file")
+    enable_database_logging = models.BooleanField(default=True, help_text="Save activity logs to database")
+    log_user_activities = models.BooleanField(default=True, help_text="Track user login/logout")
+    log_file_path = models.CharField(max_length=500, default='logs/app.log', help_text="Path where logs are saved")
+    max_log_file_size = models.IntegerField(default=10485760, help_text="Max log file size in bytes (10MB default)")
+    backup_count = models.IntegerField(default=5, help_text="Number of backup log files to keep")
+    
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='log_settings_changes')
+    
+    class Meta:
+        verbose_name = "Log Settings"
+        verbose_name_plural = "Log Settings"
+    
+    def __str__(self):
+        return f"Log Settings - Level: {self.log_level}"
 
 
 class InternalMessage(models.Model):

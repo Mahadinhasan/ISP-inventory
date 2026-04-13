@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     path('', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
+    path('token/refresh/', views.token_refresh_view, name='token_refresh'),  # JWT silent refresh
     path('dashboard/', views.dashboard, name='dashboard'),
     path('materials/', views.materials_view, name='materials'),
     path('materials/<int:pk>/json/', views.material_json, name='material_json'),

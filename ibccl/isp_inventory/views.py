@@ -1,10 +1,12 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import login, authenticate, logout
+from django.contrib.auth import authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth.models import User, Group
-from .forms import RegisterForm, MaterialForm, TaskForm, RequestForm, SystemSettingForm, NotificationSettingForm, UsedMaterialForm
-from .models import Material, Task, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial, MaterialMonthlyCount, InternalMessage
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+from .forms import RegisterForm, MaterialForm, TaskForm, RequestForm, SystemSettingForm, NotificationSettingForm, UsedMaterialForm, LogSettingsForm
+from .models import Material, Task, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial, MaterialMonthlyCount, InternalMessage, ActivityLog, LogSettings
 from .utils import ensure_userprofile
 from django.db.models import Sum, Q, F, Case, When, IntegerField, Count
 from django.db import transaction
@@ -27,24 +29,19 @@ from django.db.models.functions import TruncDate
 
 # Helper function to handle month-end resets
 def process_month_end_reset():
-    """
-    Check if month has ended and reset quantities if needed.
-    Archives current month quantities to MaterialMonthlyCount.
-    """
-    now = timezone.datetime(2026, 4, 1)  # For testing, we can set this to a specific date. In production, use timezone.now()
+    now = timezone.now()
     current_month_start = datetime(now.year, now.month, 1)
     
     # Check if this month's reset has already been processed
     system_key = f"month_reset_{now.year}_{now.month}"
     try:
         setting = SystemSetting.objects.get(key=system_key)
-        # Already processed this month
         return False
     except SystemSetting.DoesNotExist:
         pass
     
-    # Process each material with quantity > 0
-    for material in Material.objects.filter(quantity__gt=0):
+    # Process each material with quantity > 0 (excluding NOC materials)
+    for material in Material.objects.filter(quantity__gt=0).exclude(created_by__userprofile__role='NOC'):
         # Archive the current quantity to MaterialMonthlyCount
         monthly_count, created = MaterialMonthlyCount.objects.get_or_create(
             material=material,
@@ -67,16 +64,53 @@ def process_month_end_reset():
         key=system_key,
         defaults={'value': str(now), 'description': f'Month-end reset processed for {current_month_start.strftime("%B %Y")}'}
     )
-    
     return True
 
+def _set_jwt_cookies(response, user, tab_id):
+    """Generate JWT tokens for user and attach them as HttpOnly cookies."""
+    refresh = RefreshToken.for_user(user)
+    access = str(refresh.access_token)
+    refresh_str = str(refresh)
+
+    from django.conf import settings
+    jwt_cfg = getattr(settings, 'SIMPLE_JWT', {})
+    secure = jwt_cfg.get('AUTH_COOKIE_SECURE', False)
+    samesite = jwt_cfg.get('AUTH_COOKIE_SAMESITE', 'Lax')
+    access_lifetime = jwt_cfg.get('ACCESS_TOKEN_LIFETIME').total_seconds()
+    refresh_lifetime = jwt_cfg.get('REFRESH_TOKEN_LIFETIME').total_seconds()
+
+    response.set_cookie(
+        f'jwt_access_{tab_id}',
+        access,
+        max_age=int(access_lifetime),
+        httponly=True,
+        secure=secure,
+        samesite=samesite,
+    )
+    response.set_cookie(
+        f'jwt_refresh_{tab_id}',
+        refresh_str,
+        max_age=int(refresh_lifetime),
+        httponly=True,
+        secure=secure,
+        samesite=samesite,
+    )
+    return response
+
 def login_view(request):
+    """Authenticate user and issue JWT tokens stored in HttpOnly cookies."""
+    tab_id = request.GET.get('tab_id') or request.POST.get('tab_id')
+
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+
     if request.method == "POST":
-        user = authenticate(
-            username=request.POST['username'],
-            password=request.POST['password']
-        )
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
+        user = authenticate(request, username=username, password=password)
+
         if user:
+            # Role check
             try:
                 profile = UserProfile.objects.get(user=user)
                 if profile.role not in ['Admin', 'Storekeeper', 'Branch']:
@@ -86,25 +120,72 @@ def login_view(request):
                 messages.error(request, "Access denied.")
                 return render(request, 'inventory/login.html')
 
-            login(request, user)
+            if not tab_id:
+                import uuid
+                tab_id = uuid.uuid4().hex[:8]
 
-            if not request.POST.get('remember_me'):
-                request.session.set_expiry(0)  # browser close
-            else:
-                request.session.set_expiry(60 * 60 * 1)  # 1 hour
-
-            return redirect('dashboard')
+            response = redirect('dashboard')
+            _set_jwt_cookies(response, user, tab_id)
+            return response
         else:
             messages.error(request, "Invalid credentials")
+
     return render(request, 'inventory/login.html')
-  
+
+
 @login_required
 def logout_view(request):
-    logout(request)
-    return redirect('login')
+    """Clear JWT cookies to log the user out."""
+    response = redirect('login')
+    tab_id = getattr(request, 'tab_id', None)
+    if tab_id:
+        response.delete_cookie(f'jwt_access_{tab_id}')
+        response.delete_cookie(f'jwt_refresh_{tab_id}')
+    return response
+
+
+def token_refresh_view(request):
+    """Silently refresh the access token using the refresh cookie.
+    Called by JS before access token expires."""
+    tab_id = request.GET.get('tab_id') or request.POST.get('tab_id')
+    if not tab_id:
+        return JsonResponse({'error': 'No tab_id provided.'}, status=400)
+
+    refresh_token = request.COOKIES.get(f'jwt_refresh_{tab_id}')
+    if not refresh_token:
+        return JsonResponse({'error': 'No refresh token'}, status=401)
+
+    try:
+        from rest_framework_simplejwt.tokens import RefreshToken
+        from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+        refresh = RefreshToken(refresh_token)
+        response = JsonResponse({'status': 'ok'})
+        
+        from django.conf import settings
+        jwt_cfg = getattr(settings, 'SIMPLE_JWT', {})
+        secure = jwt_cfg.get('AUTH_COOKIE_SECURE', False)
+        samesite = jwt_cfg.get('AUTH_COOKIE_SAMESITE', 'Lax')
+        access_lifetime = jwt_cfg.get('ACCESS_TOKEN_LIFETIME').total_seconds()
+        
+        response.set_cookie(
+            f'jwt_access_{tab_id}',
+            str(refresh.access_token),
+            max_age=int(access_lifetime),
+            httponly=True,
+            secure=secure,
+            samesite=samesite,
+        )
+        return response
+    except Exception as e:
+        # Refresh token is also invalid — force re-login
+        response = JsonResponse({'error': 'Session expired. Please login again.'}, status=401)
+        response.delete_cookie(f'jwt_access_{tab_id}')
+        response.delete_cookie(f'jwt_refresh_{tab_id}')
+        return response
 
 @login_required
 def dashboard(request):
+    process_month_end_reset()
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
 
@@ -130,13 +211,11 @@ def dashboard(request):
             return redirect('dashboard')
 
     # Request send by Branch materials approved by admin and auto update total materials count unique materials False
+    now = timezone.now()
     if role == 'Branch':
-        # For Branch: Count all approved requests with Normal stock status (not unique materials)
-        total_materials = MaterialRequest.objects.filter(
-            requester=request.user, 
-            status='Approved',
-            material__status='Normal'  # Only count materials with Normal stock status
-        ).count()  # Count all approved requests, not distinct materials
+        # For Branch: total_materials will be recalculated after available_quantity is computed
+        # (see below after technician_approved_materials is built)
+        total_materials = 0  # placeholder, updated later
     else:
         # For Admin & Storekeeper: Total count of all materials in system
         if role == 'Storekeeper':
@@ -146,16 +225,16 @@ def dashboard(request):
     
     active_tasks = Task.objects.filter(status='In Progress').count()
     if role in ['Admin', 'Storekeeper']:
-        pending_requests_qs = MaterialRequest.objects.filter(status='Pending')
+        pending_requests_qs = MaterialRequest.objects.filter(status='Pending', is_archived=False)
     else:
-        pending_requests_qs = MaterialRequest.objects.filter(status='Pending', requester=request.user)
+        pending_requests_qs = MaterialRequest.objects.filter(status='Pending', requester=request.user, is_archived=False)
     
     pending_requests = pending_requests_qs.count()
 
     # Data for dashboard modals - Role-specific
     all_tasks = Task.objects.all().order_by('-created_at')
-    all_requests = MaterialRequest.objects.filter(requester=request.user).order_by('-requested_at')
-    all_used_materials = UsedMaterial.objects.all().select_related('technician', 'material').order_by('-added_at')[:10]  # Limit to 10 most recent
+    all_requests = MaterialRequest.objects.filter(requester=request.user, is_archived=False).order_by('-requested_at')
+    all_used_materials = UsedMaterial.objects.filter(is_archived=False).select_related('technician', 'material').order_by('-added_at')[:10]  # Limit to 10 most recent
     
     # Role-specific material data for the materials modal
     technician_approved_materials = None
@@ -167,14 +246,19 @@ def dashboard(request):
         approved_qs = MaterialRequest.objects.filter(
             requester=request.user,
             status='Approved',
-            material__status='Normal'
+            requested_at__year=now.year,
+            requested_at__month=now.month,
+            is_archived=False
         ).select_related('material').order_by('requested_at') # Order by oldest first for FIFO consumption
 
-        # For each material, get the total used amount (Accepted status)
+        # For each material, get the total used amount (Accepted status) for the current month
         used_totals = {}
         used_qs = UsedMaterial.objects.filter(
             technician=request.user,
             status='Accepted',
+            added_at__year=now.year,
+            added_at__month=now.month,
+            is_archived=False
         ).values('material_id').annotate(total=Sum('quantity'))
         
         for u in used_qs:
@@ -186,7 +270,6 @@ def dashboard(request):
         for req in approved_qs:
             mat_id = req.material.id
             available_for_this_req = req.quantity
-            
             # If we have used amount for this material, deduct it from this request
             if mat_id in used_totals and used_totals[mat_id] > 0:
                 amount_to_deduct = min(used_totals[mat_id], req.quantity)
@@ -204,7 +287,8 @@ def dashboard(request):
         advance_materials = MaterialRequest.objects.filter(
             requester=request.user,
             request_type='Advance',
-            status='Approved'
+            status='Approved',
+            is_archived=False
         ).select_related('material').order_by('-requested_at')
     else:
         # For Admin & Storekeeper: Get all materials
@@ -212,20 +296,50 @@ def dashboard(request):
         # Get all advance requests
         advance_materials = MaterialRequest.objects.filter(
             request_type='Advance',
-            status='Approved'
+            status='Approved',
+            is_archived=False
         ).select_related('material', 'requester').order_by('-requested_at')
     
     # Branch specific stats
     my_stock_count = 0
-    used_materials_count = 0  
+    used_materials_count = 0
+    used_materials_counts = 0
     used_material_form = None
     
     if role == 'Branch':
-        # Calculate stock: Approved Requests (In) - Used Materials (Out)
-        total_in = MaterialRequest.objects.filter(requester=request.user, status='Approved').aggregate(s=Sum('quantity'))['s'] or 0
-        total_out = UsedMaterial.objects.filter(technician=request.user).aggregate(s=Sum('quantity'))['s'] or 0
+        now = timezone.now()
+        # Calculate stock: Approved Requests (In) - Used Materials (Out) for current month
+        total_in = MaterialRequest.objects.filter(
+            requester=request.user, 
+            status='Approved',
+            requested_at__year=now.year,
+            requested_at__month=now.month,
+            is_archived=False
+        ).aggregate(s=Sum('quantity'))['s'] or 0
+        
+        total_out = UsedMaterial.objects.filter(
+            technician=request.user,
+            added_at__year=now.year,
+            added_at__month=now.month,
+            is_archived=False
+        ).aggregate(s=Sum('quantity'))['s'] or 0
+        
         my_stock_count = total_in - total_out
-        used_materials_count = UsedMaterial.objects.filter(technician=request.user).count()
+        
+        # Used materials quantity sum for current month
+        used_materials_count = UsedMaterial.objects.filter(
+            technician=request.user,
+            added_at__year=now.year,
+            added_at__month=now.month,
+            is_archived=False
+        ).aggregate(s=Sum('quantity'))['s'] or 0
+        # Used materials record count for current month (number of entries)
+        used_materials_count = UsedMaterial.objects.filter(
+            technician=request.user,
+            added_at__year=now.year,
+            added_at__month=now.month,
+            is_archived=False
+        ).count()
         used_material_form = UsedMaterialForm(user=request.user)
 
     # Total users - visible to all roles on dashboard
@@ -239,12 +353,20 @@ def dashboard(request):
     low_stock_material_list = []
 
     if role == 'Branch':
-        # For Branch: materials with 0 available quantity from technician_approved_materials
+        # For Branch: split technician_approved_materials into in-stock and out-of-stock.
+        # - available_quantity > 0  → stays in technician_approved_materials (shown in table)
+        # - available_quantity == 0 → moved to low_stock_material_list (hidden from table)
+        # total_materials reflects only the in-stock count.
         if technician_approved_materials:
+            in_stock_list = []
             for req in technician_approved_materials:
                 if req.available_quantity == 0:
                     low_stock_materials += 1
                     low_stock_material_list.append(req)
+                else:
+                    in_stock_list.append(req)
+            technician_approved_materials = in_stock_list
+            total_materials = len(in_stock_list)
     else:
         # For Admin/Storekeeper: Materials with status 'Low Stock' or 'Out of Stock'
         if role == 'Storekeeper':
@@ -263,13 +385,18 @@ def dashboard(request):
             approved_qs = MaterialRequest.objects.filter(
                 requester=branch_user,
                 status='Approved',
-                material__status='Normal'
+                requested_at__year=now.year,
+                requested_at__month=now.month,
+                is_archived=False
             ).select_related('material').order_by('requested_at')
             
             used_totals = {}
             used_qs = UsedMaterial.objects.filter(
                 technician=branch_user,
                 status='Accepted',
+                added_at__year=now.year,
+                added_at__month=now.month,
+                is_archived=False
             ).values('material_id').annotate(total=Sum('quantity'))
             
             for u in used_qs:
@@ -338,17 +465,23 @@ def materials_monitoring_view(request):
     materials_monitoring = []
     branch_users = User.objects.filter(userprofile__role='Branch')
     branch_list = branch_users
+    now = timezone.now()
     for branch_user in branch_users:
         approved_qs = MaterialRequest.objects.filter(
             requester=branch_user,
             status='Approved',
-            material__status='Normal'
+            requested_at__year=now.year,
+            requested_at__month=now.month,
+            is_archived=False
         ).select_related('material').order_by('requested_at')
         
         used_totals = {}
         used_qs = UsedMaterial.objects.filter(
             technician=branch_user,
             status='Accepted',
+            added_at__year=now.year,
+            added_at__month=now.month,
+            is_archived=False
         ).values('material_id').annotate(total=Sum('quantity'))
         
         for u in used_qs:
@@ -586,7 +719,13 @@ def material_json(request, pk):
 
 @login_required
 def requests_view(request):
-    base_requests = MaterialRequest.objects.filter(requester=request.user).order_by('-requested_at')
+    now = timezone.now()
+    base_requests = MaterialRequest.objects.filter(
+        requester=request.user,
+        requested_at__year=now.year,
+        requested_at__month=now.month,
+        is_archived=False
+    ).order_by('-requested_at')
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
     
@@ -595,7 +734,11 @@ def requests_view(request):
     
     # For Admin/Storekeeper, show relevant requests instead of just their own
     if role in ['Admin', 'Storekeeper']:
-        base_requests = MaterialRequest.objects.all().order_by('-requested_at')
+        base_requests = MaterialRequest.objects.filter(
+            requested_at__year=now.year,
+            requested_at__month=now.month,
+            is_archived=False
+        ).order_by('-requested_at')
     
 
     #Request count (pending/approved/rejected)
@@ -777,20 +920,24 @@ def requests_view(request):
                         messages.error(request, "Invalid quantity value.")
                         return redirect('requests')
                     
-                    # Check if sufficient stock available
-                    if approved_qty > req.material.quantity:
-                        messages.error(request, f"Insufficient stock for {req.material.name}. Available: {req.material.quantity}, Requested: {approved_qty}")
-                        return redirect('requests')
-                    
                     try:
                         with transaction.atomic():
                             # Refresh material to be safe
                             mat = Material.objects.select_for_update().get(pk=req.material.id)
-                            if mat.quantity < approved_qty:
-                                raise ValueError("Insufficient stock")
+                            total_available = mat.quantity + mat.Remaining_stock
+                            
+                            # Check if sufficient stock available
+                            if approved_qty > total_available:
+                                messages.error(request, f"Insufficient stock for {mat.name}. Available In Stock: {mat.quantity}, Remaining Stock: {mat.Remaining_stock}, Requested: {approved_qty}")
+                                return redirect('requests')
                             
                             # Deduct the approved quantity from material
-                            mat.quantity -= approved_qty
+                            if approved_qty <= mat.quantity:
+                                mat.quantity -= approved_qty
+                            else:
+                                remaining_to_deduct = approved_qty - mat.quantity
+                                mat.quantity = 0
+                                mat.Remaining_stock -= remaining_to_deduct
                             mat.save()
                             
                             # Update request with approved quantity
@@ -1497,16 +1644,223 @@ def settings_view(request):
             form = NotificationSettingForm(request.POST, instance=notif_obj)
             if form.is_valid():
                 form.save()
-                messages.success(request, "Notification preferences updated!")
+                messages.success(request, "Notification preferences updated successfully!")
+            else:
+                messages.error(request, "Error updating notification preferences.")
+            return redirect('settings')
+        
+        elif action == 'update_logs':
+            # Admin only
+            user_role = profile.role
+            if user_role != 'Admin':
+                messages.error(request, "Only Admin can update log settings.")
+                return redirect('settings')
+            
+            try:
+                log_settings, created = LogSettings.objects.get_or_create(pk=1)
+                log_settings.log_level = request.POST.get('log_level', 'INFO')
+                log_settings.enable_file_logging = request.POST.get('enable_file_logging') == 'on'
+                log_settings.enable_database_logging = request.POST.get('enable_database_logging') == 'on'
+                log_settings.log_user_activities = request.POST.get('log_user_activities') == 'on'
+                log_settings.updated_by = request.user
+                log_settings.save()
+                messages.success(request, "Log settings updated successfully!")
+            except Exception as e:
+                messages.error(request, f"Error updating log settings: {str(e)}")
+            return redirect('settings')
 
         elif action == 'backup':
-            output = StringIO()
-            call_command('dumpdata', exclude=['auth.permission', 'contenttypes'], stdout=output)
-            response = HttpResponse(output.getvalue(), content_type='application/json')
-            response['Content-Disposition'] = 'attachment; filename="isp_backup_{}.json"'.format(
-                timezone.now().strftime('%Y%m%d_%H%M%S')
-            )
-            return response
+            # Import at function level to avoid circular imports
+            import json
+            import hashlib
+            from django.core.files.base import ContentFile
+            
+            # Check if user is Admin or can create backups (Storekeeper, Branch, NOC)
+            user_role = profile.role
+            if user_role not in ['Admin', 'Storekeeper', 'Branch', 'NOC']:
+                messages.error(request, "You don't have permission to create backups.")
+                return redirect('settings')
+            
+            try:
+                # Create backup data
+                output = StringIO()
+                call_command('dumpdata', exclude=['auth.permission', 'contenttypes'], stdout=output)
+                backup_data = output.getvalue()
+                
+                # Calculate checksum
+                checksum = hashlib.sha256(backup_data.encode()).hexdigest()
+                
+                # Get backup description
+                description = request.POST.get('backup_description', '').strip()
+                backup_type = request.POST.get('backup_type', 'full')
+                
+                # Count records
+                data_dict = json.loads(backup_data)
+                records_count = len(data_dict)
+                
+                # Save backup to model
+                from isp_inventory.models import BackupRestore
+                backup_file = ContentFile(
+                    backup_data.encode(),
+                    name=f'backup_{timezone.now().strftime("%Y%m%d_%H%M%S")}.json'
+                )
+                
+                backup_obj = BackupRestore(
+                    backup_file=backup_file,
+                    created_by=request.user,
+                    backup_type=backup_type,
+                    backup_size=len(backup_data),
+                    description=description or f'Backup created by {request.user.username}',
+                    status='active',
+                    data_records_count=records_count,
+                    checksum=checksum,
+                )
+                backup_obj.save()
+                
+                # Also return download
+                response = HttpResponse(backup_data, content_type='application/json')
+                response['Content-Disposition'] = 'attachment; filename="isp_backup_{}.json"'.format(
+                    timezone.now().strftime('%Y%m%d_%H%M%S')
+                )
+                messages.success(request, f"Backup created successfully! Records: {records_count}")
+                return response
+                
+            except Exception as e:
+                messages.error(request, f"Backup failed: {str(e)}")
+                return redirect('settings')
+        
+        elif action == 'restore':
+            # Only Admin can restore
+            user_role = profile.role
+            if user_role != 'Admin':
+                messages.error(request, "Only Admin can restore backups.")
+                return redirect('settings')
+            
+            try:
+                from isp_inventory.models import BackupRestore
+                
+                # Check if restoring from file upload or existing backup
+                restore_type = request.POST.get('restore_type', 'file')
+                
+                if restore_type == 'file' and 'backup_file' in request.FILES:
+                    # Restore from uploaded file
+                    uploaded_file = request.FILES['backup_file']
+                    backup_content = uploaded_file.read().decode('utf-8')
+                    
+                elif restore_type == 'history':
+                    # Restore from backup history
+                    backup_id = request.POST.get('backup_id')
+                    if not backup_id:
+                        messages.error(request, "Please select a backup to restore.")
+                        return redirect('settings')
+                    
+                    backup_obj = BackupRestore.objects.filter(id=backup_id, status__in=['active', 'deleted']).first()
+                    if not backup_obj:
+                        messages.error(request, "Backup not found or not recoverable.")
+                        return redirect('settings')
+                    
+                    backup_content = backup_obj.backup_file.read().decode('utf-8')
+                else:
+                    messages.error(request, "Invalid restore type.")
+                    return redirect('settings')
+                
+                # Parse and validate JSON
+                import json
+                backup_data = json.loads(backup_content)
+                
+                # Confirmation required
+                confirm = request.POST.get('confirm_restore')
+                if confirm != 'yes':
+                    messages.warning(request, "Please confirm restoration to proceed.")
+                    return redirect('settings')
+                
+                # Perform restore
+                from django.core.management import call_command
+                import tempfile
+                
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
+                    json.dump(backup_data, tmp)
+                    tmp_path = tmp.name
+                
+                try:
+                    # Clear existing data (only non-auth tables based on backup patterns)
+                    call_command('flush', '--no-input')
+                    call_command('loaddata', tmp_path)
+                    
+                    # Update backup object if restoring from history
+                    if restore_type == 'history':
+                        backup_obj.restored_at = timezone.now()
+                        backup_obj.restored_by = request.user
+                        backup_obj.save()
+                    
+                    messages.success(request, f"Restore completed successfully! {len(backup_data)} records restored.")
+                    
+                finally:
+                    import os
+                    os.unlink(tmp_path)
+                
+            except json.JSONDecodeError:
+                messages.error(request, "Invalid backup file format (not valid JSON).")
+                return redirect('settings')
+            except Exception as e:
+                messages.error(request, f"Restore failed: {str(e)}")
+                return redirect('settings')
+        
+        elif action == 'delete_backup':
+            # Storekeeper, Branch, NOC can delete their own backups; Admin can delete any
+            from isp_inventory.models import BackupRestore
+            
+            backup_id = request.POST.get('backup_id')
+            try:
+                backup = BackupRestore.objects.get(id=backup_id)
+                user_role = profile.role
+                
+                # Authorization check
+                if user_role == 'Admin':
+                    # Admin can delete any backup
+                    pass
+                elif user_role in ['Storekeeper', 'Branch', 'NOC']:
+                    # Can only delete own backups
+                    if backup.created_by != request.user:
+                        messages.error(request, "You can only delete your own backups.")
+                        return redirect('settings')
+                else:
+                    messages.error(request, "You don't have permission to delete backups.")
+                    return redirect('settings')
+                
+                # Soft delete
+                backup.status = 'deleted'
+                backup.deleted_at = timezone.now()
+                backup.deleted_by = request.user
+                backup.save()
+                
+                messages.success(request, "Backup moved to trash (recoverable for 30 days).")
+                
+            except BackupRestore.DoesNotExist:
+                messages.error(request, "Backup not found.")
+            except Exception as e:
+                messages.error(request, f"Error deleting backup: {str(e)}")
+            
+            return redirect('settings')
+        
+        elif action == 'recover_backup':
+            # Admin only - recover deleted backup
+            from isp_inventory.models import BackupRestore
+            
+            backup_id = request.POST.get('backup_id')
+            try:
+                backup = BackupRestore.objects.get(id=backup_id, status='deleted')
+                backup.status = 'active'
+                backup.deleted_at = None
+                backup.deleted_by = None
+                backup.save()
+                messages.success(request, "Backup recovered successfully.")
+            except BackupRestore.DoesNotExist:
+                messages.error(request, "Backup not found or already active.")
+            except Exception as e:
+                messages.error(request, f"Error recovering backup: {str(e)}")
+            
+            return redirect('settings')
 
         # Role change: update groups and (optionally) UserProfile for compatibility
         elif action == 'change_role':
@@ -1579,30 +1933,66 @@ def settings_view(request):
 
         return redirect('settings')
 
-    # Notification tab values (from NotificationSetting model)
+    # Notification tab values
     email_notifications = notif_obj.email_notifications
-    low_stock_alert = notif_obj.low_stock_alert
+    in_app_notifications = notif_obj.in_app_notifications
+    request_approved_alert = notif_obj.request_approved_alert
+    request_rejected_alert = notif_obj.request_rejected_alert
     new_request_alert = notif_obj.new_request_alert
+    low_stock_alert = notif_obj.low_stock_alert
+    out_of_stock_alert = notif_obj.out_of_stock_alert
+    material_destroyed_alert = notif_obj.material_destroyed_alert
     task_assignment_alert = notif_obj.task_assignment_alert
+    task_completed_alert = notif_obj.task_completed_alert
+    message_alert = notif_obj.message_alert
+    backup_alert = notif_obj.backup_alert
+    system_alert = notif_obj.system_alert
 
-    # Log tab values (read from SystemSetting)
-    enable_logging_obj = SystemSetting.objects.filter(key='enable_logging').first()
-    log_level_obj = SystemSetting.objects.filter(key='log_level').first()
-    enable_logging = (enable_logging_obj.value == 'True') if enable_logging_obj else False
-    log_level = log_level_obj.value if log_level_obj else 'INFO'
-
+    # Log settings
+    log_settings = LogSettings.objects.first()
+    if not log_settings:
+        log_settings = LogSettings.objects.create()
+    log_level = log_settings.log_level
+    enable_file_logging = log_settings.enable_file_logging
+    enable_database_logging = log_settings.enable_database_logging
+    log_user_activities = log_settings.log_user_activities
+    
+    # Get recent activity logs for current user
+    recent_activity = ActivityLog.objects.filter(user=request.user).order_by('-timestamp')[:20]
+    
+    # Get backup history
+    from isp_inventory.models import BackupRestore
+    backup_history = BackupRestore.objects.all().select_related('created_by', 'deleted_by', 'restored_by').order_by('-created_at')[:20]
+    
     context = {
         'users': users,
         'groups': Group.objects.all(),
         'system_settings': system_settings,
         'setting_form': setting_form,
         'notif_form': notif_form,
+        'log_settings_form': LogSettingsForm(instance=log_settings),
+        # Notification fields
         'email_notifications': email_notifications,
-        'low_stock_alert': low_stock_alert,
+        'in_app_notifications': in_app_notifications,
+        'request_approved_alert': request_approved_alert,
+        'request_rejected_alert': request_rejected_alert,
         'new_request_alert': new_request_alert,
+        'low_stock_alert': low_stock_alert,
+        'out_of_stock_alert': out_of_stock_alert,
+        'material_destroyed_alert': material_destroyed_alert,
         'task_assignment_alert': task_assignment_alert,
-        'enable_logging': enable_logging,
+        'task_completed_alert': task_completed_alert,
+        'message_alert': message_alert,
+        'backup_alert': backup_alert,
+        'system_alert': system_alert,
+        # Log settings
         'log_level': log_level,
+        'enable_file_logging': enable_file_logging,
+        'enable_database_logging': enable_database_logging,
+        'log_user_activities': log_user_activities,
+        'log_settings': log_settings,
+        'recent_activity': recent_activity,
+        'backup_history': backup_history,
     }
     return render(request, 'inventory/settings.html', context)
 
@@ -1677,10 +2067,10 @@ def used_materials_view(request):
 
     # Determine which used materials to display based on role
     if role == 'Branch':
-        used_materials_qs = UsedMaterial.objects.filter(technician=request.user).order_by('-added_at')
+        used_materials_qs = UsedMaterial.objects.filter(technician=request.user, is_archived=False).order_by('-added_at')
     else:
         # Admin/Storekeeper see all used materials
-        used_materials_qs = UsedMaterial.objects.all().order_by('-added_at')
+        used_materials_qs = UsedMaterial.objects.filter(is_archived=False).order_by('-added_at')
 
     # Handle user dropdown filter - filter used materials by selected branch user
     if role in ['Admin', 'Storekeeper']:
@@ -1736,7 +2126,8 @@ def used_materials_view(request):
                 if material and material.id in approved_material_ids:
                     um = form.save(commit=False)
                     um.technician = request.user
-                    um.status = 'Pending'  # Set initial status to Pending - quantity won't be deducted until approved
+                    # User requested whatever status is selected should be applied.
+                    # um.status = 'Pending' is removed.
                     um.save()
                     messages.success(request, "Used Material recorded successfully!")
                     return redirect('used_materials')
@@ -1972,29 +2363,36 @@ def manage_used_material_api(request, pk):
     try:
         with transaction.atomic():
             if action == 'accept':
-                if used_material.status != 'Pending':
-                    return JsonResponse({'error': f'Can only approve pending materials. Current status: {used_material.status}'}, status=400)
-
-                material = Material.objects.select_for_update().get(pk=used_material.material.id)
-                
-                if material.status == 'Normal':
-                    if material.quantity < used_material.quantity:
-                        return JsonResponse({'error': f'Insufficient stock. Available: {material.quantity}, Used: {used_material.quantity}'}, status=400)
-                    
-                    material.quantity -= used_material.quantity
-                    material.save()
-                    
-                    used_material.status = 'Accepted'
+                if used_material.status == 'Accepted':
                     used_material.admin_note = admin_note
                     used_material.save()
-                    
-                    return JsonResponse({'success': True, 'message': f'Approved. {used_material.quantity} units deducted from {material.name}.'})
+                    return JsonResponse({'success': True, 'message': 'Status is already Accepted. Note updated.'})
+
+                material = Material.objects.select_for_update().get(pk=used_material.material.id)
+                total_available = material.quantity + material.Remaining_stock
+                
+                if total_available < used_material.quantity:
+                    return JsonResponse({'error': f'Insufficient stock limits. Available: {total_available}, Used: {used_material.quantity}'}, status=400)
+                
+                if used_material.quantity <= material.quantity:
+                    material.quantity -= used_material.quantity
                 else:
-                    return JsonResponse({'error': f'Material status is {material.status}. Only Normal stock can be used.'}, status=400)
+                    remaining_to_deduct = used_material.quantity - material.quantity
+                    material.quantity = 0
+                    material.Remaining_stock -= remaining_to_deduct
+                material.save()
+                
+                used_material.status = 'Accepted'
+                used_material.admin_note = admin_note
+                used_material.save()
+                
+                return JsonResponse({'success': True, 'message': f'Approved. {used_material.quantity} units deducted from {material.name}.'})
 
             elif action == 'reject':
                 if used_material.status == 'Rejected':
-                    return JsonResponse({'error': 'This record is already rejected'}, status=400)
+                    used_material.admin_note = admin_note
+                    used_material.save()
+                    return JsonResponse({'success': True, 'message': 'Status is already Rejected. Note updated.'})
 
                 if used_material.status == 'Accepted':
                     material = Material.objects.select_for_update().get(pk=used_material.material.id)
@@ -2033,7 +2431,8 @@ def pending_requests_api(request):
     try:
         # Get pending requests ordered by most recent first
         pending_requests = MaterialRequest.objects.filter(
-            status='Pending'
+            status='Pending',
+            is_archived=False
         ).select_related('requester', 'material').order_by('-requested_at')
         
         # For non-admin users, optionally filter to their own requests

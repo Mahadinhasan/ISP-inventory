@@ -299,7 +299,13 @@
         document.getElementById('materialModal').classList.remove('hidden');
         document.getElementById('modalTitle').textContent = 'Edit Material';
 
-        fetch(`/materials/${id}/json/`, { credentials: 'same-origin' })
+        let fetchUrl = `/materials/${id}/json/`;
+        const tabId = sessionStorage.getItem('tab_id');
+        if (tabId) {
+            fetchUrl += `?tab_id=${tabId}`;
+        }
+
+        fetch(fetchUrl, { credentials: 'same-origin' })
             .then(resp => {
                 if (!resp.ok) throw resp;
                 return resp.json();

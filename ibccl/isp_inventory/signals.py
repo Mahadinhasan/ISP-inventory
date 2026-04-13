@@ -1,10 +1,11 @@
 from django.db.models.signals import post_save, post_delete
 from django.contrib.auth.models import User
+from django.contrib.auth.signals import user_logged_in, user_logged_out
 from django.dispatch import receiver
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from .utils import ensure_userprofile
-from .models import UsedMaterial, Material, MaterialRequest, NotificationSetting, InternalMessage
+from .models import UsedMaterial, Material, MaterialRequest, NotificationSetting, InternalMessage, ActivityLog, LogSettings
 from django.db.models import Sum
 from .consumers import MATERIALS_MONITORING_GROUP, USER_NOTIFICATION_GROUP_PREFIX
 
@@ -87,8 +88,8 @@ def material_stock_notifications(sender, instance, **kwargs):
         admin_store_users = User.objects.filter(
             userprofile__role__in=["Admin", "Storekeeper"]
         ).filter(
-            Q(notificationsetting__isnull=True) | 
-            Q(notificationsetting__low_stock_alert=True)
+            Q(notification_setting__isnull=True) | 
+            Q(notification_setting__low_stock_alert=True)
         ).distinct()
 
         if admin_store_users.exists():
@@ -113,13 +114,8 @@ def subtract_used_material_from_inventory(sender, instance, created, **kwargs):
     # Real-time broadcast to admin materials monitoring (branch user usage)
     _broadcast_used_material(instance)
     if created:
-        # When a new UsedMaterial is created, subtract its quantity from the material's stock
-        material = instance.material
-        if material:
-            # Deduct the used quantity from available material stock
-            material.quantity = max(0, material.quantity - instance.quantity)
-            material.save(update_fields=['quantity'])
-            
+        # Instead of generic subtraction here, we handle it explicitly in views.py based on Accepted/Rejected status.
+        # This prevents double deduction and honors the Remaining_stock logic.
         # Self-notification for Branch users if their available personal stock is Low or Out of Stock
         total_in = MaterialRequest.objects.filter(requester=instance.technician, status='Approved').aggregate(s=Sum('quantity'))['s'] or 0
         total_out = UsedMaterial.objects.filter(technician=instance.technician).aggregate(s=Sum('quantity'))['s'] or 0
@@ -143,11 +139,9 @@ def restore_used_material_to_inventory(sender, instance, **kwargs):
     Automatically restore used materials back to inventory when a UsedMaterial record is deleted.
     This ensures we don't lose track of material quantities if a record is removed.
     """
-    material = instance.material
-    if material:
-        # Restore the deleted used material quantity back to inventory
-        material.quantity += instance.quantity
-        material.save(update_fields=['quantity'])
+    # We shouldn't blindly restore on delete if it was already Rejected/Returned previously.
+    # We will handle stock restoration cleanly where deleted.
+    pass
 
 
 @receiver(post_save, sender=MaterialRequest)
@@ -165,8 +159,8 @@ def material_request_notifications(sender, instance, created, **kwargs):
             admin_store_users = User.objects.filter(
                 userprofile__role__in=["Admin", "Storekeeper"]
             ).filter(
-                Q(notificationsetting__isnull=True) | 
-                Q(notificationsetting__new_request_alert=True)
+                Q(notification_setting__isnull=True) | 
+                Q(notification_setting__new_request_alert=True)
             ).distinct()
 
             if admin_store_users.exists():
@@ -223,3 +217,80 @@ def internal_message_notification(sender, instance, created, **kwargs):
             "message": f"Message from {instance.sender.username}: {instance.content[:60]}...",
         }
         _notify_user(instance.receiver, payload)
+
+
+@receiver(user_logged_in)
+def log_user_login(sender, request, user, **kwargs):
+    """Track user login activity"""
+    try:
+        log_settings = LogSettings.objects.first()
+        if log_settings and log_settings.log_user_activities and log_settings.enable_database_logging:
+            ip_address = get_client_ip(request) if request else None
+            user_agent = request.META.get('HTTP_USER_AGENT', '') if request else ''
+            
+            # Update user profile last_active
+            profile = ensure_userprofile(user)
+            from django.utils import timezone
+            profile.last_active = timezone.now()
+            profile.last_login = timezone.now()
+            profile.is_online = True
+            profile.save(update_fields=['last_active', 'last_login', 'is_online'])
+            
+            # Create activity log
+            ActivityLog.objects.create(
+                user=user,
+                activity_type='login',
+                description=f'User {user.username} logged in',
+                ip_address=ip_address,
+                user_agent=user_agent[:500],
+            )
+    except Exception:
+        pass
+
+
+@receiver(user_logged_out)
+def log_user_logout(sender, request, user, **kwargs):
+    """Track user logout activity"""
+    try:
+        log_settings = LogSettings.objects.first()
+        if log_settings and log_settings.log_user_activities and log_settings.enable_database_logging:
+            ip_address = get_client_ip(request) if request else None
+            user_agent = request.META.get('HTTP_USER_AGENT', '') if request else ''
+            
+            # Update user profile
+            if user:
+                profile = ensure_userprofile(user)
+                from django.utils import timezone
+                profile.is_online = False
+                profile.save(update_fields=['is_online'])
+            
+            # Create activity log
+            if user:
+                ActivityLog.objects.create(
+                    user=user,
+                    activity_type='logout',
+                    description=f'User {user.username} logged out',
+                    ip_address=ip_address,
+                    user_agent=user_agent[:500],
+                )
+    except Exception:
+        pass
+
+
+def get_client_ip(request):
+    """Get client IP address from request"""
+    if not request:
+        return None
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0]
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    return ip
+
+
+@receiver(post_save, sender=User)
+def create_notification_setting(sender, instance, created, **kwargs):
+    """Create NotificationSetting for new users"""
+    if created:
+        NotificationSetting.objects.get_or_create(user=instance)

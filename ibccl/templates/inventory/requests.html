@@ -355,7 +355,14 @@
         
         const formData = new FormData(this);
         
-        fetch('{% url "requests" %}', {
+        let fetchUrl = '{% url "requests" %}';
+        const tabId = sessionStorage.getItem('tab_id');
+        if (tabId) {
+            fetchUrl += `?tab_id=${tabId}`;
+            formData.append('tab_id', tabId);
+        }
+
+        fetch(fetchUrl, {
             method: 'POST',
             body: formData,
             headers: {

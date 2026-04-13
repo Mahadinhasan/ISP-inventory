@@ -3,6 +3,46 @@
 {% load static %}
 
 <head>
+    <script>
+        // Multi-tab Session Logic
+        (function() {
+            let tabId = sessionStorage.getItem('tab_id');
+            if (!tabId) {
+                tabId = Math.random().toString(36).substring(2, 10);
+                sessionStorage.setItem('tab_id', tabId);
+            }
+            
+            let currentUrl = new URL(window.location.href);
+            if (!currentUrl.searchParams.has('tab_id')) {
+                currentUrl.searchParams.set('tab_id', tabId);
+                window.history.replaceState(null, '', currentUrl.toString());
+            }
+
+            document.addEventListener('DOMContentLoaded', function() {
+                document.body.addEventListener('click', function(e) {
+                    let link = e.target.closest('a');
+                    if (link && link.href && link.href.startsWith(window.location.origin) && !link.getAttribute('href').startsWith('#') && !link.href.includes('javascript:')) {
+                        let url = new URL(link.href);
+                        if (!url.searchParams.has('tab_id')) {
+                            url.searchParams.set('tab_id', tabId);
+                            link.href = url.toString();
+                        }
+                    }
+                });
+
+                document.body.addEventListener('submit', function(e) {
+                    let form = e.target;
+                    if (!form.querySelector('input[name="tab_id"]')) {
+                        let input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'tab_id';
+                        input.value = tabId;
+                        form.appendChild(input);
+                    }
+                });
+            });
+        })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}ISP Inventory{% endblock %}</title>
@@ -76,6 +116,29 @@
 
         .status-offline {
             background-color: #f00f2a;
+        }
+
+        /* Notification hover & animation styles */
+        .notif-item {
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        .notif-item:hover {
+            background-color: rgba(99, 102, 241, 0.05);
+        }
+        .dark .notif-item:hover {
+            background-color: rgba(99, 102, 241, 0.15);
+        }
+        
+        .bell-shake {
+            animation: shake 0.5s ease-in-pulse;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(15deg); }
+            50% { transform: rotate(-15deg); }
+            75% { transform: rotate(10deg); }
         }
     </style>
 </head>
@@ -321,6 +384,12 @@
         {% block content %}{% endblock %}
     </main>
 
+    <!-- Notification Sound Element -->
+    <audio id="notification-sound" preload="auto">
+        <!-- Using a base64 encoded tiny notification sound to avoid needing external files -->
+        <source src="data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq" type="audio/mpeg">
+    </audio>
+
     <!--added footer-->
     <footer class="bg-white shadow-inner border-t border-gray-200 mt-10">
         <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-500">
@@ -375,7 +444,7 @@
 
                 // Keep the current number, but hide badge
                 setTimeout(() => { countEl.textContent = '0'; }, 200);
-                unseenCount = 0;
+                window.unseenCount = 0;
             }
         }
 
@@ -392,7 +461,8 @@
                 </div>
             `;
 
-            unseenCount = 0;
+            window.unseenCount = 0;
+            window.notifItemCount = 0;
             const countEl = document.getElementById('notification-count');
             countEl.classList.remove('scale-100');
             countEl.classList.add('scale-0');
@@ -595,15 +665,61 @@
                 if (window.WebSocket) { connect(); }
             })();
 
-            // ========== Global unread count tracker ==========
+            // ========== Global trackers ==========
             window.unseenCount = 0;
+            window.notifItemCount = 0;
+
+            // Generate notification sound generator since audio element might not play without user interaction
+            const NotifSound = {
+                _ctx: null,
+                play: function() {
+                    try {
+                        if (!this._ctx) {
+                            this._ctx = new (window.AudioContext || window.webkitAudioContext)();
+                        }
+                        if (this._ctx.state === 'suspended') {
+                            this._ctx.resume();
+                        }
+                        const now = this._ctx.currentTime;
+                        const osc = this._ctx.createOscillator();
+                        const gain = this._ctx.createGain();
+                        
+                        osc.connect(gain);
+                        gain.connect(this._ctx.destination);
+                        
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(880, now); // A5
+                        osc.frequency.exponentialRampToValueAtTime(1100, now + 0.1); // C#6
+                        
+                        gain.gain.setValueAtTime(0, now);
+                        gain.gain.linearRampToValueAtTime(0.2, now + 0.02);
+                        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                        
+                        osc.start(now);
+                        osc.stop(now + 0.4);
+                    } catch (e) {
+                        console.warn("AudioContext not supported or blocked");
+                    }
+                }
+            };
 
             // ========== Real-time Notifications via Django Channels ==========
             (function setupNotifications() {
+                const MAX_ITEMS = 5;
                 const countEl = document.getElementById('notification-count');
                 const list = document.getElementById('notification-list');
 
                 if (!countEl || !list) return;
+
+                function getNotificationUrl(category) {
+                    // Match the URLs available in the application
+                    switch(category) {
+                        case 'request': return "{% url 'noc:requests' %}";
+                        case 'stock': return "{% url 'noc:materials' %}";
+                        case 'message': return "{% url 'chat' %}";
+                        default: return "{% url 'noc:dashboard' %}";
+                    }
+                }
 
                 function pushNotification(payload) {
                     const emptyState = document.getElementById('empty-notifications');
@@ -612,7 +728,12 @@
                     }
 
                     const item = document.createElement('div');
-                    item.className = 'px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer fade-in relative';
+                    const targetUrl = getNotificationUrl(payload.category);
+                    
+                    item.className = 'notif-item px-4 py-3 border-b border-gray-100 dark:border-gray-700 fade-in relative';
+                    item.onclick = function() {
+                        window.location.href = targetUrl;
+                    };
 
                     const title = payload.title || (payload.category === 'request'
                         ? 'Material Request Update'
@@ -628,18 +749,22 @@
                     if (payload.quantity != null) meta.push(`Qty: ${payload.quantity}`);
 
                     let icon = '<i class="fas fa-bell text-indigo-500"></i>';
+                    let bgClass = 'bg-indigo-50';
                     if (payload.category === 'request') {
                         icon = '<i class="fas fa-clipboard-list text-blue-500"></i>';
+                        bgClass = 'bg-blue-50';
                     } else if (payload.category === 'message') {
                         icon = '<i class="fas fa-envelope text-green-500"></i>';
+                        bgClass = 'bg-green-50';
                     } else if (payload.category === 'stock') {
-                        icon = '<i class="fas fa-exclamation-triangle text-red-500"></i>';
+                        icon = '<i class="fas fa-exclamation-triangle text-amber-500"></i>';
+                        bgClass = 'bg-amber-50';
                     }
 
                     item.innerHTML = `
                         <div class="flex items-start">
                             <div class="flex-shrink-0 mt-1 mr-3">
-                                <div class="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center">
+                                <div class="w-8 h-8 rounded-full ${bgClass} flex items-center justify-center">
                                     ${icon}
                                 </div>
                             </div>
@@ -647,37 +772,50 @@
                                 <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">${title}</p>
                                 <p class="text-xs text-gray-600 dark:text-gray-300 mt-0.5 line-clamp-2">${message}</p>
                                 ${meta.length ? `<p class="text-[11px] text-gray-400 dark:text-gray-400 mt-1">${meta.join(' &bull; ')}</p>` : ''}
+                                <p class="text-[10px] text-indigo-400 mt-1">Click to view</p>
                             </div>
                         </div>
                     `;
 
+                    // Add to top of list
                     list.insertBefore(item, list.firstChild);
+                    window.notifItemCount++;
 
-                    // Check if dropdown is closed to increment counter
+                    // Play sound and shake bell
+                    NotifSound.play();
+                    
+                    const bellIcon = document.querySelector('#notification-bell i');
+                    if (bellIcon) {
+                        bellIcon.classList.remove('bell-shake');
+                        void bellIcon.offsetWidth; // trigger reflow
+                        bellIcon.classList.add('bell-shake');
+                    }
+
+                    // Enforce max 5 items in dropdown
+                    const allItems = list.querySelectorAll('.notif-item');
+                    if (allItems.length > MAX_ITEMS) {
+                        allItems[allItems.length - 1].remove();
+                        window.notifItemCount = MAX_ITEMS;
+                    }
+
+                    // Update badge count if dropdown is closed
                     const dropdown = document.getElementById('notification-dropdown');
                     if (dropdown.classList.contains('hidden')) {
                         window.unseenCount += 1;
-                        countEl.textContent = window.unseenCount > 99 ? '99+' : window.unseenCount;
+                        // Max visual counter is 5
+                        const displayCount = window.unseenCount > 5 ? '5+' : window.unseenCount;
+                        countEl.textContent = displayCount;
                         countEl.classList.remove('scale-0');
                         countEl.classList.add('scale-100');
-
-                        // Shake the bell slightly
-                        const bellIcon = document.querySelector('#notification-bell i');
-                        if (bellIcon) {
-                            bellIcon.classList.add('animate-bounce');
-                            setTimeout(() => bellIcon.classList.remove('animate-bounce'), 1000);
-                        }
                     }
                 }
-
-                // Initial UI tests mapping - normally this listens via WebSocket below
-                // setTimeout(() => { pushNotification({category: "request", status: "Approved", message: "Your material request for Fiber was Approved.", material: "Fiber", quantity: 50}); }, 3000);
 
                 if (!window.WebSocket) return;
 
                 const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
                 const wsUrl = scheme + '://' + window.location.host + '/ws/notifications/';
                 let ws;
+                let reconnectDelay = 2000;
 
                 function connect() {
                     try {
@@ -685,6 +823,10 @@
                     } catch (e) {
                         return;
                     }
+
+                    ws.onopen = function () {
+                        reconnectDelay = 2000;
+                    };
 
                     ws.onmessage = function (event) {
                         try {
@@ -698,8 +840,8 @@
                     };
 
                     ws.onclose = function () {
-                        // Lightweight reconnect
-                        setTimeout(connect, 5000);
+                        setTimeout(connect, reconnectDelay);
+                        reconnectDelay = Math.min(reconnectDelay * 1.5, 30000);
                     };
                 }
 

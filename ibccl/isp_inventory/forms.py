@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
-from .models import Material, Task, MaterialRequest, SystemSetting, NotificationSetting, UsedMaterial,backupandrestore
+from .models import Material, Task, MaterialRequest, SystemSetting, NotificationSetting, UsedMaterial, BackupRestore, ActivityLog, LogSettings
 from .utils import ensure_userprofile
 
 class RegisterForm(UserCreationForm):
@@ -147,7 +147,41 @@ class SystemSettingForm(forms.ModelForm):
 class NotificationSettingForm(forms.ModelForm):
     class Meta:
         model = NotificationSetting
-        fields = ['email_notifications', 'low_stock_alert', 'new_request_alert', 'task_assignment_alert']
+        fields = [
+            'email_notifications', 'in_app_notifications',
+            'request_approved_alert', 'request_rejected_alert', 'new_request_alert',
+            'low_stock_alert', 'out_of_stock_alert', 'material_destroyed_alert',
+            'task_assignment_alert', 'task_completed_alert',
+            'message_alert', 'backup_alert', 'system_alert'
+        ]
+        widgets = {
+            'email_notifications': forms.CheckboxInput(attrs={'class': 'form-checkbox h-5 w-5'}),
+            'in_app_notifications': forms.CheckboxInput(attrs={'class': 'form-checkbox h-5 w-5'}),
+            'request_approved_alert': forms.CheckboxInput(attrs={'class': 'form-checkbox h-5 w-5'}),
+            'request_rejected_alert': forms.CheckboxInput(attrs={'class': 'form-checkbox h-5 w-5'}),
+            'new_request_alert': forms.CheckboxInput(attrs={'class': 'form-checkbox h-5 w-5'}),
+            'low_stock_alert': forms.CheckboxInput(attrs={'class': 'form-checkbox h-5 w-5'}),
+            'out_of_stock_alert': forms.CheckboxInput(attrs={'class': 'form-checkbox h-5 w-5'}),
+            'material_destroyed_alert': forms.CheckboxInput(attrs={'class': 'form-checkbox h-5 w-5'}),
+            'task_assignment_alert': forms.CheckboxInput(attrs={'class': 'form-checkbox h-5 w-5'}),
+            'task_completed_alert': forms.CheckboxInput(attrs={'class': 'form-checkbox h-5 w-5'}),
+            'message_alert': forms.CheckboxInput(attrs={'class': 'form-checkbox h-5 w-5'}),
+            'backup_alert': forms.CheckboxInput(attrs={'class': 'form-checkbox h-5 w-5'}),
+            'system_alert': forms.CheckboxInput(attrs={'class': 'form-checkbox h-5 w-5'}),
+        }
+
+class LogSettingsForm(forms.ModelForm):
+    class Meta:
+        model = LogSettings
+        fields = ['log_level', 'enable_file_logging', 'enable_database_logging', 'log_user_activities']
+        widgets = {
+            'log_level': forms.Select(attrs={'class': 'w-full px-4 py-3 border-2 border-yellow-200 dark:border-yellow-900/30 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-100'}),
+            'enable_file_logging': forms.CheckboxInput(attrs={'class': 'form-checkbox h-5 w-5'}),
+            'enable_database_logging': forms.CheckboxInput(attrs={'class': 'form-checkbox h-5 w-5'}),
+            'log_user_activities': forms.CheckboxInput(attrs={'class': 'form-checkbox h-5 w-5'}),
+        }
+
+
 #Materials name filter for Branch use only approved materials
 class UsedMaterialForm(forms.ModelForm):
     class Meta:
@@ -313,7 +347,7 @@ class UsedMaterialForm(forms.ModelForm):
         
         return material
 
-class backupandrestoreForm(forms.ModelForm):
+class BackupRestoreForm(forms.ModelForm):
     class Meta:
-        model = backupandrestore
-        fields = ['backup_file']
+        model = BackupRestore
+        fields = ['backup_file', 'backup_type', 'description']

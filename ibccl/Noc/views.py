@@ -1,7 +1,8 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate
+from rest_framework_simplejwt.tokens import RefreshToken
 from isp_inventory.models import UserProfile, Material, MaterialRequest, UsedMaterial, InternalMessage
 from django.db.models import Sum, Count, Q
 from django.db.models.functions import TruncDate
@@ -15,6 +16,8 @@ import json as _json
 
 def noc_login_view(request):
     """NOC-only login page"""
+    tab_id = request.GET.get('tab_id') or request.POST.get('tab_id')
+
     if request.method == "POST":
         user = authenticate(
             username=request.POST.get('username'),
@@ -33,14 +36,15 @@ def noc_login_view(request):
                     return render(request, 'noc/login.html')
                 
                 # User is NOC and active - proceed with login
-                login(request, user)
+                if not tab_id:
+                    import uuid
+                    tab_id = uuid.uuid4().hex[:8]
 
-                if not request.POST.get('remember_me'):
-                    request.session.set_expiry(0)  # browser close
-                else:
-                    request.session.set_expiry(60 * 60 * 1)  # 1 hour
-
-                return redirect('noc:dashboard')
+                response = redirect('noc:dashboard')
+                from isp_inventory.views import _set_jwt_cookies
+                _set_jwt_cookies(response, user, tab_id)
+                return response
+                
             except UserProfile.DoesNotExist:
                 messages.error(request, "User profile not found. Please contact administrator.")
                 return render(request, 'noc/login.html')
@@ -51,8 +55,12 @@ def noc_login_view(request):
 
 def noc_logout_view(request):
     """NOC logout"""
-    logout(request)
-    return redirect('noc:login')
+    response = redirect('noc:login')
+    tab_id = getattr(request, 'tab_id', None)
+    if tab_id:
+        response.delete_cookie(f'jwt_access_{tab_id}')
+        response.delete_cookie(f'jwt_refresh_{tab_id}')
+    return response
 
 def noc_role_required(view_func):
     @wraps(view_func)

@@ -5,7 +5,7 @@
 {% block content %}
 <div class="space-y-6">
     <div class="flex justify-between items-center">
-        <h1 class="text-3xl font-bold text-gray-900">Used Materials Log</h1>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Used Materials Log</h1>
         {% if user.userprofile.role != 'Admin' and user.userprofile.role != 'Storekeeper' %}
         <button onclick="openAddModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition">
             <i class="fas fa-plus mr-2"></i>Add Used Material
@@ -15,7 +15,7 @@
         {% if user.userprofile.role != 'Branch' %}
         <form method="get" class="flex items-center">
                 <select name="user" onchange="this.form.submit()"
-                    class="border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    class="border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
                     <option value="">All Users</option>
                     {% for user in users %}
                     <option value="{{ user.id }}" {% if request.GET.user == user.id %}selected{% endif %}>
@@ -27,91 +27,91 @@
     </div>
 
     <!-- Used Materials List -->
-    <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700">
         <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
                     <tr>
                         {% if user.userprofile.role != 'Branch' %}
                         <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
                             Branch</th>
                         {% endif %}
                         <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
                             Material Name</th>
                         <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
                             Category</th>
                         <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
                             Quantity</th>
                         <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
                             Client Name</th>
                         <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
                             Address</th>
                         <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
                             Phone</th>
                         <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
                             Issue</th>
                         <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">Status</th>
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">Status</th>
                         <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
                             Date</th>
                         {% if role == 'Branch' %}
                         <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
                             Actions</th>
                         {% endif %}
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {% for item in used_materials %}
-                    <tr class="hover:bg-gray-100 transition duration-150">
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition duration-150">
                         {% if user.userprofile.role != 'Branch' %}
-                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ item.branch.name }}</td>
+                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ item.branch.name }}</td>
                         {% endif %}
-                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ item.material.name }}</td>
+                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ item.material.name }}</td>
                         <td class="px-4 py-4 whitespace-nowrap">
                             <span class="px-3 py-1 rounded-full text-xs font-semibold 
-                                {% if item.material.category == 'Internet' %}bg-blue-100 text-blue-800
-                                {% elif item.material.category == 'Dish' %}bg-purple-100 text-purple-800
-                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {% if item.material.category == 'Internet' %}bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400
+                                {% elif item.material.category == 'Dish' %}bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400
+                                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
                                 {{ item.material.category }}
                             </span>
                         </td>
-                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-bold bg-gray-50 rounded-lg text-center">
+                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-bold bg-gray-50 dark:bg-gray-700 rounded-lg text-center">
                             {{ item.quantity }}</td>
-                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{{ item.client_name|default:"N/A" }}</td>
-                        <td class="px-4 py-4 text-sm text-gray-700">{{ item.client_address|default:"N/A"|truncatewords:10 }}</td>
-                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{{ item.client_phone|default:"N/A" }}</td>
-                        <td class="px-4 py-4 text-sm text-gray-700">{{ item.issue|default:"N/A"|truncatewords:8 }}</td>
+                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{{ item.client_name|default:"N/A" }}</td>
+                        <td class="px-4 py-4 text-sm text-gray-700 dark:text-gray-300">{{ item.client_address|default:"N/A"|truncatewords:10 }}</td>
+                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{{ item.client_phone|default:"N/A" }}</td>
+                        <td class="px-4 py-4 text-sm text-gray-700 dark:text-gray-300">{{ item.issue|default:"N/A"|truncatewords:8 }}</td>
                         <td class="px-4 py-4 whitespace-nowrap">
                             <span class="px-3 py-1 rounded-full text-xs font-semibold
-                                {% if item.status == 'Pending' %}bg-yellow-100 text-yellow-800
-                                {% elif item.status == 'Accepted' %}bg-green-100 text-green-800
-                                {% elif item.status == 'Rejected' %}bg-red-100 text-red-800
-                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {% if item.status == 'Pending' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
+                                {% elif item.status == 'Accepted' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
+                                {% elif item.status == 'Rejected' %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400
+                                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
                                 {{ item.status }}
                             </span>
                         </td>
-                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{{item.added_at|date:"d-m-Y"}}</td>
+                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{item.added_at|date:"d-m-Y"}}</td>
 
                         {% if role == 'Branch' and item.technician == user %}
                         <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
                             <button
                                 onclick="openEditModal('{{ item.id }}')"
-                                class="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-md transition">
+                                class="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 px-3 py-1 rounded-md transition">
                                 <i class="fas fa-edit mr-1"></i> Edit
                             </button>
                             <button
                                 onclick="confirmDelete('{{ item.id }}')"
-                                class="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1 rounded-md transition ml-2">
+                                class="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 px-3 py-1 rounded-md transition ml-2">
                                 <i class="fas fa-trash mr-1"></i> Delete
                             </button>
                         </td>
@@ -121,9 +121,9 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="8" class="px-6 py-10 text-center text-gray-500 italic">
+                        <td colspan="8" class="px-6 py-10 text-center text-gray-500 dark:text-gray-400 italic">
                             <div class="flex flex-col items-center">
-                                <i class="fas fa-box-open text-gray-300 text-4xl mb-3"></i>
+                                <i class="fas fa-box-open text-gray-300 dark:text-gray-600 text-4xl mb-3"></i>
                                 <p>No used materials reported yet.</p>
                             </div>
                         </td>
@@ -137,10 +137,10 @@
 
 <!-- Add/Edit Modal -->
 <div id="addEditModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div class="sticky top-0 bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
-            <h2 class="text-2xl font-bold text-gray-900" id="modalTitle">Add Used Material</h2>
-            <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="sticky top-0 bg-gray-50 dark:bg-gray-700 px-6 py-4 border-b dark:border-gray-600 flex justify-between items-center">
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white" id="modalTitle">Add Used Material</h2>
+            <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
                 <i class="fas fa-times text-2xl"></i>
             </button>
         </div>
@@ -356,25 +356,14 @@
                     class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium">
                     Close
                 </a>
-                {% if selected_used_material.status == 'Pending' %}
                 <button type="submit" name="action" value="reject"
                     class="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition">
-                    <i class="fas fa-times mr-2"></i>Reject
+                    <i class="fas fa-times mr-2"></i>Reject/Return
                 </button>
                 <button type="submit" name="action" value="accept"
                     class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition">
                     <i class="fas fa-check mr-2"></i>Approve
                 </button>
-                {% elif selected_used_material.status == 'Accepted' %}
-                <button type="submit" name="action" value="reject"
-                    class="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition">
-                    <i class="fas fa-undo mr-2"></i>Reject (Return Stock)
-                </button>
-                {% else %}
-                <span class="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium">
-                    Already {{ selected_used_material.status|lower }}
-                </span>
-                {% endif %}
             </div>
         </form>
     </div>
@@ -427,8 +416,13 @@
     }
 
     function loadFormData(umId) {
-        // Fetch the specific used material data
-        fetch(`/api/used-materials/${umId}/`, {
+        let fetchUrl = `/api/used-materials/${umId}/`;
+        const tabId = sessionStorage.getItem('tab_id');
+        if (tabId) {
+            fetchUrl += `?tab_id=${tabId}`;
+        }
+        
+        fetch(fetchUrl, {
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
                 'Accept': 'application/json'

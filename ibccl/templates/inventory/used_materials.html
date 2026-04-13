@@ -373,25 +373,15 @@
                         class="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition font-semibold text-sm">
                         <i class="fas fa-times mr-1"></i>Close
                     </a>
-                    {% if selected_used_material.status == 'Pending' %}
                     <button type="submit" name="action" value="reject"
                         class="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition text-sm">
-                        <i class="fas fa-times mr-1"></i>Reject
+                        <i class="fas fa-undo mr-1"></i>Reject / Return
                     </button>
                     <button type="submit" name="action" value="accept"
                         class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition text-sm">
                         <i class="fas fa-check mr-1"></i>Approve
                     </button>
-                    {% elif selected_used_material.status == 'Accepted' %}
-                    <button type="submit" name="action" value="reject"
-                        class="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition text-sm">
-                        <i class="fas fa-undo mr-1"></i>Return
-                    </button>
-                    {% else %}
-                    <span class="flex-1 px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-lg font-semibold text-sm text-center">
-                        {{ selected_used_material.status }}
-                    </span>
-                {% endif %}
+                </div>
             </div>
         </form>
     </div>
@@ -440,14 +430,17 @@
         if (form) {
             form.reset();
             updateCategory();
-            // Set default status to 'Accepted'
-            document.getElementById('id_status').value = 'Accepted';
         }
     }
 
     function loadFormData(umId) {
-        // Fetch the specific used material data
-        fetch(`/api/used-materials/${umId}/`, {
+        let fetchUrl = `/api/used-materials/${umId}/`;
+        const tabId = sessionStorage.getItem('tab_id');
+        if (tabId) {
+            fetchUrl += `?tab_id=${tabId}`;
+        }
+        
+        fetch(fetchUrl, {
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
                 'Accept': 'application/json'

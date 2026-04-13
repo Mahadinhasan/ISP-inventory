@@ -151,7 +151,7 @@ const materialsData = JSON.parse(document.getElementById('materials-data').textC
         // Find the branch user to get their name
         const branchUser = allBranchUsers.find(u => u.id === branchId);
         if (branchUser) {
-            selectedBranchName.textContent = branchUser.full_name || branchUser.username;
+            selectedBranchName.textContent = branchUser.username || branchUser.username;
         }
         
         // Filter materials for this branch only
@@ -186,7 +186,7 @@ const materialsData = JSON.parse(document.getElementById('materials-data').textC
             return '<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 p-4 shadow-sm" id="user-card-' + u.id + '">' +
                 '<div class="flex items-center justify-between">' +
                 '<div>' +
-                '<p class="font-medium text-gray-900 dark:text-white">' + (u.full_name || u.username) + '</p>' +
+                '<p class="font-medium text-gray-900 dark:text-white">' + (u.name || u.username) + '</p>' +
                 '<p class="text-sm text-gray-500 dark:text-gray-400 mt-1">@' + (u.username || '') + '</p>' +
                 '</div>' +
                 '<span id="user-dot-' + u.id + '" class="w-3 h-3 rounded-full ' + statusColor + ' border-2 border-white dark:border-gray-700" title="' + (u.is_online ? 'Online' : 'Offline') + '"></span>' +

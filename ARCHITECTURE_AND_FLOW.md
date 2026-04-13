@@ -330,7 +330,7 @@ increment_material_count()              ← Utility function
 
 ```
 ┌─────────────────────────────────────────┐
-│  FEATURE                    STATUS       │
+│  FEATURE                    STATUS      │
 ├─────────────────────────────────────────┤
 │  Monthly Tracking           ✅ Active   │
 │  Auto Reset                 ✅ Active   │

@@ -1,6 +1,7 @@
 from django.conf.global_settings import LOGGING
 from pathlib import Path
 import os
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -33,6 +34,7 @@ INSTALLED_APPS = [
     'channels',
     'isp_inventory',
     'rest_framework',
+    'rest_framework_simplejwt',
     'Noc',
 ]
 
@@ -42,6 +44,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # JWT Cookie Auth — authenticates request.user from HttpOnly jwt_access cookie
+    'isp_inventory.jwt_middleware.JWTCookieAuthMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'isp_inventory.middleware.ActiveUserMiddleware',
@@ -75,9 +79,23 @@ CHANNEL_LAYERS = {
 }
 
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
-    )
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=12),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': False,
+    'AUTH_COOKIE': 'jwt_access',           # HttpOnly cookie name for access token
+    'AUTH_COOKIE_REFRESH': 'jwt_refresh',  # HttpOnly cookie name for refresh token
+    'AUTH_COOKIE_HTTP_ONLY': True,
+    'AUTH_COOKIE_SAMESITE': 'Lax',
+    'AUTH_COOKIE_SECURE': False,           # Set True in production (HTTPS)
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': 'django-insecure-_o$zbpjqv-u=jgd0qri&gibv@pskcyd*z^6ts=ikz-g0#4%&!u',
 }
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
@@ -182,7 +200,7 @@ CACHES = {
         'LOCATION': os.path.join(BASE_DIR, 'django_cache'),
         'KEY_PREFIX': 'isp_inventory',
         'VERSION': 1,
-        'TIMEOUT': 60 * 60 * 1,
+        'TIMEOUT': 60 * 60 * 12,
         'OPTIONS': {
             'MAX_ENTRIES': 1000,
         },
@@ -190,7 +208,7 @@ CACHES = {
     }
 }
 
+# JWT replaces session-based auth — these remain for Django admin compatibility
 SESSION_COOKIE_AGE = 60 * 60 * 12
-SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
