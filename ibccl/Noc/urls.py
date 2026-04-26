@@ -17,6 +17,7 @@ urlpatterns = [
     path('requests/', views.noc_requests, name='requests'),
     path('requests/approve/<int:pk>/', views.approve_request, name='approve_request'),
     path('requests/reject/<int:pk>/', views.reject_request, name='reject_request'),
+    path('used-materials/', views.noc_used_materials, name='used_materials'),
     path('reports/', views.noc_reports, name='reports'),
     path('notifications/', views.noc_notifications, name='notifications'),
     path('profile/', views.noc_profile, name='profile'),

@@ -10,13 +10,14 @@
         </div>
         
         <div class="flex gap-2">
-            <form method="get" class="flex items-center group">
+            <form method="get" class="flex items-center group" id="searchForm">
                 <input type="text" name="search" placeholder="Search..." value="{{ request.GET.search }}"
                     class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-l-2xl px-6 py-3 focus:outline-none focus:border-indigo-500 transition-all w-64 dark:text-white">
                 <button type="submit"
                     class="bg-gray-100 dark:bg-midnight-800 text-gray-500 dark:text-gray-400 px-5 py-3 rounded-r-2xl border-2 border-l-0 border-gray-100 dark:border-midnight-800 hover:bg-gray-200 dark:hover:bg-midnight-700 transition-all">
                     <i class="fas fa-search"></i>
                 </button>
+                {% if request.GET.user %}<input type="hidden" name="user" value="{{ request.GET.user }}">{% endif %}
             </form>
             {% if role == 'Branch' %}
             <button onclick="openRequestModal('Regular')"
@@ -30,8 +31,9 @@
             {% endif %}
             <!--select user dropdown only admin and storekeeper role show -->
             {% if role == 'Admin' or role == 'Storekeeper' %}
-            <form method="get" class="flex items-center">
-                <select name="user" onchange="this.form.submit()"
+            <form method="get" class="flex items-center" id="userFilterForm">
+                <input type="hidden" name="tab_id" id="userFilterTabId">
+                <select name="user" onchange="document.getElementById('userFilterTabId').value = sessionStorage.getItem('tab_id'); this.form.submit()"
                     class="border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="">All Users</option>
                     {% for user in users %}
@@ -100,7 +102,7 @@
                     <td class="px-4 py-4 text-sm text-gray-900">{{ req.material.name }}</td>
                     <td class="px-4 py-4 text-sm font-bold text-gray-900 bg-gray-50 rounded text-center">{{ req.quantity }}</td>
                     <td class="px-4 py-4 text-sm text-gray-600">{{ req.requested_at|date:"Y-M-d" }}</td>
-                    <td class="px-4 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.send_by|default:"N/A" }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.send_by|default:"Unknown" }}</td>
                     <td class="px-4 py-4">
                         <span class="px-3 py-1 text-xs font-semibold rounded-full border 
                             {% if req.status == 'Pending' %}bg-yellow-100 text-yellow-800 border-yellow-200
@@ -123,7 +125,7 @@
                     <td class="px-4 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.admin_note|default:"N/A" }}</td>
                     <td class="px-4 py-4 text-sm">
                         <div class="flex items-center justify-between">
-                            <span class="text-gray-500 italic max-w-xs truncate">{{ req.received_by }}</span>
+                            <span class="text-gray-500 italic max-w-xs truncate">{{ req.received_by|default:"Not Received" }}</span>
                             {% if role == 'Branch' and req.status == 'Approved' and req.requester == user and not req.received_by %}
                             <button onclick="openReceivedByModal('{{ req.id }}')"
                                 class="ml-1 text-green-600 hover:text-green-900 font-medium bg-green-50 px-2 py-1 rounded hover:bg-green-100 transition text-xs whitespace-nowrap">

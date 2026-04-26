@@ -1,160 +1,448 @@
 {% extends 'noc/base.html' %}
-{% block title %}NOC Dashboard{% endblock %}
+{% block title %}ISP-Inventory: NOC Dashboard{% endblock %}
 {% block content %}
 <div class="fade-in">
     <div class="mb-8">
-        <h1 class="text-4xl font-bold text-gray-900 dark:text-white">NOC Dashboard</h1>
-        <p class="mt-2 text-lg text-gray-600 dark:text-gray-400">Welcome, {{ user.username }} !</p>
+        <div>
+            <h1 class="text-4xl font-bold text-gray-900 dark:text-white">NOC Dashboard</h1>
+            <p class="mt-2 text-lg text-gray-600 dark:text-gray-400">Welcome back, {{ user.username }}!</p>
+        </div>
     </div>
 
-    <!-- Dashboard Cards -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
-        <!-- 1. In Stock Card -->
-        <div onclick="window.location.href='{% url 'noc:materials' %}'"
-            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105">
+        <!-- 1. In stock Card -->
+        <div onclick="document.getElementById('materialsModal').classList.remove('hidden')"
+            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
                 <div class="p-4 bg-blue-100 dark:bg-blue-900 rounded-full">
-                    <i class="fas fa-box text-3xl text-blue-600 dark:text-blue-400"></i>
+                    <i class="fas fa-box text-3xl mr-2 text-blue-600 dark:text-blue-400"></i>
                 </div>
                 <div class="ml-6">
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">In stock</p>
-                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ stats.in_stock }}</p>
+                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ total_materials }}</p>
                 </div>
             </div>
         </div>
 
         <!-- 2. Pending Request Card -->
-        <div onclick="window.location.href='{% url 'noc:requests' %}'"
-            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105">
+        <div onclick="document.getElementById('requestsModal').classList.remove('hidden')"
+            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
                 <div class="p-4 bg-yellow-100 dark:bg-yellow-900 rounded-full">
-                    <i class="fas fa-clock text-3xl text-yellow-600 dark:text-yellow-400"></i>
+                    <i class="fas fa-clock text-3xl mr-2 text-yellow-600 dark:text-yellow-400"></i>
                 </div>
                 <div class="ml-6">
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Pending Request</p>
-                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ stats.pending_requests }}</p>
+                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ pending_requests }}</p>
                 </div>
             </div>
         </div>
 
         <!-- 3. Used Materials Card -->
-        <div onclick="window.location.href='{% url 'noc:reports' %}'"
-            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105">
+        <div onclick="document.getElementById('usedMaterialsModal').classList.remove('hidden')"
+            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
                 <div class="p-4 bg-teal-100 dark:bg-teal-900 rounded-full">
-                    <i class="fas fa-history text-3xl text-teal-600 dark:text-teal-400"></i>
+                    <i class="fas fa-warehouse text-3xl mr-2 text-teal-600 dark:text-teal-400"></i>
                 </div>
                 <div class="ml-6">
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Used Materials</p>
-                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ stats.used_materials }}</p>
+                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ used_materials_count }}</p>
                 </div>
             </div>
         </div>
 
         <!-- 4. Low Stock Card -->
-        <div onclick="window.location.href='{% url 'noc:materials' %}?filter=low_stock'"
-            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105">
+        <div onclick="document.getElementById('lowStockModal').classList.remove('hidden')"
+            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
                 <div class="p-4 bg-red-100 dark:bg-red-900 rounded-full">
-                    <i class="fas fa-exclamation-triangle text-3xl text-red-600 dark:text-red-400"></i>
+                    <i class="fas fa-box text-3xl mr-2 text-red-600 dark:text-red-400"></i>
                 </div>
                 <div class="ml-6">
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Low Stock Materials</p>
-                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ stats.low_stock }}</p>
+                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ low_stock_materials }}</p>
                 </div>
             </div>
         </div>
 
         <!-- 5. Internal Communication Card -->
-        <div onclick="window.location.href='{% url 'noc:notifications' %}'"
-            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105">
+        <div onclick="document.getElementById('internalCommModal').classList.remove('hidden')"
+            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
-                <div class="p-4 bg-indigo-100 dark:bg-indigo-900 rounded-full">
-                    <i class="fas fa-comments text-3xl text-indigo-600 dark:text-indigo-400"></i>
+                <div class="p-4 bg-pink-100 dark:bg-pink-900/30 rounded-full">
+                    <i class="fas fa-comments text-3xl mr-2 text-pink-600 dark:text-pink-400"></i>
                 </div>
                 <div class="ml-6">
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Internal Communication</p>
-                    <p class="text-xl font-bold text-gray-900 dark:text-white">View</p>
+                    <p class="text-lg font-bold text-gray-900 dark:text-white">View</p>
                 </div>
             </div>
         </div>
 
         <!-- 6. Reports Card -->
-        <div onclick="window.location.href='{% url 'noc:reports' %}'"
-            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105">
+        <div data-redirect="{% url 'noc:reports' %}"
+            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
-                <div class="p-4 bg-purple-100 dark:bg-purple-900 rounded-full">
-                    <i class="fas fa-chart-bar text-3xl text-purple-600 dark:text-purple-400"></i>
+                <div class="p-4 bg-purple-100 dark:bg-purple-900/30 rounded-full">
+                    <i class="fas fa-chart-bar text-3xl mr-2 text-purple-600 dark:text-purple-400"></i>
                 </div>
                 <div class="ml-6">
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Reports</p>
-                    <p class="text-xl font-bold text-gray-900 dark:text-white">View</p>
+                    <p class="text-lg font-bold text-gray-900 dark:text-white">View</p>
                 </div>
             </div>
         </div>
 
-        <!-- 3. Used Materials Card -->
-        <div onclick="window.location.href='{% url 'noc:reports' %}'"
-            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105">
+        <!-- 7. Mac/Serial Numbers Card -->
+        <div onclick="document.getElementById('materialsModal').classList.remove('hidden')"
+            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
-                <div class="p-4 bg-teal-100 dark:bg-teal-900 rounded-full">
-                    <i class="fas fa-barcode text-3xl text-teal-600 dark:text-teal-400"></i>
+                <div class="p-4 bg-indigo-100 dark:bg-indigo-900 rounded-full">
+                    <i class="fas fa-barcode text-3xl mr-2 text-indigo-600 dark:text-indigo-400"></i>
                 </div>
                 <div class="ml-6">
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Mac/Serial Numbers</p>
-                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ stats.used_materials }}</p>
+                    <!-- <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ mac_serial_count }}</p> -->
                 </div>
             </div>
         </div>
 
-        <!-- 7. Destroy Materials Log Card -->
-        <div onclick="alert('Destroy Materials Log feature coming soon!')"
-            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 card-hover cursor-pointer transform transition hover:scale-105">
+        <!-- 8. Destroy Materials Card -->
+        <div onclick="document.getElementById('destroyMaterialsModal').classList.remove('hidden')"
+            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
-                <div class="p-4 bg-gray-100 dark:bg-gray-700 rounded-full">
-                    <i class="fas fa-trash-alt text-3xl text-red-600 dark:text-gray-400"></i>
+                <div class="p-4 bg-red-100 dark:bg-red-900/30 rounded-full">
+                    <i class="fas fa-trash-alt text-3xl mr-2 text-red-600 dark:text-red-400"></i>
                 </div>
                 <div class="ml-6">
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Destroy Materials</p>
-                    <p class="text-xl font-bold text-gray-900 dark:text-white">Log</p>
+                    <p class="text-lg font-bold text-gray-900 dark:text-white">Log</p>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Recent Requests Section -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
-        <div class="px-8 py-6 border-b border-gray-200 dark:border-gray-700">
-            <h3 class="text-2xl font-bold text-gray-900 dark:text-white">Recent Requests</h3>
+    <!-- Modals Section -->
+
+    <!-- Materials Modal -->
+    <div id="materialsModal"
+        class="fixed inset-0 bg-gray-900/60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+        onclick="if(event.target === this) this.classList.add('hidden')">
+        <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col m-4 overflow-hidden">
+            <div class="p-6 border-b dark:border-midnight-800 flex justify-between items-center bg-gray-50/50 dark:bg-midnight-950/50">
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white">Internet Materials Overview</h3>
+                <div class="flex items-center gap-4">
+                    <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'materialsTable')"
+                        class="border dark:border-midnight-700 rounded-xl px-4 py-2 text-sm focus:ring-indigo-500 bg-white dark:bg-midnight-950 dark:text-white">
+                    <button onclick="document.getElementById('materialsModal').classList.add('hidden')"
+                        class="text-gray-500 hover:text-gray-700 dark:text-gray-400 text-2xl">&times;</button>
+                </div>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <table id="materialsTable" class="min-w-full divide-y divide-gray-200 dark:divide-midnight-800">
+                    <thead>
+                        <tr class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            <th class="px-6 py-4 text-left">Material Name</th>
+                            <th class="px-6 py-4 text-left">Quantity</th>
+                            <th class="px-6 py-4 text-left">Stock Status</th>
+                            <th class="px-6 py-4 text-left">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
+                        {% for mat in all_materials %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-midnight-800/50 transition-colors">
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{{ mat.name }}</td>
+                            <td class="px-6 py-4 text-sm text-indigo-600 dark:text-indigo-400 font-bold">{{ mat.quantity }}</td>
+                            <td class="px-6 py-4 text-sm">
+                                <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase
+                                        {% if mat.status == 'Normal' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
+                                        {% elif mat.status == 'Low Stock' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
+                                        {% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400{% endif %}">
+                                    {{ mat.status }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ mat.added_at|date:"Y-m-d" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pending Requests Modal -->
+    <div id="requestsModal"
+        class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+        onclick="if(event.target === this) this.classList.add('hidden')">
+        <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col m-4 overflow-hidden">
+            <div class="p-6 border-b dark:border-midnight-800 flex justify-between items-center bg-gray-50/50 dark:bg-midnight-950/50">
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white">
+                    <i class="fas fa-clock mr-2 text-yellow-600"></i>Pending Requests
+                </h3>
+                <div class="flex items-center gap-4">
+                    <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'requestsTable')"
+                        class="border dark:border-midnight-700 rounded-xl px-4 py-2 text-sm focus:ring-indigo-500 bg-white dark:bg-midnight-950 dark:text-white">
+                    <button onclick="document.getElementById('requestsModal').classList.add('hidden')"
+                        class="text-gray-500 hover:text-gray-700 dark:text-gray-400 text-2xl">&times;</button>
+                </div>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <table id="requestsTable" class="min-w-full divide-y divide-gray-200 dark:divide-midnight-800">
+                    <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
+                        <tr class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                            <th class="px-6 py-4 text-left">Branch</th>
+                            <th class="px-6 py-4 text-left">Material</th>
+                            <th class="px-6 py-4 text-center">Qty</th>
+                            <th class="px-6 py-4 text-left">Date</th>
+                            <th class="px-6 py-4 text-left">Status</th>
+                            <th class="px-6 py-4 text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
+                        {% for req in pending_requests_list %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-midnight-800/50 transition-colors">
+                            <td class="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">
+                                {{ req.requester.username }}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">{{ req.material.name }}</td>
+                            <td class="px-6 py-4 text-sm font-black text-center text-indigo-600 dark:text-indigo-400">
+                                <span class="bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1 rounded-lg">{{ req.quantity }}</span>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                                {{ req.requested_at|date:"Y-m-d" }}
+                            </td>
+                            <td class="px-6 py-4 text-sm">
+                                <span class="px-3 py-1 text-[10px] font-bold uppercase rounded-full border bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800/50">
+                                    {{ req.status }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-center">
+                                <form method="POST" action="{% url 'noc:dashboard' %}" class="flex items-center justify-center space-x-3">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="req_id" value="{{ req.id }}">
+                                    <button name="action" value="accept" class="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 transition transform hover:scale-110"
+                                        title="Approve Quick">
+                                        <i class="fas fa-check-circle text-xl"></i>
+                                    </button>
+                                    <button name="action" value="reject" class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition transform hover:scale-110"
+                                        title="Reject Quick">
+                                        <i class="fas fa-times-circle text-xl"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+                                <i class="fas fa-check-circle text-4xl mb-3 text-green-100 dark:text-green-900/20"></i><br>
+                                No pending requests found
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="mt-4 text-right px-4">
+                    <a href="{% url 'noc:requests' %}" class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 font-bold flex items-center justify-end gap-2">
+                        Go to Full Requests Page <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Used Materials Modal -->
+    <div id="usedMaterialsModal"
+        class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+        onclick="if(event.target === this) this.classList.add('hidden')">
+        <div class="bg-white dark:bg-midnight-900 rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4 overflow-hidden border dark:border-midnight-800">
+            <div class="p-6 border-b dark:border-midnight-800 flex justify-between items-center bg-gray-50/50 dark:bg-midnight-950/50">
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white">Used Materials</h3>
+                <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'usedMaterialsTable')"
+                    class="border dark:border-midnight-700 rounded-xl px-4 py-2 text-sm focus:ring-indigo-500 bg-white dark:bg-midnight-950 dark:text-white ml-4">
+                <button onclick="document.getElementById('usedMaterialsModal').classList.add('hidden')"
+                    class="text-gray-500 hover:text-gray-700 dark:text-gray-400 text-2xl">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <table id="usedMaterialsTable" class="min-w-full divide-y divide-gray-200 dark:divide-midnight-800">
+                    <thead class="bg-gray-50 dark:bg-midnight-950/50">
+                        <tr class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                            <th class="px-6 py-3 text-left">Branch</th>
+                            <th class="px-6 py-3 text-left">Material</th>
+                            <th class="px-6 py-3 text-center">Quantity</th>
+                            <th class="px-6 py-3 text-left">Date Used</th>
+                            <th class="px-6 py-4 text-left">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
+                        {% for used in all_used_materials %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-midnight-800/50 transition-colors">
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{{ used.technician.username }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">{{ used.material.name }}</td>
+                            <td class="px-6 py-4 text-sm font-bold text-center text-gray-900 dark:text-white">
+                                <span class="bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 px-3 py-1 rounded-lg">
+                                    {{ used.quantity }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{{ used.added_at|date:"Y-m-d" }}</td>
+                            <td class="px-6 py-4 text-sm">
+                                <span class="px-3 py-1 text-[10px] font-bold uppercase rounded-full border
+                                    {% if used.status == 'Accepted' %}bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800/50
+                                    {% elif used.status == 'Rejected' %}bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800/50
+                                    {% else %}bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800/50{% endif %}">
+                                    {{ used.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                                <i class="fas fa-inbox text-4xl mb-3 text-gray-300 dark:text-midnight-800"></i><br>
+                                No used materials found
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="mt-6 text-right px-4">
+                    <a href="{% url 'noc:used_materials' %}" class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 font-bold flex items-center justify-end gap-2">
+                        Go to Used Materials Page <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Low Stock Modal -->
+    <div id="lowStockModal"
+        class="fixed inset-0 bg-gray-900/60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+        onclick="if(event.target === this) this.classList.add('hidden')">
+        <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col m-4 overflow-hidden">
+            <div class="p-6 bg-red-50 dark:bg-red-950/20 border-b dark:border-midnight-800 flex justify-between items-center">
+                <h3 class="text-xl font-bold text-red-800 dark:text-red-400 flex items-center">
+                    <i class="fas fa-triangle-exclamation mr-3 animate-pulse"></i>Stock Alerts
+                </h3>
+                <button onclick="document.getElementById('lowStockModal').classList.add('hidden')"
+                    class="text-red-800/50 hover:red-800 dark:text-red-400 text-2xl">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <table class="min-w-full divide-y dark:divide-midnight-800">
+                    <thead>
+                        <tr class="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b dark:border-midnight-800">
+                            <th class="px-6 py-4 text-left">Material</th>
+                            <th class="px-6 py-4 text-center">Remaining</th>
+                            <th class="px-6 py-4 text-right">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50 dark:divide-midnight-800">
+                        {% for item in low_stock_material_list %}
+                        <tr class="hover:bg-red-50/20 transition-colors">
+                            <td class="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">{{ item.name }}</td>
+                            <td class="px-6 py-4 text-sm font-black text-center text-rose-600">{{ item.quantity }}</td>
+                            <td class="px-6 py-4 text-right">
+                                <a href="{% url 'noc:materials' %}" class="px-3 py-1 bg-rose-600 text-white rounded-lg text-xs font-bold hover:bg-rose-700 transition">Refill</a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="px-6 py-12 text-center text-green-500 font-bold">All stock levels are optimal</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Internal Communication Modal -->
+    <div id="internalCommModal"
+        class="fixed inset-0 bg-gray-900/60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+        onclick="if(event.target === this) this.classList.add('hidden')">
+        <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl w-full max-w-2xl transform transition-all">
+            <div class="p-8 border-b dark:border-midnight-800 flex justify-between items-center bg-pink-50 dark:bg-pink-950/20">
+                <h3 class="text-2xl font-bold flex items-center text-pink-800 dark:text-pink-400">
+                    <i class="fas fa-comments mr-3"></i> Internal Communication
+                </h3>
+                <button onclick="document.getElementById('internalCommModal').classList.add('hidden')"
+                    class="text-pink-800/50 hover:text-pink-800 text-3xl font-light">&times;</button>
+            </div>
+            <div class="p-8 text-center">
+                <i class="fas fa-comment-dots text-6xl text-pink-200 dark:text-pink-900/40 mb-4"></i>
+                <p class="text-lg font-medium text-gray-800 dark:text-gray-200">Secure Messaging Module</p>
+                <p class="text-gray-500 dark:text-gray-400 mt-2 italic">Feature expanding in next update...</p>
+                <div class="mt-8 flex justify-center">
+                    <button onclick="document.getElementById('internalCommModal').classList.add('hidden')"
+                        class="px-8 py-3 bg-pink-600 text-white rounded-2xl font-bold hover:bg-pink-700 transition shadow-lg shadow-pink-200 dark:shadow-none">Close Dashboard View</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Destroy Materials Modal -->
+    <div id="destroyMaterialsModal"
+        class="fixed inset-0 bg-gray-900/60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+        onclick="if(event.target === this) this.classList.add('hidden')">
+        <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4 overflow-hidden">
+            <div class="p-6 border-b dark:border-midnight-800 flex justify-between items-center">
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white">Destroy Materials Log</h3>
+                <button onclick="document.getElementById('destroyMaterialsModal').classList.add('hidden')"
+                    class="text-gray-500 hover:text-gray-700 dark:text-gray-400 text-2xl">&times;</button>
+            </div>
+            <div class="p-12 text-center">
+                <i class="fas fa-trash-can text-7xl text-red-100 dark:text-red-900/20 mb-6"></i>
+                <p class="text-gray-600 dark:text-gray-400 text-lg">Destroy materials log feature coming soon!</p>
+                <p class="text-sm text-gray-400 mt-2">This module will track materials that have been disposed of or destroyed in the field.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Network Activity Table -->
+    <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-xl overflow-hidden border border-gray-100 dark:border-midnight-800 mt-8">
+        <div class="px-8 py-6 bg-gradient-to-r from-gray-50 to-white dark:from-midnight-950 dark:to-midnight-900 border-b border-gray-100 dark:border-midnight-800 flex justify-between items-center">
+            <h3 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+                <i class="fas fa-stream mr-4 text-indigo-600"></i>
+                Recent Network Activity ({{ recent_requests|length }})
+            </h3>
         </div>
         <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead class="bg-gray-50 dark:bg-gray-700">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-midnight-800">
+                <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
                     <tr>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Requester</th>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Material</th>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Qty</th>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Date</th>
+                        <th class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Branch</th>
+                        <th class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Material</th>
+                        <th class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Qty</th>
+                        <th class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Status</th>
                     </tr>
                 </thead>
-                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                <tbody class="bg-white dark:bg-midnight-900 divide-y divide-gray-200 dark:divide-midnight-800">
                     {% for req in recent_requests %}
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">{{ req.requested_at|date:"d M Y" }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">{{ req.requester.username }}</td>
-                        <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{{ req.material.name }}</td>
-                        <td class="px-6 py-4 text-sm font-bold text-indigo-600 dark:text-indigo-400">{{ req.quantity }}</td>
+                    <tr class="hover:bg-gray-50 dark:hover:bg-midnight-800/50 transition">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
+                            {{ req.requested_at|date:"d M Y" }}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
+                            {{ req.requester.username }}
+                        </td>
+                        <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
+                            {{ req.material.name }}
+                        </td>
+                        <td class="px-6 py-4 text-sm font-bold text-indigo-600 dark:text-indigo-400">
+                            {{ req.quantity }}
+                        </td>
                         <td class="px-6 py-4">
-                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                {% if req.status == 'Approved' %}bg-green-100 text-green-800{% elif req.status == 'Pending' %}bg-yellow-100 text-yellow-800{% else %}bg-red-100 text-red-800{% endif %}">
+                            <span class="px-3 py-1 inline-flex text-[10px] font-bold leading-5 rounded-full uppercase
+                                {% if req.status == 'Approved' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
+                                {% elif req.status == 'Pending' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
+                                {% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400{% endif %}">
                                 {{ req.status }}
                             </span>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No recent requests</td>
+                        <td colspan="5" class="px-6 py-16 text-center text-gray-500 text-lg dark:text-gray-400">
+                            <i class="fas fa-inbox text-6xl mb-4 text-gray-300 dark:text-midnight-800"></i><br>
+                            No recent requests detected
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -162,4 +450,33 @@
         </div>
     </div>
 </div>
+
+<script>
+    function filterTable(input, tableId) {
+        var filter = input.value.toUpperCase();
+        var table = document.getElementById(tableId);
+        var tr = table.getElementsByTagName("tr");
+
+        for (var i = 1; i < tr.length; i++) {
+            var visible = false;
+            var tds = tr[i].getElementsByTagName("td");
+            for (var j = 0; j < tds.length; j++) {
+                if (tds[j] && tds[j].innerText.toUpperCase().indexOf(filter) > -1) {
+                    visible = true;
+                    break;
+                }
+            }
+            tr[i].style.display = visible ? "" : "none";
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Handle data-redirect cards
+        document.querySelectorAll('[data-redirect]').forEach(card => {
+            card.addEventListener('click', function () {
+                window.location.href = this.getAttribute('data-redirect');
+            });
+        });
+    });
+</script>
 {% endblock %}

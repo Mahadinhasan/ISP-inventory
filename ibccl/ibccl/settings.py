@@ -103,9 +103,9 @@ SIMPLE_JWT = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'ibccl_materials',
-        'USER': 'postgres',
-        'PASSWORD': 'admin',
+        'NAME': 'isp_inventory',
+        'USER': 'openpg',
+        'PASSWORD': 'admin123',
         'HOST': 'localhost',
         'PORT': '5432',
     }
@@ -204,7 +204,7 @@ CACHES = {
         'OPTIONS': {
             'MAX_ENTRIES': 1000,
         },
-        'KEY_FUNCTION': lambda key: f'{settings.KEY_PREFIX}:{settings.VERSION}:{key}',
+        'KEY_FUNCTION': lambda key, key_prefix, version: f"{key_prefix}:{version}:{key}",
     }
 }
 

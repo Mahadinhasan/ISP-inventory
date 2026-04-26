@@ -363,6 +363,7 @@ class UsedMaterial(models.Model):
     # Technician and Material References
     technician = models.ForeignKey(User, on_delete=models.CASCADE, related_name='used_materials')
     material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name='used_instances')
+    material_request = models.ForeignKey('MaterialRequest', on_delete=models.SET_NULL, null=True, blank=True, related_name='used_materials', help_text="Associated MaterialRequest from branch user")
     # Client Information
     client_name = models.CharField(max_length=200, blank=True, verbose_name='Client Name')
     client_address = models.TextField(blank=True, verbose_name='Client Address')
@@ -371,7 +372,7 @@ class UsedMaterial(models.Model):
     quantity = models.IntegerField(default=1)
     issue = models.TextField(blank=True, verbose_name='Technical Issue / Notes')
     # Status and Notes
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Accepted')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
     admin_note = models.TextField(blank=True, verbose_name='Admin Notes')
     # Timestamps
     added_at = models.DateTimeField(auto_now_add=True)
@@ -389,6 +390,7 @@ class UsedMaterial(models.Model):
             models.Index(fields=['technician', '-added_at']),
             models.Index(fields=['material', '-added_at']),
             models.Index(fields=['status']),
+            models.Index(fields=['material_request', 'technician']),
         ]
 
     @property
@@ -406,8 +408,21 @@ class UsedMaterial(models.Model):
         """Return the full name of the technician."""
         return self.technician.get_full_name() or self.technician.username
     
+    def save(self, *args, **kwargs):
+        # Default empty fields to 'N/A' as requested
+        if not self.client_name:
+            self.client_name = 'N/A'
+        if not self.client_address:
+            self.client_address = 'N/A'
+        if not self.client_phone:
+            self.client_phone = 'N/A'
+        if not self.issue:
+            self.issue = 'N/A'
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"{self.technician_full_name} - {self.material_name} ({self.quantity}x) - {self.added_at.strftime('%Y-%m-%d')}"
+        request_info = f" [Req#{self.material_request.id}]" if self.material_request else ""
+        return f"{self.technician_full_name} - {self.material_name} ({self.quantity}x) - {self.added_at.strftime('%Y-%m-%d')}{request_info}"
 
 
 class BackupRestore(models.Model):

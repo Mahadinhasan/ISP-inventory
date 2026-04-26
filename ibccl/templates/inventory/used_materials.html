@@ -16,9 +16,14 @@
     </div>
     <!-- Filter & Search Row -->
     <div class="flex flex-col md:flex-row justify-end items-start md:items-center gap-3 mb-4">
-        <form method="get" class="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+        <form method="get" id="inventory-filter-form" class="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+            <!-- Preserve tab_id for session consistency -->
+            {% if request.GET.tab_id %}
+            <input type="hidden" name="tab_id" value="{{ request.GET.tab_id }}">
+            {% endif %}
+            
             {% if role == 'Admin' or role == 'Storekeeper' %}
-            <select name="user_id" onchange="this.form.submit()"
+            <select name="user_id" onchange="submitInventoryFilterForm()"
                 class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white text-sm font-medium min-w-[160px] w-full sm:w-auto">
                 <option value="">All Users</option>
                 {% for branch_user in branch_users %}
@@ -541,6 +546,33 @@
         // Initial category update
         updateCategory();
     });
+
+    // Helper function to ensure tab_id is always in the form before submission
+    function submitInventoryFilterForm() {
+        const form = document.getElementById('inventory-filter-form');
+        const tabIdInput = form.querySelector('input[name="tab_id"]');
+        
+        // Get tab_id from sessionStorage
+        let tabId = sessionStorage.getItem('tab_id');
+        if (!tabId) {
+            tabId = Math.random().toString(36).substring(2, 10);
+            sessionStorage.setItem('tab_id', tabId);
+        }
+        
+        // Add or update tab_id in the form
+        if (tabIdInput) {
+            tabIdInput.value = tabId;
+        } else {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'tab_id';
+            input.value = tabId;
+            form.appendChild(input);
+        }
+        
+        // Submit the form
+        form.submit();
+    }
 </script>
 
 <style>

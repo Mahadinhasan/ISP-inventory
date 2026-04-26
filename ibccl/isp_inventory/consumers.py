@@ -2,6 +2,7 @@ import json
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth.models import User
+from django.core.cache import cache
 
 MATERIALS_MONITORING_GROUP = 'materials_monitoring'
 USER_NOTIFICATION_GROUP_PREFIX = 'user_notifications_'
@@ -156,6 +157,7 @@ class NotificationsConsumer(AsyncJsonWebsocketConsumer):
 
 # Group name for all status updates
 PRESENCE_GROUP = 'user_presence'
+PRESENCE_CONNECTION_KEY_PREFIX = 'presence_connections_'
 
 
 @database_sync_to_async
@@ -173,6 +175,48 @@ def set_user_online_status(user, is_online):
         return False
 
 
+def _presence_connection_key(user_id):
+    return f"{PRESENCE_CONNECTION_KEY_PREFIX}{user_id}"
+
+
+@database_sync_to_async
+def increment_presence_connections(user):
+    """Track active websocket connections per user to avoid false offline state across tabs."""
+    if not user or not user.is_authenticated:
+        return 0
+
+    key = _presence_connection_key(user.id)
+    count = (cache.get(key) or 0) + 1
+    cache.set(key, count, timeout=60 * 60 * 24)
+    return count
+
+
+@database_sync_to_async
+def decrement_presence_connections(user):
+    """Decrease active websocket connection count for the user."""
+    if not user or not user.is_authenticated:
+        return 0
+
+    key = _presence_connection_key(user.id)
+    current_count = cache.get(key) or 0
+    next_count = max(current_count - 1, 0)
+
+    if next_count == 0:
+        cache.delete(key)
+    else:
+        cache.set(key, next_count, timeout=60 * 60 * 24)
+
+    return next_count
+
+
+@database_sync_to_async
+def get_noc_user_ids():
+    """Return all NOC user ids so their monitoring pages can receive live presence updates."""
+    return list(
+        User.objects.filter(userprofile__role='NOC').values_list('id', flat=True)
+    )
+
+
 class PresenceConsumer(AsyncJsonWebsocketConsumer):
     """Real-time presence: tracks online/offline status of users."""
 
@@ -185,70 +229,73 @@ class PresenceConsumer(AsyncJsonWebsocketConsumer):
         await self.channel_layer.group_add(PRESENCE_GROUP, self.channel_name)
         await self.accept()
 
-        # Mark user as online in DB
-        await set_user_online_status(self.user, True)
-
-        # Broadcast status update globally
-        await self.channel_layer.group_send(
-            PRESENCE_GROUP,
-            {
-                'type': 'status_update',
-                'payload': {
-                    'user_id': self.user.id,
-                    'username': self.user.username,
-                    'status': 'online'
-                }
-            }
-        )
-
-        # Also broadcast to materials monitoring group for admins
-        await self.channel_layer.group_send(
-            MATERIALS_MONITORING_GROUP,
-            {
-                'type': 'user_status_change',
-                'payload': {
-                    'user_id': self.user.id,
-                    'status': 'online'
-                }
-            }
-        )
+        connection_count = await increment_presence_connections(self.user)
+        if connection_count == 1:
+            await set_user_online_status(self.user, True)
+            await self.broadcast_presence_status('online')
 
     async def disconnect(self, close_code):
         if hasattr(self, 'user') and self.user.is_authenticated:
-            # Mark user as offline in DB
-            await set_user_online_status(self.user, False)
-
-            # Broadcast status update globally
-            await self.channel_layer.group_send(
-                PRESENCE_GROUP,
-                {
-                    'type': 'status_update',
-                    'payload': {
-                        'user_id': self.user.id,
-                        'username': self.user.username,
-                        'status': 'offline'
-                    }
-                }
-            )
-
-            # Also broadcast to materials monitoring group for admins
-            await self.channel_layer.group_send(
-                MATERIALS_MONITORING_GROUP,
-                {
-                    'type': 'user_status_change',
-                    'payload': {
-                        'user_id': self.user.id,
-                        'status': 'offline'
-                    }
-                }
-            )
+            remaining_connections = await decrement_presence_connections(self.user)
+            if remaining_connections == 0:
+                await set_user_online_status(self.user, False)
+                await self.broadcast_presence_status('offline')
         
         if hasattr(self, 'channel_name'):
             await self.channel_layer.group_discard(PRESENCE_GROUP, self.channel_name)
 
+    async def receive_json(self, content):
+        """Handle manual status override from client."""
+        msg_type = content.get('type')
+        if msg_type == 'set_status':
+            status = content.get('status')
+            if status in ['online', 'offline']:
+                is_online = (status == 'online')
+                await set_user_online_status(self.user, is_online)
+                await self.broadcast_presence_status(status)
+
     async def status_update(self, event):
         """Forward status updates from group to client."""
         await self.send_json(event)
+
+    async def broadcast_presence_status(self, status):
+        """Broadcast presence state to the shared presence group and monitoring dashboards."""
+        presence_payload = {
+            'user_id': self.user.id,
+            'username': self.user.username,
+            'status': status,
+        }
+
+        await self.channel_layer.group_send(
+            PRESENCE_GROUP,
+            {
+                'type': 'status_update',
+                'payload': presence_payload,
+            }
+        )
+
+        monitoring_payload = {
+            'user_id': self.user.id,
+            'status': status,
+        }
+
+        await self.channel_layer.group_send(
+            MATERIALS_MONITORING_GROUP,
+            {
+                'type': 'user_status_change',
+                'payload': monitoring_payload,
+            }
+        )
+
+        noc_user_ids = await get_noc_user_ids()
+        for noc_user_id in noc_user_ids:
+            await self.channel_layer.group_send(
+                f"materials_monitoring_noc_{noc_user_id}",
+                {
+                    'type': 'user_status_change',
+                    'payload': monitoring_payload,
+                }
+            )
 
 
 class ChatConsumer(AsyncJsonWebsocketConsumer):

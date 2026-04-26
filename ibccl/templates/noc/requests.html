@@ -1,63 +1,238 @@
 {% extends 'noc/base.html' %}
-{% block title %}Internet Material Requests{% endblock %}
+{% block title %}Material Requests{% endblock %}
+
 {% block content %}
 <div class="fade-in">
-    <div class="flex justify-between items-center mb-8">
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Internet Material Requests</h1>
-    </div>
+    <div class="flex flex-col md:flex-row justify-between items-center mb-10 gap-6 px-4 pt-6">
+        <div>
+            <h1 class="text-4xl font-black text-gray-900 dark:text-white tracking-tight">Material Requests</h1>
+            <p class="text-gray-500 dark:text-gray-400 font-medium">Manage branch material requests</p>
+        </div>
+        
+        <div class="flex gap-2">
+            <form method="get" class="flex items-center group">
+                <input type="text" name="search" placeholder="Search..." value="{{ request.GET.search }}"
+                    class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-l-2xl px-6 py-3 focus:outline-none focus:border-indigo-500 transition-all w-64 dark:text-white">
+                <button type="submit"
+                    class="bg-gray-100 dark:bg-midnight-800 text-gray-500 dark:text-gray-400 px-5 py-3 rounded-r-2xl border-2 border-l-0 border-gray-100 dark:border-midnight-800 hover:bg-gray-200 dark:hover:bg-midnight-700 transition-all">
+                    <i class="fas fa-search"></i>
+                </button>
+            </form>
 
-    <!-- Requests Table -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead class="bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Requester</th>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Material</th>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Qty</th>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Date</th>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
-                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {% for req in requests %}
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                        <td class="px-6 py-4 text-sm text-gray-900 dark:text-white">{{ req.requester.username }}</td>
-                        <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{{ req.material.name }}</td>
-                        <td class="px-6 py-4 text-sm font-bold text-indigo-600 dark:text-indigo-400">{{ req.quantity }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ req.requested_at|date:"d M Y" }}</td>
-                        <td class="px-6 py-4">
-                            <span class="px-3 py-1 text-xs font-semibold rounded-full 
-                                {% if req.status == 'Approved' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400{% elif req.status == 'Pending' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400{% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400{% endif %}">
-                                {{ req.status }}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 text-right">
-                            {% if req.status == 'Pending' %}
-                            <div class="flex justify-end space-x-2">
-                                <form method="POST" action="{% url 'noc:approve_request' req.pk %}">
-                                    {% csrf_token %}
-                                    <button type="submit" class="px-3 py-1 bg-green-500 hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-700 text-white rounded-md transition text-xs shadow-md">Approve</button>
-                                </form>
-                                <form method="POST" action="{% url 'noc:reject_request' req.pk %}">
-                                    {% csrf_token %}
-                                    <button type="submit" class="px-3 py-1 bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700 text-white rounded-md transition text-xs shadow-md">Reject</button>
-                                </form>
-                            </div>
-                            {% else %}
-                            <span class="text-xs text-gray-400 dark:text-gray-500">Processed</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="6" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">No requests found.</td>
-                    </tr>
+            <!--select user dropdown for NOC role -->
+            <form method="get" id="user-filter-form" class="flex items-center">
+                <!-- Preserve tab_id for session consistency -->
+                {% if request.GET.tab_id %}
+                <input type="hidden" name="tab_id" value="{{ request.GET.tab_id }}">
+                {% endif %}
+                
+                <select name="user" onchange="submitUserFilterForm()"
+                    class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white">
+                    <option value="">All Branches</option>
+                    {% for u in users %}
+                    <option value="{{ u.id }}" {% if request.GET.user == u.id|stringformat:"i" %}selected{% endif %}>
+                        {{ u.username }}</option>
                     {% endfor %}
-                </tbody>
-            </table>
+                </select>
+            </form>
         </div>
     </div>
+
+    <!--Request count-->
+    <div class="flex flex-wrap gap-4 mb-8 px-4">
+        <div class="px-5 py-2.5 bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 rounded-xl border border-yellow-100 dark:border-yellow-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
+            <i class="fas fa-hourglass-half"></i> Pending: {{ pending_count }}
+        </div>
+        <div class="px-5 py-2.5 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 rounded-xl border border-green-100 dark:border-green-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
+            <i class="fas fa-check"></i> Approved: {{ approved_count }}
+        </div>
+        <div class="px-5 py-2.5 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 rounded-xl border border-red-100 dark:border-red-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
+            <i class="fas fa-times"></i> Rejected: {{ rejected_count }}
+        </div>
+    </div>
+
+    <!-----------Unified Requests Table----------->
+    <div class="bg-white/40 dark:bg-midnight-900/40 glass-card rounded-[0.6rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-midnight-800 mx-4">
+        <table class="min-w-full divide-y divide-gray-100 dark:divide-midnight-800">
+            <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
+                <tr class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th class="px-5 py-4 text-left">Branch</th>
+                    <th class="px-5 py-4 text-left">Material</th>
+                     <th class="px-5 py-4 text-left text-center">Qty</th>
+                     <th class="px-5 py-4 text-left">Date</th>
+                    <th class="px-5 py-4 text-left">Send By</th>
+                    <th class="px-5 py-4 text-left">Status</th>
+                    <th class="px-5 py-4 text-left">NOC Note</th>
+                    <th class="px-5 py-4 text-left">Received By</th>
+                    <th class="px-5 py-4 text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
+                {% for req in requests %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-midnight-800/50 transition">
+                    <td class="px-4 py-4 text-sm text-gray-900 dark:text-white">{{ req.requester.username }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900 dark:text-white">{{ req.material.name }}</td>
+                    <td class="px-4 py-4 text-sm font-bold text-indigo-600 dark:text-indigo-400 bg-gray-50 dark:bg-midnight-950/50 rounded text-center">{{ req.quantity }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">{{ req.requested_at|date:"Y-M-d" }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-500 dark:text-gray-400 italic max-w-xs truncate">{{ req.send_by|default:"Unknown" }}</td>
+                    <td class="px-4 py-4">
+                        <span class="px-3 py-1 text-xs font-semibold rounded-full border 
+                            {% if req.status == 'Pending' %}bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/40 dark:text-yellow-400
+                            {% elif req.status == 'Approved' %}bg-green-100 text-green-800 border-green-200 dark:bg-green-900/40 dark:text-green-400
+                            {% else %}bg-red-100 text-red-800 border-red-200 dark:bg-red-900/40 dark:text-red-400{% endif %}">
+                            {{ req.status }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-4 text-sm text-gray-500 dark:text-gray-400 italic max-w-xs truncate">{{ req.admin_note|default:"N/A" }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-500 dark:text-gray-400 italic max-w-xs truncate">{{ req.received_by|default:"Not Received" }}</td>
+                    <td class="px-6 py-4 text-sm text-center">
+                        <button onclick="openAdminModal('{{ req.id }}', '{{ req.admin_note|escapejs }}', '{{ req.quantity }}')"
+                            class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 font-medium bg-indigo-50 dark:bg-indigo-900/50 px-3 py-1 rounded-lg hover:bg-indigo-100 transition">
+                            Manage
+                        </button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="10" class="px-6 py-12 text-center text-gray-500 text-xl dark:text-gray-400">
+                        <i class="fas fa-inbox text-4xl mb-3 text-gray-300"></i><br>
+                        No requests found
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
+
+<!-- NOC Manage Modal -->
+<div id="adminModal"
+    class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm">
+    <div class="bg-white dark:bg-midnight-900 rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all border dark:border-midnight-800">
+        <h3 class="text-xl font-bold mb-4 text-gray-800 dark:text-white">Manage Request</h3>
+        <form id="adminForm" method="POST" action="{% url 'noc:requests' %}">
+            {% csrf_token %}
+            <input type="hidden" name="req_id" id="adminReqId">
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-400 mb-2">Note/Response</label>
+                <input type="text" name="admin_note" id="adminNote"
+                    class="w-full bg-gray-50 dark:bg-midnight-950 border-gray-300 dark:border-midnight-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2 dark:text-white"
+                    placeholder="Enter reason or comments...">
+            </div>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-400 mb-2">Quantity</label>
+                <input type="text" name="quantity" id="adminQuantity"
+                    class="w-full bg-gray-50 dark:bg-midnight-950 border-gray-300 dark:border-midnight-800 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2 dark:text-white"
+                    placeholder="Enter quantity...">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <button type="submit" name="action" value="accept"
+                    class="flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 transition">
+                    <i class="fas fa-check mr-2"></i> Approve
+                </button>
+                <button type="submit" name="action" value="reject"
+                    class="flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition">
+                    <i class="fas fa-times mr-2"></i> Reject
+                </button>
+            </div>
+            
+            <button type="submit" name="action" value="save_note"
+                class="w-full flex justify-center items-center py-2 px-4 border border-indigo-600 rounded-md shadow-sm text-sm font-medium text-indigo-600 dark:text-indigo-400 bg-white dark:bg-transparent hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition mb-3">
+                Save Note Only
+            </button>
+            
+            <button type="submit" name="action" value="delete"
+                onclick="return confirm('Are you sure you want to PERMANENTLY delete this request?')"
+                class="w-full flex justify-center items-center py-2 px-4 border border-red-300 rounded-md shadow-sm text-sm font-medium text-red-600 bg-red-50 dark:bg-transparent hover:bg-red-100 transition mb-3">
+                <i class="fas fa-trash-alt mr-2"></i> Delete Request
+            </button>
+
+            <button type="button" onclick="document.getElementById('adminModal').classList.add('hidden')"
+                class="w-full py-2 bg-gray-100 dark:bg-midnight-800 text-gray-700 dark:text-gray-400 rounded-md hover:bg-gray-200 transition text-sm font-medium">
+                Close
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Pagination Controls -->
+{% if page_obj.has_other_pages %}
+<div class="flex justify-end mt-6 px-4">
+    <nav class="inline-flex -space-x-px" aria-label="Pagination">
+        {% if page_obj.has_previous %}
+        <a href="?search={{ request.GET.search }}&user={{ request.GET.user }}&page={{ page_obj.previous_page_number }}"
+            class="px-3 py-2 ml-0 leading-tight text-gray-500 bg-white dark:bg-midnight-900 border border-gray-300 dark:border-midnight-800 rounded-l-lg hover:bg-gray-100 transition">
+            <i class="fas fa-chevron-left"></i>
+        </a>
+        {% endif %}
+
+        {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+            <span class="px-3 py-2 leading-tight text-white bg-indigo-600 border border-indigo-600">{{ num }}</span>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <a href="?search={{ request.GET.search }}&user={{ request.GET.user }}&page={{ num }}"
+                class="px-3 py-2 leading-tight text-gray-500 bg-white dark:bg-midnight-900 border border-gray-300 dark:border-midnight-800 hover:bg-gray-100 transition">{{ num }}</a>
+            {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+        <a href="?search={{ request.GET.search }}&user={{ request.GET.user }}&page={{ page_obj.next_page_number }}"
+            class="px-3 py-2 leading-tight text-gray-500 bg-white dark:bg-midnight-900 border border-gray-300 dark:border-midnight-800 rounded-r-lg hover:bg-gray-100 transition">
+            <i class="fas fa-chevron-right"></i>
+        </a>
+        {% endif %}
+    </nav>
+</div>
+{% endif %}
+
+<script>
+    function openAdminModal(id, note, quantity) {
+        document.getElementById('adminReqId').value = id;
+        document.getElementById('adminNote').value = note;
+        document.getElementById('adminQuantity').value = quantity;
+        document.getElementById('adminModal').classList.remove('hidden');
+    }
+
+    // Close on outside click or escape
+    window.onclick = function (event) {
+        if (event.target.id === 'adminModal') {
+            document.getElementById('adminModal').classList.add('hidden');
+        }
+    }
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            document.getElementById('adminModal').classList.add('hidden');
+        }
+    });
+
+    // Helper function to ensure tab_id is always in the form before submission
+    function submitUserFilterForm() {
+        const form = document.getElementById('user-filter-form');
+        const tabIdInput = form.querySelector('input[name="tab_id"]');
+        
+        // Get tab_id from sessionStorage
+        let tabId = sessionStorage.getItem('tab_id');
+        if (!tabId) {
+            tabId = Math.random().toString(36).substring(2, 10);
+            sessionStorage.setItem('tab_id', tabId);
+        }
+        
+        // Add or update tab_id in the form
+        if (tabIdInput) {
+            tabIdInput.value = tabId;
+        } else {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'tab_id';
+            input.value = tabId;
+            form.appendChild(input);
+        }
+        
+        // Submit the form
+        form.submit();
+    }
+</script>
 {% endblock %}

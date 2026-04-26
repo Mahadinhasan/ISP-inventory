@@ -1,5 +1,7 @@
-{% extends 'inventory/base.html' %}
+{% extends 'noc/base.html' %}
 {% load static %}
+
+{% block title %}ISP-Inventory: My Profile{% endblock %}
 
 {% block content %}
 <div class="min-h-screen bg-transparent py-12 px-4 sm:px-6 lg:px-8">
@@ -17,7 +19,7 @@
                             <img src="https://ui-avatars.com/api/?name={{ user.username }}&background=6366f1&color=fff&size=128&bold=true" 
                                  class="w-32 h-32 rounded-3xl border-4 border-white dark:border-midnight-900 shadow-xl group-hover:scale-[1.02] transition-transform duration-300">
                         {% endif %}
-                        <div data-status-id="{{ user.id }}" class="status-indicator-badge absolute bottom-2 right-2 w-5 h-5 rounded-full border-4 border-white dark:border-midnight-900 {% if profile.is_online %}bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]{% else %}bg-gray-400{% endif %} shadow-sm"></div>
+                        <div data-status-id="{{ user.id }}" class="status-indicator-badge absolute bottom-2 right-2 w-5 h-5 rounded-full border-4 border-white dark:border-midnight-900 {% if user.userprofile.is_online %}bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]{% else %}bg-gray-400{% endif %} shadow-sm"></div>
                     </div>
                     <div class="flex gap-3">
                         <button type="button" onclick="window.history.back()" class="px-5 py-2.5 rounded-xl border-2 border-gray-100 dark:border-midnight-800 text-gray-500 dark:text-gray-400 font-bold hover:bg-gray-50 dark:hover:bg-midnight-800 transition-all flex items-center">
@@ -33,7 +35,7 @@
                     <div>
                         <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-1">{{ user.username }}</h1>
                         <p class="text-indigo-600 dark:text-indigo-400 font-bold flex items-center">
-                            <i class="fas fa-shield-alt mr-2"></i>{{ profile.role|default:"User" }}
+                            <i class="fas fa-shield-alt mr-2"></i>{{ user.userprofile.role|default:"NOC" }}
                         </p>
                     </div>
                     <div class="text-right">
@@ -58,7 +60,7 @@
                     </h3>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {% if profile.role == 'Admin' %}
+                        {% if user.userprofile.role == 'Admin' %}
                         <div class="md:col-span-2">
                             <label class="block text-sm font-semibold text-gray-700 mb-2">Username</label>
                             <input type="text" name="username" value="{{ user.username }}"
@@ -69,7 +71,7 @@
                             <label class="block text-sm font-semibold text-gray-400 mb-2">Username (Locked)</label>
                             <input type="text" value="{{ user.username }}" disabled
                                    class="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl text-gray-400 cursor-not-allowed">
-                            <p class="mt-1 text-xs text-gray-400 italic">usernames can only be changed by administrators.</p>
+                            <p class="mt-1 text-xs text-gray-400 italic">Usernames can only be changed by administrators.</p>
                         </div>
                         {% endif %}
 
@@ -93,7 +95,7 @@
 
                         <div class="md:col-span-2">
                             <label class="block text-sm font-semibold text-gray-700 mb-2">Phone Number</label>
-                            <input type="text" name="phone" value="{{ profile.phone }}"
+                            <input type="text" name="phone" value="{{ user.userprofile.phone }}"
                                    class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl focus:border-indigo-500 focus:bg-white dark:focus:bg-midnight-900 transition-all dark:text-white">
                         </div>
                     </div>
@@ -106,17 +108,17 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="md:col-span-2">
                             <label class="block text-sm font-semibold text-gray-700 mb-2">Address</label>
-                            <input type="text" name="address" value="{{ profile.address }}"
+                            <input type="text" name="address" value="{{ user.userprofile.address|default:'' }}"
                                    class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl focus:border-indigo-500 focus:bg-white dark:focus:bg-midnight-900 transition-all dark:text-white">
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">City</label>
-                            <input type="text" name="city" value="{{ profile.city }}"
+                            <input type="text" name="city" value="{{ user.userprofile.city|default:'' }}"
                                    class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl focus:border-indigo-500 focus:bg-white dark:focus:bg-midnight-900 transition-all dark:text-white">
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">Zip Code</label>
-                            <input type="text" name="zip_code" value="{{ profile.zip_code }}"
+                            <input type="text" name="zip_code" value="{{ user.userprofile.zip_code|default:'' }}"
                                    class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl focus:border-indigo-500 focus:bg-white dark:focus:bg-midnight-900 transition-all dark:text-white">
                         </div>
                     </div>
@@ -130,8 +132,8 @@
                     <div class="space-y-4">
                         <div class="flex flex-col items-center">
                             <div class="relative w-full aspect-square rounded-2xl overflow-hidden border-2 border-dashed border-gray-200 dark:border-midnight-800 mb-4 bg-gray-50 dark:bg-midnight-950 flex items-center justify-center p-2 group hover:border-indigo-300 transition-colors">
-                                {% if profile.image %}
-                                    <img id="imagePreview" src="{{ profile.image.url }}" class="w-full h-full object-cover rounded-xl shadow-sm">
+                                {% if user.userprofile.image %}
+                                    <img id="imagePreview" src="{{ user.userprofile.image.url }}" class="w-full h-full object-cover rounded-xl shadow-sm">
                                 {% else %}
                                     <div id="imagePlaceholder" class="text-center">
                                         <i class="fas fa-cloud-upload-alt text-4xl text-gray-300 mb-2"></i>
@@ -161,7 +163,7 @@
                             <div class="relative">
                                 <input type="password" name="password" id="password-input"
                                        placeholder="••••••••"
-                                       class="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-red-500 focus:bg-white transition-all pr-12">
+                                       class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl focus:border-red-500 focus:bg-white dark:focus:bg-midnight-900 transition-all pr-12 dark:text-white">
                                 <button type="button" onclick="togglePassVisibility()" class="absolute inset-y-0 right-0 px-4 flex items-center">
                                     <i id="pass-icon" class="fas fa-eye text-gray-300 hover:text-indigo-500"></i>
                                 </button>
@@ -211,7 +213,7 @@ function togglePassVisibility() {
     }
 }
 
-// Reuse the password validation logic
+// Password validation logic
 const passwordInput = document.getElementById('password-input');
 const reqBox = document.getElementById('password-requirements');
 

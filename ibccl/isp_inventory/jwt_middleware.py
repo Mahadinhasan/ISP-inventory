@@ -14,33 +14,65 @@ class JWTCookieAuthMiddleware(MiddlewareMixin):
 
     def process_request(self, request):
         tab_id = request.GET.get('tab_id') or request.POST.get('tab_id')
-        request.user = AnonymousUser()
+        if not tab_id:
+            return
 
-        if tab_id:
-            request.tab_id = tab_id
-            cookie_name = f'jwt_access_{tab_id}'
-            token = request.COOKIES.get(cookie_name)
-            if token:
+        request.tab_id = tab_id
+        access_token = request.COOKIES.get(f'jwt_access_{tab_id}')
+        user = None
+
+        if access_token:
+            try:
+                validated = AccessToken(access_token)
+                user = User.objects.get(pk=validated['user_id'])
+            except:
+                pass
+
+        # If access token is invalid, try refresh token
+        if not user:
+            refresh_token = request.COOKIES.get(f'jwt_refresh_{tab_id}')
+            if refresh_token:
                 try:
-                    validated = AccessToken(token)
-                    user_id = validated['user_id']
-                    user = User.objects.get(pk=user_id)
-                    if user.is_active:
-                        request.user = user
-                        request._jwt_authenticated = True
-                except (InvalidToken, TokenError, User.DoesNotExist, KeyError):
+                    from rest_framework_simplejwt.tokens import RefreshToken
+                    rt = RefreshToken(refresh_token)
+                    user = User.objects.get(pk=rt['user_id'])
+                    # If we got here, we should issue a new access token
+                    request._new_access_token = str(rt.access_token)
+                except:
                     pass
 
+        if user and user.is_active:
+            request.user = user
+            request._jwt_authenticated = True
+
     def process_response(self, request, response):
-        """If returning a redirect, append tab_id to keep the tab session."""
-        if hasattr(request, 'tab_id') and hasattr(response, 'url'):
+        tab_id = getattr(request, 'tab_id', None)
+        if not tab_id:
+            return response
+
+        # 1. Handle auto-refresh of access token
+        new_token = getattr(request, '_new_access_token', None)
+        if new_token:
+            from django.conf import settings
+            jwt_cfg = getattr(settings, 'SIMPLE_JWT', {})
+            response.set_cookie(
+                f'jwt_access_{tab_id}',
+                new_token,
+                max_age=int(jwt_cfg.get('ACCESS_TOKEN_LIFETIME').total_seconds()),
+                httponly=True,
+                secure=jwt_cfg.get('AUTH_COOKIE_SECURE', False),
+                samesite=jwt_cfg.get('AUTH_COOKIE_SAMESITE', 'Lax'),
+            )
+
+        # 2. Append tab_id to redirects to maintain tab session
+        if hasattr(response, 'url'):
             url = response.url
             if url.startswith('/') or url.startswith(request.build_absolute_uri('/')):
                 from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
                 parsed = urlparse(url)
                 query = dict(parse_qsl(parsed.query))
                 if 'tab_id' not in query:
-                    query['tab_id'] = request.tab_id
+                    query['tab_id'] = tab_id
                     new_query = urlencode(query)
                     new_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
                     response['Location'] = new_url

@@ -245,24 +245,19 @@ class UsedMaterialForm(forms.ModelForm):
                     )
                     approved_material_ids = approved_requests.values_list('material', flat=True).distinct()
                     
-                    # Filter material queryset to only approved materials with Normal status
+                    # Filter material queryset to only approved materials
                     self.fields['material'].queryset = Material.objects.filter(
-                        id__in=approved_material_ids,
-                        status='Normal'
+                        id__in=approved_material_ids
                     ).select_related().order_by('name')
                     
-                    self.fields['material'].help_text = 'Only approved materials with Normal stock are available'
+                    self.fields['material'].help_text = 'Only approved materials are available'
                 else:
-                    # Admin/Storekeeper can see Normal status materials only
-                    self.fields['material'].queryset = Material.objects.filter(
-                        status='Normal'
-                    ).order_by('name')
-                    self.fields['material'].help_text = 'Only materials with Normal stock are available'
+                    # Admin/Storekeeper can see all materials
+                    self.fields['material'].queryset = Material.objects.all().order_by('name')
+                    self.fields['material'].help_text = 'All materials are available'
             except Exception:
-                # Fallback to Normal status materials if profile check fails
-                self.fields['material'].queryset = Material.objects.filter(
-                    status='Normal'
-                ).order_by('name')
+                # Fallback to all materials
+                self.fields['material'].queryset = Material.objects.all().order_by('name')
     
     
     def clean(self):
@@ -318,13 +313,7 @@ class UsedMaterialForm(forms.ModelForm):
         if not material:
             raise forms.ValidationError("Material is required.")
         
-        # Check if material status is Normal (only for new records)
-        if not self.instance or not self.instance.pk:
-            if material.status != 'Normal':
-                raise forms.ValidationError(
-                    f"Can only use materials with Normal status. '{material.name}' has status: {material.status}"
-                )
-        
+        # Status check removed to allow use of Low Stock materials already in possession
         # Only validate approval for Branch
         if self.user:
             try:

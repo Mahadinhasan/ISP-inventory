@@ -177,8 +177,8 @@
                     <i class="fa-solid fa-server mr-2 text-3xl text-teal-600 dark:text-teal-400"></i>
                 </div>
                 <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">PoP</p>
-                    <p class="text-sm font-medium text-gray-1000 dark:text-gray-400">Server/PoP/Area</p>
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Used Materials</p>
+                    <p class="text-sm font-medium text-gray-1000 dark:text-gray-400">PoP/Server/Area</p>
                 </div>
             </div>
         </div>
@@ -676,6 +676,87 @@
             </div>
         </div>
     </div>
+    <!-- popModal for Used Materials -->
+    <div id="popModal"
+        class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+        onclick="if(event.target === this) this.classList.add('hidden')">
+        <div class="bg-white dark:bg-midnight-900 rounded-xl shadow-2xl p-8 w-full max-w-2xl transform transition-all scale-100">
+            <div class="flex justify-between items-center mb-6 border-b pb-4 border-gray-100 dark:border-midnight-800">
+                <h3 class="text-2xl font-bold flex items-center text-gray-800 dark:text-white">
+                    <i class="fas fa-tools mr-3 text-teal-500"></i> Add Used Material
+                </h3>
+                <button onclick="document.getElementById('popModal').classList.add('hidden')"
+                    class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white text-2xl transition">&times;</button>
+            </div>
+            <form method="post" action="{% url 'used_materials' %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="col-span-1">
+                        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Material Name</label>
+                        <select name="material" id="popMaterial" required onchange="updatePopCategory(this)"
+                            class="w-full px-4 py-2 border-2 border-gray-200 dark:border-midnight-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent dark:bg-midnight-950 dark:text-white transition">
+                            <option value="">Select Material</option>
+                            {% if technician_approved_materials %}
+                                {% for req in technician_approved_materials %}
+                                    <option value="{{ req.material.id }}" data-category="{{ req.material.category }}">{{ req.material.name }}</option>
+                                {% endfor %}
+                            {% else %}
+                                <option disabled>No approved materials available</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div class="col-span-1">
+                        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Auto Category</label>
+                        <input type="text" id="popCategory" placeholder="N/A" readonly
+                            class="w-full px-4 py-2 border-2 border-gray-200 dark:border-midnight-800 rounded-xl bg-gray-50 dark:bg-midnight-950 dark:text-gray-400 focus:outline-none transition">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Address</label>
+                        <textarea name="client_address" placeholder="N/A"
+                            class="w-full px-4 py-2 border-2 border-gray-200 dark:border-midnight-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent dark:bg-midnight-950 dark:text-white transition"
+                            rows="2"></textarea>
+                    </div>
+                    <div class="col-span-1">
+                        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Issue / Notes</label>
+                        <textarea name="issue" placeholder="N/A"
+                            class="w-full px-4 py-2 border-2 border-gray-200 dark:border-midnight-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent dark:bg-midnight-950 dark:text-white transition"
+                            rows="2"></textarea>
+                    </div>
+                    <div class="col-span-1">
+                        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Status</label>
+                        <select name="status"
+                            class="w-full px-4 py-2 border-2 border-gray-200 dark:border-midnight-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent dark:bg-midnight-950 dark:text-white transition">
+                            <option value="Accepted">Accepted</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Rejected">Rejected</option>
+                        </select>
+                    </div>
+                    <div class="hidden">
+                        <input type="number" name="quantity" value="1">
+                        <input type="text" name="client_name" value="N/A">
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-4 mt-8 border-t pt-6 border-gray-100 dark:border-midnight-800">
+                    <button type="button"
+                        onclick="document.getElementById('popModal').classList.add('hidden')"
+                        class="px-6 py-2 border border-gray-300 dark:border-midnight-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-midnight-800 transition font-medium">Cancel</button>
+                    <button type="submit"
+                        class="px-8 py-2 bg-gradient-to-r from-teal-500 to-emerald-600 text-white rounded-lg hover:from-teal-600 hover:to-emerald-700 transition font-bold shadow-lg transform hover:-translate-y-1">
+                        <i class="fas fa-save mr-2"></i> Record Entry
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function updatePopCategory(select) {
+            const selectedOption = select.options[select.selectedIndex];
+            const category = selectedOption.getAttribute('data-category');
+            document.getElementById('popCategory').value = category || 'N/A';
+        }
+    </script>
 </div>
 <!--Today's Used Materials-->
 {% if user.userprofile.role != 'Branch' and user.userprofile.role != 'Storekeeper' %}

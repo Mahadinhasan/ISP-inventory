@@ -5,21 +5,21 @@
 <head>
     <script>
         // Multi-tab Session Logic
-        (function() {
+        (function () {
             let tabId = sessionStorage.getItem('tab_id');
             if (!tabId) {
                 tabId = Math.random().toString(36).substring(2, 10);
                 sessionStorage.setItem('tab_id', tabId);
             }
-            
+
             let currentUrl = new URL(window.location.href);
             if (!currentUrl.searchParams.has('tab_id')) {
                 currentUrl.searchParams.set('tab_id', tabId);
                 window.history.replaceState(null, '', currentUrl.toString());
             }
 
-            document.addEventListener('DOMContentLoaded', function() {
-                document.body.addEventListener('click', function(e) {
+            document.addEventListener('DOMContentLoaded', function () {
+                document.body.addEventListener('click', function (e) {
                     let link = e.target.closest('a');
                     if (link && link.href && link.href.startsWith(window.location.origin) && !link.getAttribute('href').startsWith('#') && !link.href.includes('javascript:')) {
                         let url = new URL(link.href);
@@ -30,7 +30,7 @@
                     }
                 });
 
-                document.body.addEventListener('submit', function(e) {
+                document.body.addEventListener('submit', function (e) {
                     let form = e.target;
                     if (!form.querySelector('input[name="tab_id"]')) {
                         let input = document.createElement('input');
@@ -50,33 +50,65 @@
     <link rel="icon" type="image" href="{% static 'static/image/favicon.png' %}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        // Configure Tailwind CSS with dark mode support
+        // Configure Tailwind CSS with dark mode support and midnight theme
         tailwind.config = {
             darkMode: 'class',
             theme: {
-                extend: {}
+                extend: {
+                    colors: {
+                        midnight: {
+                            50: '#f8fafc',
+                            100: '#f1f5f9',
+                            200: '#e2e8f0',
+                            300: '#cbd5e1',
+                            400: '#94a3b8',
+                            500: '#64748b',
+                            600: '#475569',
+                            700: '#334155',
+                            800: '#1e293b',
+                            900: '#0f172a',
+                            950: '#020617',
+                        }
+                    }
+                }
             }
         }
     </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        /* Enable smooth theme transitions */
-        html {
-            transition: background-color 0.3s ease, color 0.3s ease;
+        /* Modern Glassmorphism & High-end UI Styles */
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.3);
+            --glass-blur: blur(12px);
         }
 
-        body {
-            transition: background-color 0.3s ease, color 0.3s ease;
+        .dark {
+            --glass-bg: rgba(15, 23, 42, 0.4);
+            --glass-border: rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+        }
+
+        /* Enable smooth theme transitions */
+        * {
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
 
         .fade-in {
-            animation: fadeIn 0.2s ease-in;
+            animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         @keyframes fadeIn {
             from {
                 opacity: 0;
-                transform: translateY(10px);
+                transform: translateY(15px);
             }
 
             to {
@@ -86,59 +118,79 @@
         }
 
         .card-hover {
-            transition: all 0.2s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .card-hover:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
         }
 
-        .dropdown-menu {
-            animation: slideDown 0.2s ease-out;
+        .nav-link {
+            position: relative;
+            transition: all 0.3s ease;
         }
 
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 50%;
+            width: 0;
+            height: 2px;
+            background: #6366f1;
+            transition: all 0.3s ease;
+            transform: translateX(-50%);
+        }
 
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        .nav-link:hover::after {
+            width: 80%;
         }
 
         .status-online {
             background-color: #10b981;
+            box-shadow: 0 0 8px #10b981;
         }
 
         .status-offline {
-            background-color: #f00f2a;
+            background-color: #f43f5e;
         }
 
-        /* Notification hover & animation styles */
-        .notif-item {
-            cursor: pointer;
-            transition: background-color 0.2s ease;
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
         }
-        .notif-item:hover {
-            background-color: rgba(99, 102, 241, 0.05);
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
         }
-        .dark .notif-item:hover {
-            background-color: rgba(99, 102, 241, 0.15);
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
         }
-        
-        .bell-shake {
-            animation: shake 0.5s ease-in-pulse;
+
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #334155;
         }
-        
+
         @keyframes shake {
-            0%, 100% { transform: rotate(0deg); }
-            25% { transform: rotate(15deg); }
-            50% { transform: rotate(-15deg); }
-            75% { transform: rotate(10deg); }
+
+            0%,
+            100% {
+                transform: rotate(0deg);
+            }
+
+            25% {
+                transform: rotate(15deg);
+            }
+
+            50% {
+                transform: rotate(-15deg);
+            }
+
+            75% {
+                transform: rotate(10deg);
+            }
         }
     </style>
 </head>
@@ -226,12 +278,15 @@
                             class="flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-md transform hover:scale-105 transition-all duration-200">
                             <div class="flex items-center">
                                 <div class="relative">
-                                    <img src="https://ui-avatars.com/api/?name={{ user.username }}&background=random"
-                                        alt="Profile" class="w-6 h-6 rounded-full mr-2">
+                                    {% if user.userprofile.image %}
+                                        <img src="{{ user.userprofile.image.url }}" 
+                                             alt="Profile" class="w-8 h-8 rounded-full border-2 border-indigo-100 object-cover shadow-sm">
+                                    {% else %}
+                                        <img src="https://ui-avatars.com/api/?name={{ user.username }}&background=6366f1&color=fff&bold=true" 
+                                             alt="Profile" class="w-8 h-8 rounded-full border-2 border-indigo-100 shadow-sm">
+                                    {% endif %}
                                     <!-- Status Indicator -->
-                                    <div id="status-indicator"
-                                        class="absolute bottom-0 right-2 w-2 h-2 rounded-full {% if user.userprofile.is_online %}status-online{% else %}status-offline{% endif %} border-2 border-white">
-                                    </div>
+                                    <div data-status-id="{{ user.id }}" class="status-indicator-dot absolute bottom-0 right-2 w-2 h-2 rounded-full {% if user.userprofile.is_online %}status-online{% else %}status-offline{% endif %} border-2 border-white"></div>
                                 </div>
                             </div>
                             <i class="fas fa-chevron-down ml-2 text-xs"></i>
@@ -287,28 +342,15 @@
                                 </div>
 
                                 <!-- Status Option -->
-                                <button onclick="toggleStatusMenu()"
-                                    class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors flex items-center justify-between">
+                                <!-- Real-time Status -->
+                                <div class="px-4 py-2 text-sm text-gray-700 flex items-center justify-between mt-1 select-none">
                                     <span class="flex items-center">
-                                        <i class="fas fa-circle mr-3 {% if user.userprofile.is_online %}text-green-500{% else %}text-gray-400{% endif %}"
-                                            id="status-icon"></i>
-                                        Set Status
+                                        <i data-status-id="{{ user.id }}" class="status-indicator-icon fas fa-circle mr-3 {% if user.userprofile.is_online %}text-green-500{% else %}text-gray-400{% endif %}"></i>
+                                        Status
                                     </span>
-                                    <i class="fas fa-chevron-right text-xs"></i>
-                                </button>
-
-                                <!-- Status Submenu (Hidden by default) -->
-                                <div id="status-submenu" class="hidden bg-gray-50 border-l-4 border-indigo-500">
-                                    <button onclick="setStatus('online')"
-                                        class="w-full text-left px-6 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-white transition-colors flex items-center">
-                                        <span class="inline-block w-2 h-2 rounded-full bg-green-500 mr-2"></span>
-                                        Online
-                                    </button>
-                                    <button onclick="setStatus('offline')"
-                                        class="w-full text-left px-6 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-white transition-colors flex items-center">
-                                        <span class="inline-block w-2 h-2 rounded-full bg-red-400 mr-2"></span>
-                                        Offline
-                                    </button>
+                                    <span data-status-text-id="{{ user.id }}" class="status-text text-[10px] font-bold uppercase tracking-wider {% if user.userprofile.is_online %}text-green-600{% else %}text-gray-400{% endif %}">
+                                        {% if user.userprofile.is_online %}Online{% else %}Offline{% endif %}
+                                    </span>
                                 </div>
                             </div>
 
@@ -387,7 +429,9 @@
     <!-- Notification Sound Element -->
     <audio id="notification-sound" preload="auto">
         <!-- Using a base64 encoded tiny notification sound to avoid needing external files -->
-        <source src="data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq" type="audio/mpeg">
+        <source
+            src="data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq"
+            type="audio/mpeg">
     </audio>
 
     <!--added footer-->
@@ -565,37 +609,46 @@
         };
 
         // Status Menu Toggle
-        function toggleStatusMenu() {
-            const submenu = document.getElementById('status-submenu');
-            submenu.classList.toggle('hidden');
-        }
 
-        // Set Status Function
-        function setStatus(status) {
-            const indicator = document.getElementById('status-indicator');
-            const icon = document.getElementById('status-icon');
+        function setStatusUI(userId, status) {
+            const isOnline = (status === 'online');
 
-            // Update visual indicator
-            if (status === 'online') {
-                indicator.classList.remove('status-offline');
-                indicator.classList.add('status-online');
-                icon.classList.remove('text-gray-400');
-                icon.classList.add('text-green-500');
-            } else {
-                indicator.classList.remove('status-online');
-                indicator.classList.add('status-offline');
-                icon.classList.remove('text-green-500');
-                icon.classList.add('text-gray-400');
-            }
+            // Update all dots (Navbar)
+            document.querySelectorAll(`.status-indicator-dot[data-status-id="${userId}"]`).forEach(dot => {
+                dot.className = `status-indicator-dot absolute bottom-0 right-2 w-2 h-2 rounded-full ${isOnline ? 'status-online shadow-[0_0_6px_rgba(34,197,94,0.4)]' : 'status-offline'} border-2 border-white`;
+            });
 
-            // Store in localStorage
-            localStorage.setItem('userStatus', status);
+            // Update all icons (Dropdown Menu)
+            document.querySelectorAll(`.status-indicator-icon[data-status-id="${userId}"]`).forEach(icon => {
+                if (isOnline) {
+                    icon.classList.remove('text-gray-400');
+                    icon.classList.add('text-green-500');
+                } else {
+                    icon.classList.remove('text-green-500');
+                    icon.classList.add('text-gray-400');
+                }
+            });
 
-            // You can also send this to the server via AJAX if needed
-            // Example: fetch('/api/update-status/', { method: 'POST', body: JSON.stringify({status}) })
+            // Update status text
+            document.querySelectorAll(`.status-text[data-status-text-id="${userId}"]`).forEach(text => {
+                text.textContent = isOnline ? 'Online' : 'Offline';
+                if (isOnline) {
+                    text.classList.remove('text-gray-400');
+                    text.classList.add('text-green-600');
+                } else {
+                    text.classList.remove('text-green-600');
+                    text.classList.add('text-gray-400');
+                }
+            });
 
-            // Close the submenu
-            document.getElementById('status-submenu').classList.add('hidden');
+            // Update all badges (Profile Header)
+            document.querySelectorAll(`.status-indicator-badge[data-status-id="${userId}"]`).forEach(badge => {
+                if (isOnline) {
+                    badge.className = `status-indicator-badge absolute bottom-2 right-2 w-5 h-5 rounded-full border-4 border-white dark:border-midnight-900 bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]`;
+                } else {
+                    badge.className = `status-indicator-badge absolute bottom-2 right-2 w-5 h-5 rounded-full border-4 border-white dark:border-midnight-900 bg-gray-400`;
+                }
+            });
         }
 
         // Initialize theme and status on page load
@@ -605,59 +658,43 @@
 
             // ========== Real-time Presence via Django Channels ==========
             (function setupPresence() {
-                const indicator = document.getElementById('status-indicator');
-                const icon = document.getElementById('status-icon');
-                if (!indicator) return;
-
                 const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
                 const wsUrl = scheme + '://' + window.location.host + '/ws/presence/';
-                let ws;
+                window.presenceWs = null;
 
                 function updateStatusUI(status) {
-                    if (status === 'online') {
-                        indicator.classList.remove('status-offline');
-                        indicator.classList.add('status-online');
-                        if (icon) {
-                            icon.classList.remove('text-gray-400');
-                            icon.classList.add('text-green-500');
-                        }
-                    } else {
-                        indicator.classList.remove('status-online');
-                        indicator.classList.add('status-offline');
-                        if (icon) {
-                            icon.classList.remove('text-green-500');
-                            icon.classList.add('text-gray-400');
-                        }
-                    }
+                    setStatusUI({{ user.id }}, status);
                 }
 
                 function connect() {
                     try {
-                        ws = new WebSocket(wsUrl);
+                        window.presenceWs = new WebSocket(wsUrl);
                     } catch (e) {
                         return;
                     }
 
-                    ws.onopen = function () {
+                    window.presenceWs.onopen = function () {
                         updateStatusUI('online');
                         console.log('Presence Connected');
                     };
 
-                    ws.onmessage = function (event) {
+                    window.presenceWs.onmessage = function (event) {
                         try {
                             const data = JSON.parse(event.data);
-                            // Handle potential status updates for other users here if needed
+                            if (data.type === 'status_update' && data.payload) {
+                                setStatusUI(data.payload.user_id, data.payload.status);
+                            }
                         } catch (err) {
                             console.warn('Presence parse error', err);
                         }
                     };
 
-                    ws.onclose = function () {
+                    window.presenceWs.onclose = function () {
                         updateStatusUI('offline');
                         setTimeout(connect, 5000);
                     };
 
-                    ws.onerror = function () {
+                    window.presenceWs.onerror = function () {
                         updateStatusUI('offline');
                     }
                 }
@@ -672,7 +709,7 @@
             // Generate notification sound generator since audio element might not play without user interaction
             const NotifSound = {
                 _ctx: null,
-                play: function() {
+                play: function () {
                     try {
                         if (!this._ctx) {
                             this._ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -683,18 +720,18 @@
                         const now = this._ctx.currentTime;
                         const osc = this._ctx.createOscillator();
                         const gain = this._ctx.createGain();
-                        
+
                         osc.connect(gain);
                         gain.connect(this._ctx.destination);
-                        
+
                         osc.type = 'sine';
                         osc.frequency.setValueAtTime(880, now); // A5
                         osc.frequency.exponentialRampToValueAtTime(1100, now + 0.1); // C#6
-                        
+
                         gain.gain.setValueAtTime(0, now);
                         gain.gain.linearRampToValueAtTime(0.2, now + 0.02);
                         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-                        
+
                         osc.start(now);
                         osc.stop(now + 0.4);
                     } catch (e) {
@@ -713,7 +750,7 @@
 
                 function getNotificationUrl(category) {
                     // Match the URLs available in the application
-                    switch(category) {
+                    switch (category) {
                         case 'request': return "{% url 'noc:requests' %}";
                         case 'stock': return "{% url 'noc:materials' %}";
                         case 'message': return "{% url 'chat' %}";
@@ -729,9 +766,9 @@
 
                     const item = document.createElement('div');
                     const targetUrl = getNotificationUrl(payload.category);
-                    
+
                     item.className = 'notif-item px-4 py-3 border-b border-gray-100 dark:border-gray-700 fade-in relative';
-                    item.onclick = function() {
+                    item.onclick = function () {
                         window.location.href = targetUrl;
                     };
 
@@ -783,7 +820,7 @@
 
                     // Play sound and shake bell
                     NotifSound.play();
-                    
+
                     const bellIcon = document.querySelector('#notification-bell i');
                     if (bellIcon) {
                         bellIcon.classList.remove('bell-shake');

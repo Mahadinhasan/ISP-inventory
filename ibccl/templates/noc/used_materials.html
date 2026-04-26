@@ -4,127 +4,170 @@
 
 {% block content %}
 <div class="space-y-6">
-    <div class="flex justify-between items-center">
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Used Materials Log</h1>
-        {% if user.userprofile.role != 'Admin' and user.userprofile.role != 'Storekeeper' %}
-        <button onclick="openAddModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition">
-            <i class="fas fa-plus mr-2"></i>Add Used Material
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-4">
+        <div>
+            <h1
+                class="text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent dark:from-indigo-400 dark:via-purple-400 dark:to-pink-400">
+                Used Materials</h1>
+            <p class="text-gray-500 dark:text-gray-400 font-medium text-sm">Monitor and verify branch material
+                consumption</p>
+        </div>
+        {% if role == 'Branch' %}
+        <button onclick="openAddModal()"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition-all inline-flex items-center gap-2 shadow-lg">
+            <i class="fas fa-plus"></i>Add Used Material
         </button>
-        {% endif %}
-        <!--user dropdown menu-->
-        {% if user.userprofile.role != 'Branch' %}
-        <form method="get" class="flex items-center">
-                <select name="user" onchange="this.form.submit()"
-                    class="border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
-                    <option value="">All Users</option>
-                    {% for user in users %}
-                    <option value="{{ user.id }}" {% if request.GET.user == user.id %}selected{% endif %}>
-                        {{ user.get_full_name|default:user.username }}</option>
-                    {% endfor %}
-                </select>
-            </form>
         {% endif %}
     </div>
 
+    <!-- Filter & Search Row -->
+    <div class="flex flex-col md:flex-row justify-end items-start md:items-center gap-3 mb-4 px-4">
+        <form method="get" id="filter-form" class="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+            <!-- Preserve tab_id for session consistency -->
+            {% if request.GET.tab_id %}
+            <input type="hidden" name="tab_id" value="{{ request.GET.tab_id }}">
+            {% endif %}
+            
+            {% if role == 'Admin' or role == 'Storekeeper' or role == 'NOC' %}
+            <select name="user_id" onchange="submitFilterForm()"
+                class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white text-sm font-medium min-w-[160px] w-full sm:w-auto appearance-none cursor-pointer">
+                <option value="">All Branches</option>
+                {% for branch_user in users %}
+                <option value="{{ branch_user.id }}" {% if request.GET.user_id == branch_user.id|stringformat:"d" %}selected{% endif %}>
+                    {{ branch_user.username }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+
+            <select name="status" onchange="submitFilterForm()"
+                class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white text-sm font-medium min-w-[140px] w-full sm:w-auto appearance-none cursor-pointer">
+                <option value="">All Statuses</option>
+                <option value="Pending" {% if status_filter == 'Pending' %}selected{% endif %}>Pending</option>
+                <option value="Accepted" {% if status_filter == 'Accepted' %}selected{% endif %}>Accepted</option>
+                <option value="Rejected" {% if status_filter == 'Rejected' %}selected{% endif %}>Rejected</option>
+            </select>
+
+            <div class="flex items-center w-full sm:w-auto">
+                <input type="text" name="search" placeholder="Search materials, clients..." value="{{ search_query }}"
+                    class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-l-2xl px-6 py-3 focus:outline-none focus:border-indigo-500 transition-all flex-1 sm:w-64 dark:text-white">
+                <button type="submit"
+                    class="bg-indigo-600 text-white px-5 py-3 rounded-r-2xl border-2 border-l-0 border-indigo-600 hover:bg-indigo-700 transition-all">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Helper function to ensure tab_id is always in the form before submission
+        function submitFilterForm() {
+            const form = document.getElementById('filter-form');
+            const tabIdInput = form.querySelector('input[name="tab_id"]');
+            
+            // Get tab_id from sessionStorage
+            let tabId = sessionStorage.getItem('tab_id');
+            if (!tabId) {
+                tabId = Math.random().toString(36).substring(2, 10);
+                sessionStorage.setItem('tab_id', tabId);
+            }
+            
+            // Add or update tab_id in the form
+            if (tabIdInput) {
+                tabIdInput.value = tabId;
+            } else {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'tab_id';
+                input.value = tabId;
+                form.appendChild(input);
+            }
+            
+            // Submit the form
+            form.submit();
+        }
+    </script>
+
     <!-- Used Materials List -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+    <div
+        class="bg-white dark:bg-midnight-900/40 glass-card rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-midnight-800 mx-4">
         <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead class="bg-gray-50 dark:bg-gray-700">
+            <table class="min-w-full divide-y divide-gray-100 dark:divide-midnight-800">
+                <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
                     <tr>
-                        {% if user.userprofile.role != 'Branch' %}
+                        {% if role != 'Branch' %}
                         <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
+                            class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
                             Branch</th>
                         {% endif %}
                         <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
+                            class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
                             Material Name</th>
                         <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
+                            class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
                             Category</th>
                         <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
-                            Quantity</th>
+                            class="px-6 py-4 text-center text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
+                            Qty</th>
                         <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
+                            class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
                             Client Name</th>
                         <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
-                            Address</th>
-                        <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
-                            Phone</th>
-                        <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
+                            class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
                             Issue</th>
                         <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                            class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
+                            Status</th>
                         <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
+                            class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
                             Date</th>
-                        {% if role == 'Branch' %}
-                        <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-gray-300 uppercase tracking-wider">
-                            Actions</th>
-                        {% endif %}
                     </tr>
                 </thead>
-                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
                     {% for item in used_materials %}
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition duration-150">
-                        {% if user.userprofile.role != 'Branch' %}
-                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ item.branch.name }}</td>
+                    <tr class="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition duration-300">
+                        {% if role != 'Branch' %}
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
+                            {{ item.technician.username }}</td>
                         {% endif %}
-                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ item.material.name }}</td>
-                        <td class="px-4 py-4 whitespace-nowrap">
-                            <span class="px-3 py-1 rounded-full text-xs font-semibold 
-                                {% if item.material.category == 'Internet' %}bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400
-                                {% elif item.material.category == 'Dish' %}bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400
-                                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
+                            {{ item.material.name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider
+                                {% if item.material.category == 'Internet' %}bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400
+                                {% elif item.material.category == 'Dish' %}bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400
+                                {% else %}bg-gray-50 text-gray-700 dark:bg-gray-800 dark:text-gray-400{% endif %}">
                                 {{ item.material.category }}
                             </span>
                         </td>
-                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-bold bg-gray-50 dark:bg-gray-700 rounded-lg text-center">
-                            {{ item.quantity }}</td>
-                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{{ item.client_name|default:"N/A" }}</td>
-                        <td class="px-4 py-4 text-sm text-gray-700 dark:text-gray-300">{{ item.client_address|default:"N/A"|truncatewords:10 }}</td>
-                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{{ item.client_phone|default:"N/A" }}</td>
-                        <td class="px-4 py-4 text-sm text-gray-700 dark:text-gray-300">{{ item.issue|default:"N/A"|truncatewords:8 }}</td>
-                        <td class="px-4 py-4 whitespace-nowrap">
-                            <span class="px-3 py-1 rounded-full text-xs font-semibold
-                                {% if item.status == 'Pending' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
-                                {% elif item.status == 'Accepted' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
-                                {% elif item.status == 'Rejected' %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400
-                                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                        <td
+                            class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-black text-center">
+                            {{ item.quantity }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                            {{ item.client_name|default:"Maintenance" }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 truncate max-w-[150px]">
+                            {{ item.issue|default:"N/A" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider
+                                {% if item.status == 'Pending' %}bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400
+                                {% elif item.status == 'Accepted' %}bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400
+                                {% elif item.status == 'Rejected' %}bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400
+                                {% else %}bg-gray-50 text-gray-700 dark:bg-gray-800 dark:text-gray-400{% endif %}">
                                 {{ item.status }}
                             </span>
                         </td>
-                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{item.added_at|date:"d-m-Y"}}</td>
-
-                        {% if role == 'Branch' and item.technician == user %}
-                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                            <button
-                                onclick="openEditModal('{{ item.id }}')"
-                                class="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 px-3 py-1 rounded-md transition">
-                                <i class="fas fa-edit mr-1"></i> Edit
-                            </button>
-                            <button
-                                onclick="confirmDelete('{{ item.id }}')"
-                                class="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 px-3 py-1 rounded-md transition ml-2">
-                                <i class="fas fa-trash mr-1"></i> Delete
-                            </button>
+                        <td class="px-6 py-4 whitespace-nowrap text-[11px] font-bold text-gray-400">
+                            {{item.added_at|date:"d-m-Y"}}</td>
                         </td>
-                        {% elif role == 'Branch' %}
-                        <td class="px-6 py-4"></td>
-                        {% endif %}
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="8" class="px-6 py-10 text-center text-gray-500 dark:text-gray-400 italic">
+                        <td colspan="9" class="px-6 py-20 text-center">
                             <div class="flex flex-col items-center">
-                                <i class="fas fa-box-open text-gray-300 dark:text-gray-600 text-4xl mb-3"></i>
-                                <p>No used materials reported yet.</p>
+                                <i class="fas fa-box-open text-gray-200 dark:text-gray-800 text-6xl mb-4"></i>
+                                <p class="text-gray-500 dark:text-gray-400 font-bold text-lg">No consumption records
+                                    found</p>
+                                <p class="text-gray-400 dark:text-gray-500 text-sm">Waiting for branch reports...</p>
                             </div>
                         </td>
                     </tr>
@@ -135,117 +178,118 @@
     </div>
 </div>
 
-<!-- Add/Edit Modal -->
-<div id="addEditModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div class="sticky top-0 bg-gray-50 dark:bg-gray-700 px-6 py-4 border-b dark:border-gray-600 flex justify-between items-center">
-            <h2 class="text-2xl font-bold text-gray-900 dark:text-white" id="modalTitle">Add Used Material</h2>
-            <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                <i class="fas fa-times text-2xl"></i>
+<!--pagination-->
+<div class="flex justify-end mt-8">
+    <nav class="flex items-center space-x-2">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode }}"
+            class="px-4 py-2 rounded-xl bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 text-gray-600 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition font-bold text-sm">
+            Previous
+        </a>
+        {% endif %}
+        {% for num in page_obj.paginator.page_range %}
+        {% if page_obj.number == num %}
+        <span class="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-sm">
+            {{ num }}
+        </span>
+        {% else %}
+        <a href="?page={{ num }}&{{ request.GET.urlencode }}"
+            class="px-4 py-2 rounded-xl bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 text-gray-600 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition font-bold text-sm">
+            {{ num }}
+        </a>
+        {% endif %}
+        {% endfor %}
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode }}"
+            class="px-4 py-2 rounded-xl bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 text-gray-600 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition font-bold text-sm">
+            Next
+        </a>
+        {% endif %}
+    </nav>
+</div>
+
+<!-- Add/Edit Modal (Branch Only) -->
+{% if role == 'Branch' %}
+<div id="addEditModal"
+    class="hidden fixed inset-0 bg-midnight-950/80 flex items-center justify-center z-50 backdrop-blur-md p-4"
+    onclick="if(event.target === this) closeModal()">
+    <div
+        class="bg-white dark:bg-midnight-900 rounded-[2rem] shadow-2xl max-w-lg w-full max-h-[90vh] border border-gray-100 dark:border-midnight-800 overflow-hidden">
+        <div
+            class="px-8 py-6 border-b border-gray-100 dark:border-midnight-800 flex justify-between items-center bg-gray-50/50 dark:bg-midnight-950/50">
+            <h2 class="text-2xl font-black text-gray-900 dark:text-white tracking-tight" id="modalTitle">
+                Used Material
+            </h2>
+            <button onclick="closeModal()"
+                class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition">
+                <i class="fas fa-times text-xl"></i>
             </button>
         </div>
 
-        <form method="POST" action="{% url 'noc_used_materials' %}" class="p-6 space-y-4">
+        <form method="POST" action="{% url 'noc:used_materials' %}"
+            class="p-8 space-y-5 overflow-y-auto max-h-[calc(90vh-140px)]">
             {% csrf_token %}
             <input type="hidden" name="action" id="modalAction" value="create">
             <input type="hidden" name="um_id" id="modalUmId" value="">
 
-            <!-- Material Name with Category Display -->
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        <i class="fas fa-box mr-2 text-indigo-600"></i>Material Name *
-                    </label>
+                    <label
+                        class="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">Material
+                        *</label>
                     {{ form.material }}
-                    {% if form.material.errors %}
-                    <p class="text-red-600 text-sm mt-1">{{ form.material.errors.0 }}</p>
-                    {% endif %}
                 </div>
-                
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        <i class="fas fa-tag mr-2 text-indigo-600"></i>Category (Auto)
-                    </label>
-                    <div id="categoryDisplay" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg bg-gray-100 text-gray-600 font-medium">-</div>
+                    <label
+                        class="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">Category</label>
+                    <div id="categoryDisplay"
+                        class="w-full px-4 py-3 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl bg-gray-50 dark:bg-midnight-950 text-gray-400 text-sm font-bold">
+                        -</div>
                 </div>
             </div>
 
-            <!-- Client Information -->
+            <div>
+                <label
+                    class="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">Quantity
+                    *</label>
+                {{ form.quantity }}
+            </div>
+
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        <i class="fas fa-user mr-2 text-indigo-600"></i>Client Name
-                    </label>
+                    <label
+                        class="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">Client
+                        Name</label>
                     {{ form.client_name }}
-                    {% if form.client_name.errors %}
-                    <p class="text-red-600 text-sm mt-1">{{ form.client_name.errors.0 }}</p>
-                    {% endif %}
                 </div>
-
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        <i class="fas fa-phone mr-2 text-indigo-600"></i>Client Phone
-                    </label>
+                    <label
+                        class="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">Phone</label>
                     {{ form.client_phone }}
-                    {% if form.client_phone.errors %}
-                    <p class="text-red-600 text-sm mt-1">{{ form.client_phone.errors.0 }}</p>
-                    {% endif %}
                 </div>
             </div>
 
-            <!-- Client Address -->
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">
-                    <i class="fas fa-map-marker-alt mr-2 text-indigo-600"></i>Client Address
-                </label>
+                <label
+                    class="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">Address</label>
                 {{ form.client_address }}
-                {% if form.client_address.errors %}
-                <p class="text-red-600 text-sm mt-1">{{ form.client_address.errors.0 }}</p>
-                {% endif %}
             </div>
 
-            <!-- Quantity and Material Request -->
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        <i class="fas fa-cubes mr-2 text-indigo-600"></i>Quantity Used *
-                    </label>
-                    {{ form.quantity }}
-                    {% if form.quantity.errors %}
-                    <p class="text-red-600 text-sm mt-1">{{ form.quantity.errors.0 }}</p>
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- Technical Issue / Notes -->
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">
-                    <i class="fas fa-sticky-note mr-2 text-indigo-600"></i>Technical Issue / Notes
-                </label>
+                <label
+                    class="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">Notes
+                    / Issue</label>
                 {{ form.issue }}
-                {% if form.issue.errors %}
-                <p class="text-red-600 text-sm mt-1">{{ form.issue.errors.0 }}</p>
-                {% endif %}
             </div>
 
-            <!-- Status -->
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">
-                    <i class="fas fa-check-circle mr-2 text-indigo-600"></i>Status
-                </label>
-                {{ form.status }}
-                {% if form.status.errors %}
-                <p class="text-red-600 text-sm mt-1">{{ form.status.errors.0 }}</p>
-                {% endif %}
-            </div>
-
-            <!-- Form Actions -->
-            <div class="flex justify-end space-x-3 pt-6 border-t">
-                <button type="button" onclick="closeModal()" class="px-6 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition">
+            <div class="flex gap-3 pt-4">
+                <button type="button" onclick="closeModal()"
+                    class="flex-1 px-6 py-4 border-2 border-gray-100 dark:border-midnight-800 text-gray-500 dark:text-gray-400 font-bold rounded-2xl hover:bg-gray-50 dark:hover:bg-midnight-950 transition-all">
                     Cancel
                 </button>
-                <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition">
-                    <i class="fas fa-save mr-2"></i>Save Used Material
+                <button type="submit"
+                    class="flex-1 px-6 py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 dark:shadow-none transition-all">
+                    Save Record
                 </button>
             </div>
         </form>
@@ -253,158 +297,95 @@
 </div>
 
 <!-- Delete Confirmation Modal -->
-<div id="deleteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div class="bg-white rounded-lg shadow-xl max-w-sm w-full mx-4">
-        <div class="p-6 text-center">
-            <i class="fas fa-exclamation-triangle text-5xl text-red-600 mb-4"></i>
-            <h3 class="text-2xl font-bold text-gray-900 mb-2">Delete Used Material?</h3>
-            <p class="text-gray-600 mb-6">This action cannot be undone. Are you sure you want to delete this entry?</p>
-            
-            <form method="POST" action="{% url 'noc_used_materials' %}" class="inline">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="delete">
-                <input type="hidden" name="um_id" id="deleteUmId" value="">
-                
-                <div class="flex justify-center space-x-3">
-                    <button type="button" onclick="closeDeleteModal()" class="px-6 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium">
-                        Cancel
-                    </button>
-                    <button type="submit" class="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium">
-                        Delete
-                    </button>
-                </div>
-            </form>
+<div id="deleteModal"
+    class="hidden fixed inset-0 bg-midnight-950/80 flex items-center justify-center z-50 backdrop-blur-md p-4">
+    <div
+        class="bg-white dark:bg-midnight-900 rounded-[2rem] shadow-2xl max-w-sm w-full p-8 border border-gray-100 dark:border-midnight-800 text-center">
+        <div class="w-16 h-16 bg-red-50 dark:bg-red-900/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <i class="fas fa-trash-alt text-2xl text-red-600 dark:text-red-400"></i>
         </div>
-    </div>
-</div>
+        <h3 class="text-2xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">Delete Report?</h3>
+        <p class="text-gray-500 dark:text-gray-400 text-sm mb-8 font-medium">This action is irreversible. The
+            consumption log will be permanently removed.</p>
 
-<!--pagination control-->
-<div class="flex justify-end mt-6">
-    <nav class="inline-flex -space-x-px">
-        {% if used_materials.has_previous %}
-        <a href="?page={{ used_materials.previous_page_number }}" class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 rounded-l-lg hover:bg-gray-100 hover:text-gray-700">
-            <span class="sr-only">Previous</span>
-            <i class="fas fa-chevron-left"></i>
-        </a>
-        {% else %}
-        <span class="px-3 py-2 leading-tight text-gray-300 bg-gray-100 border border-gray-300 rounded-l-lg cursor-not-allowed">
-            <span class="sr-only">Previous</span>
-            <i class="fas fa-chevron-left"></i>
-        </span>
-        {% endif %}
-
-        {% for num in used_materials.paginator.page_range %}
-            {% if used_materials.number == num %}
-                <span class="px-3 py-2 leading-tight text-white bg-indigo-600 border border-gray-300">{{ num }}</span>
-            {% else %}
-                <a href="?page={{ num }}" class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 hover:bg-gray-100 hover:text-gray-700">{{ num }}</a>
-            {% endif %}
-        {% endfor %}
-
-        {% if used_materials.has_next %}
-        <a href="?page={{ used_materials.next_page_number }}" class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 rounded-r-lg hover:bg-gray-100 hover:text-gray-700">
-            <span class="sr-only">Next</span>
-            <i class="fas fa-chevron-right"></i>
-        </a>
-        {% else %}
-        <span class="px-3 py-2 leading-tight text-gray-300 bg-gray-100 border border-gray-300 rounded-r-lg cursor-not-allowed">
-            <span class="sr-only">Next</span>
-            <i class="fas fa-chevron-right"></i>
-        </span>
-        {% endif %}
-    </nav>
-</div>
-
-<!-- Admin/Storekeeper Approval Modal -->
-{% if for_approval and selected_used_material and role != 'Branch' %}
-<div id="approvalModal" class="fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50 backdrop-blur-sm">
-    <div class="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md transform transition-all scale-100">
-        <div class="flex items-center mb-4">
-            <div class="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center mr-4">
-                <i class="fas fa-check-double text-indigo-600 text-xl"></i>
-            </div>
-            <div>
-                <h3 class="text-2xl font-bold text-gray-900">Approve Used Material</h3>
-                <p class="text-sm text-gray-600">{{ selected_used_material.material.name }} - {{ selected_used_material.quantity }}M</p>
-            </div>
-        </div>
-
-        <div class="bg-indigo-50 p-4 rounded-lg mb-6 border border-indigo-200">
-            <p class="text-sm text-indigo-900"><strong>Requester:</strong> {{ selected_used_material.technician.get_full_name|default:selected_used_material.technician.username }}</p>
-            <p class="text-sm text-indigo-900"><strong>Status:</strong> 
-                <span class="px-2 py-1 rounded text-xs font-semibold
-                    {% if selected_used_material.status == 'Pending' %}bg-yellow-100 text-yellow-800
-                    {% elif selected_used_material.status == 'Accepted' %}bg-green-100 text-green-800
-                    {% else %}bg-red-100 text-red-800{% endif %}">
-                    {{ selected_used_material.status }}
-                </span>
-            </p>
-        </div>
-
-        <form method="POST" action="{% url 'manage_used_material' selected_used_material.id %}">
+        <form method="POST" action="{% url 'noc:used_materials' %}" class="flex gap-3">
             {% csrf_token %}
-            
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Admin Note</label>
-                <textarea name="admin_note" rows="3"
-                    class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200"
-                    placeholder="Enter approval or rejection reason...">{{ selected_used_material.admin_note|default:'' }}</textarea>
-            </div>
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="um_id" id="deleteUmId" value="">
 
-            <div class="flex justify-end space-x-3">
-                <a href="{% url 'noc_used_materials' %}"
-                    class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium">
-                    Close
-                </a>
-                <button type="submit" name="action" value="reject"
-                    class="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition">
-                    <i class="fas fa-times mr-2"></i>Reject/Return
-                </button>
-                <button type="submit" name="action" value="accept"
-                    class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition">
-                    <i class="fas fa-check mr-2"></i>Approve
-                </button>
-            </div>
+            <button type="button" onclick="closeDeleteModal()"
+                class="flex-1 px-6 py-3 border-2 border-gray-100 dark:border-midnight-800 text-gray-500 dark:text-gray-400 font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-midnight-950 transition">
+                No, Keep it
+            </button>
+            <button type="submit"
+                class="flex-1 px-6 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-100 dark:shadow-none transition">
+                Yes, Delete
+            </button>
         </form>
     </div>
 </div>
+{% endif %}
 
-{% if for_approval %}
-<script>
-    // Auto-show approval modal when page loads with approval data
-    document.addEventListener('DOMContentLoaded', function() {
-        const modal = document.getElementById('approvalModal');
-        if (modal && !modal.classList.contains('hidden')) {
-            modal.classList.remove('hidden');
-        }
-    });
-</script>
+<!-- Pagination Controls -->
+{% if page_obj.has_other_pages %}
+<div class="flex justify-end mt-8 items-center px-4 mb-20">
+    <nav class="inline-flex gap-2">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+            class="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-midnight-950 border-2 border-gray-50 dark:border-midnight-800 text-gray-400 hover:text-indigo-600 transition shadow-sm">
+            <i class="fas fa-chevron-left"></i>
+        </a>
+        {% endif %}
+
+        {% for num in page_obj.paginator.page_range %}
+        {% if page_obj.number == num %}
+        <span
+            class="w-10 h-10 flex items-center justify-center rounded-xl bg-indigo-600 text-white font-bold shadow-lg shadow-indigo-100 dark:shadow-none">{{
+            num }}</span>
+        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %} <a
+            href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+            class="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-midnight-950 border-2 border-gray-50 dark:border-midnight-800 text-gray-500 hover:text-indigo-600 font-bold transition shadow-sm">
+            {{ num }}</a>
+            {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+                class="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-midnight-950 border-2 border-gray-50 dark:border-midnight-800 text-gray-400 hover:text-indigo-600 transition shadow-sm">
+                <i class="fas fa-chevron-right"></i>
+            </a>
+            {% endif %}
+    </nav>
+</div>
 {% endif %}
-{% endif %}
+
 
 <script>
     // Category options based on material selection
     const materialCategories = {
         {% for item in form.material.field.queryset %}
-        '{{ item.id }}': '{{ item.category }}',
+    '{{ item.id }}': '{{ item.category }}',
         {% endfor %}
     };
 
-    // Modal Functions
     function openAddModal() {
+        if ('{{ role }}' !== 'Branch') return;
         document.getElementById('modalTitle').textContent = 'Add Used Material';
         document.getElementById('modalAction').value = 'create';
         document.getElementById('modalUmId').value = '';
         resetForm();
         document.getElementById('addEditModal').classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
     }
 
     function openEditModal(umId) {
+        if ('{{ role }}' !== 'Branch') return;
         document.getElementById('modalTitle').textContent = 'Edit Used Material';
         document.getElementById('modalAction').value = 'edit';
         document.getElementById('modalUmId').value = umId;
         loadFormData(umId);
         document.getElementById('addEditModal').classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
     }
 
     function resetForm() {
@@ -418,107 +399,82 @@
     function loadFormData(umId) {
         let fetchUrl = `/api/used-materials/${umId}/`;
         const tabId = sessionStorage.getItem('tab_id');
-        if (tabId) {
-            fetchUrl += `?tab_id=${tabId}`;
-        }
-        
-        fetch(fetchUrl, {
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('id_material').value = data.material;
-            document.getElementById('id_client_name').value = data.client_name || '';
-            document.getElementById('id_client_phone').value = data.client_phone || '';
-            document.getElementById('id_client_address').value = data.client_address || '';
-            document.getElementById('id_quantity').value = data.quantity;
-            document.getElementById('id_issue').value = data.issue || '';
-            document.getElementById('id_status').value = data.status;
-            updateCategory();
-        })
-        .catch(error => {
-            console.error('Error loading form data:', error);
-            alert('Error loading used material data. Please refresh and try again.');
-        });
+        if (tabId) fetchUrl += `?tab_id=${tabId}`;
+
+        fetch(fetchUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('id_material').value = data.material;
+                document.getElementById('id_client_name').value = data.client_name || '';
+                document.getElementById('id_client_phone').value = data.client_phone || '';
+                document.getElementById('id_client_address').value = data.client_address || '';
+                document.getElementById('id_quantity').value = data.quantity;
+                document.getElementById('id_issue').value = data.issue || '';
+                updateCategory();
+            });
     }
 
     function updateCategory() {
         const materialSelect = document.getElementById('id_material');
+        if (!materialSelect) return;
         const selectedOption = materialSelect.options[materialSelect.selectedIndex];
         const categoryDisplay = document.getElementById('categoryDisplay');
-        
+
         if (selectedOption && selectedOption.value) {
-            // Try to get category from data attribute first
-            let category = selectedOption.getAttribute('data-category');
-            
-            // Fallback to materialCategories object
-            if (!category && materialCategories[selectedOption.value]) {
-                category = materialCategories[selectedOption.value];
-            }
-            
-            if (category) {
-                categoryDisplay.textContent = category;
-                categoryDisplay.classList.remove('text-gray-600');
-                categoryDisplay.classList.add('text-indigo-700', 'font-semibold');
-            } else {
-                categoryDisplay.textContent = '-';
-                categoryDisplay.classList.add('text-gray-600');
-                categoryDisplay.classList.remove('text-indigo-700', 'font-semibold');
-            }
+            let category = materialCategories[selectedOption.value];
+            categoryDisplay.textContent = category || '-';
+            categoryDisplay.classList.toggle('text-indigo-600', !!category);
+            categoryDisplay.classList.toggle('text-gray-400', !category);
         } else {
             categoryDisplay.textContent = '-';
-            categoryDisplay.classList.add('text-gray-600');
-            categoryDisplay.classList.remove('text-indigo-700', 'font-semibold');
+            categoryDisplay.classList.add('text-gray-400');
         }
     }
 
     function closeModal() {
         document.getElementById('addEditModal').classList.add('hidden');
+        document.body.style.overflow = 'auto';
     }
 
     function confirmDelete(umId) {
+        if ('{{ role }}' !== 'Branch') return;
         document.getElementById('deleteUmId').value = umId;
         document.getElementById('deleteModal').classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
     }
 
     function closeDeleteModal() {
         document.getElementById('deleteModal').classList.add('hidden');
+        document.body.style.overflow = 'auto';
     }
 
-    // Close modals on Escape key
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            closeModal();
-            closeDeleteModal();
-        }
-    });
-
-    // Style Django form fields and attach listeners
     document.addEventListener('DOMContentLoaded', () => {
+        const materialSelect = document.getElementById('id_material');
+        if (materialSelect) {
+            materialSelect.addEventListener('change', updateCategory);
+            updateCategory();
+        }
+
+        // Auto-style django inputs
         const inputs = document.querySelectorAll('select, input[type="text"], input[type="tel"], input[type="number"], textarea');
         inputs.forEach(input => {
-            if (!input.classList.contains('styled')) {
-                input.classList.add('w-full', 'px-4', 'py-3', 'border-2', 'border-gray-300', 'rounded-lg', 'focus:outline-none', 'focus:border-indigo-600', 'focus:ring-2', 'focus:ring-indigo-200', 'transition');
-                input.classList.add('styled');
-            }
-            
-            // Add change listener to material select for auto-category update
-            if (input.id === 'id_material') {
-                input.addEventListener('change', updateCategory);
+            if (!input.id.startsWith('id_search')) {
+                input.classList.add('w-full', 'px-6', 'py-4', 'border-2', 'border-gray-50', 'dark:border-midnight-800', 'rounded-2xl', 'focus:outline-none', 'focus:border-indigo-600', 'dark:bg-midnight-950', 'dark:text-white', 'transition-all', 'text-sm', 'font-medium');
             }
         });
-        
-        // Initial category update
-        updateCategory();
     });
 </script>
 
 <style>
-    #addEditModal.hidden, #deleteModal.hidden {
-        display: none !important;
+    .glass-card {
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+    }
+
+    .dark .glass-card {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.05);
     }
 </style>
 {% endblock %}
