@@ -10,7 +10,8 @@ class ActiveUserMiddleware:
             try:
                 profile = ensure_userprofile(request.user)
                 profile.last_active = timezone.now()
-                profile.save(update_fields=['last_active'])
+                profile.is_active = True
+                profile.save(update_fields=['last_active', 'is_active'])
             except Exception:
                 pass
         response = self.get_response(request)

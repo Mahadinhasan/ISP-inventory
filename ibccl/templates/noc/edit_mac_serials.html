@@ -1,0 +1,113 @@
+{% extends 'noc/base.html' %}
+{% block title %}Enter Mac/Serial Numbers - NOC Dashboard{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="mb-8">
+        <h1 class="text-4xl font-bold text-gray-900 dark:text-white">Enter Mac/Serial Numbers</h1>
+        <p class="mt-2 text-lg text-gray-600 dark:text-gray-400">
+            Add <strong>{{ import_record.mac_serials_count }}</strong> mac/serial number(s) for 
+            <strong class="text-indigo-600 dark:text-indigo-400">{{ import_record.material.name }}</strong>
+        </p>
+        <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            Assigning to: <strong>{{ import_record.branch_user_name }}</strong>
+        </p>
+    </div>
+
+    <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-xl p-8 border border-gray-100 dark:border-midnight-800">
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            
+            <div class="mb-8 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-xl border border-blue-200 dark:border-blue-900">
+                <p class="text-sm text-blue-800 dark:text-blue-400">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    Enter up to {{ import_record.mac_serials_count }} mac/serial numbers. Each field requires a unique mac/serial identifier and quantity.
+                </p>
+            </div>
+
+            <!-- Mac/Serial Input Fields -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" id="serialFieldsContainer">
+                {% for i in mac_serials_range %}
+                <div class="relative group">
+                    <label for="mac_serial_{{ i }}" class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 ml-1">
+                        Entry #{{ i }}
+                    </label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-barcode text-gray-400 group-focus-within:text-indigo-500 transition-colors"></i>
+                        </div>
+                        <input type="text" 
+                            id="mac_serial_{{ i }}" 
+                            name="mac_serial_{{ i }}" 
+                            class="mac-input w-full pl-10 pr-4 py-2 text-sm border border-gray-200 dark:border-midnight-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-midnight-800 dark:text-white transition-all"
+                            placeholder="Scan or enter Serial..."
+                            {% if i == 1 %}autofocus{% endif %}
+                            required>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Summary -->
+            <div class="mt-6 p-4 bg-indigo-50 dark:bg-indigo-950/20 rounded-xl border border-indigo-200 dark:border-indigo-900">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-indigo-600 rounded-lg text-white">
+                            <i class="fas fa-boxes"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs text-indigo-700 dark:text-indigo-400 font-bold uppercase tracking-wider">Target Quantity</p>
+                            <p class="text-lg font-black text-indigo-900 dark:text-white">{{ import_record.mac_serials_count }} Units</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs text-indigo-700 dark:text-indigo-400 font-bold uppercase tracking-wider">Assigned To</p>
+                        <p class="text-sm font-bold text-gray-900 dark:text-white">{{ import_record.branch_user_name }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="flex flex-wrap gap-4 pt-4">
+                <button type="submit" class="flex-1 min-w-[200px] px-8 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition shadow-lg flex items-center justify-center gap-2">
+                    <i class="fas fa-save"></i>
+                    Save & Complete Import
+                </button>
+                <a href="{% url 'noc:add_mac_serials' %}" class="px-6 py-3 bg-gray-200 dark:bg-midnight-800 text-gray-700 dark:text-gray-300 rounded-xl font-bold hover:bg-gray-300 dark:hover:bg-midnight-700 transition text-center">
+                    Back
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const inputs = document.querySelectorAll('.mac-input');
+        
+        inputs.forEach((input, index) => {
+            input.addEventListener('keydown', function(e) {
+                // If Enter is pressed (Barcode scanners usually send Enter after scan)
+                if (e.key === 'Enter') {
+                    // If it's not the last input, focus the next one and prevent form submission
+                    if (index < inputs.length - 1) {
+                        e.preventDefault();
+                        inputs[index + 1].focus();
+                    }
+                    // If it is the last input, let the form submit normally
+                }
+            });
+
+            // Optional: Auto-select text on focus to make overwriting easier
+            input.addEventListener('focus', function() {
+                this.select();
+            });
+        });
+
+        // Focus the first input on load
+        if (inputs.length > 0) {
+            inputs[0].focus();
+        }
+    });
+</script>
+{% endblock %}

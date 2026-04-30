@@ -44,9 +44,9 @@
     </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}ISP Inventory{% endblock %}</title>
+    <title>{% if user.is_authenticated %}{{ user.username }} | {% endif %}{% block title %}ISP Inventory{% endblock %}</title>
     <!--added favicon-->
-    <link rel="icon" type="image" href="{% static 'static/image/favicon.png' %}">
+    <link rel="icon" type="image/png" href="{% static 'image/favicon.png' %}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         // Configure Tailwind CSS with dark mode support
@@ -391,7 +391,15 @@
             
             // Update all dots (Navbar/Lists)
             document.querySelectorAll(`.status-indicator-dot[data-status-id="${userId}"]`).forEach(dot => {
-                dot.className = `status-indicator-dot absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ${isOnline ? 'status-online shadow-[0_0_6px_rgba(34,197,94,0.6)]' : 'status-offline'} border-2 border-white dark:border-midnight-900`;
+                if (isOnline) {
+                    dot.classList.replace('status-offline', 'status-online');
+                    if (!dot.classList.contains('status-online')) dot.classList.add('status-online');
+                    dot.classList.add('shadow-[0_0_6px_rgba(34,197,94,0.6)]');
+                } else {
+                    dot.classList.replace('status-online', 'status-offline');
+                    if (!dot.classList.contains('status-offline')) dot.classList.add('status-offline');
+                    dot.classList.remove('shadow-[0_0_6px_rgba(34,197,94,0.6)]');
+                }
             });
 
             // Update all icons (Dropdown Menu)
@@ -409,20 +417,22 @@
             document.querySelectorAll(`.status-text[data-status-text-id="${userId}"]`).forEach(text => {
                 text.textContent = isOnline ? 'Online' : 'Offline';
                 if (isOnline) {
-                    text.classList.remove('text-gray-400');
-                    text.classList.add('text-green-600');
+                    text.classList.remove('bg-red-100', 'text-red-800', 'text-gray-400');
+                    text.classList.add('bg-green-100', 'text-green-800');
                 } else {
-                    text.classList.remove('text-green-600');
-                    text.classList.add('text-gray-400');
+                    text.classList.remove('bg-green-100', 'text-green-800', 'text-green-600');
+                    text.classList.add('bg-red-100', 'text-red-800');
                 }
             });
 
             // Update all badges (Profile Page Header)
             document.querySelectorAll(`.status-indicator-badge[data-status-id="${userId}"]`).forEach(badge => {
                 if (isOnline) {
-                    badge.className = `status-indicator-badge absolute bottom-2 right-2 w-5 h-5 rounded-full border-4 border-white dark:border-midnight-900 bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]`;
+                    badge.classList.remove('bg-gray-400');
+                    badge.classList.add('bg-green-500', 'shadow-[0_0_8px_rgba(34,197,94,0.6)]');
                 } else {
-                    badge.className = `status-indicator-badge absolute bottom-2 right-2 w-5 h-5 rounded-full border-4 border-white dark:border-midnight-900 bg-gray-400`;
+                    badge.classList.remove('bg-green-500', 'shadow-[0_0_8px_rgba(34,197,94,0.6)]');
+                    badge.classList.add('bg-gray-400');
                 }
             });
         }
@@ -439,13 +449,21 @@
         document.addEventListener('DOMContentLoaded', () => {
             const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
             
-            // Presence WebSocket
+            // Notifications WebSocket
             (function() {
-                const wsUrl = scheme + '://' + window.location.host + '/ws/presence/';
-                window.presenceWs = null;
+                window.unseenCount = 0;
+                // Get tab_id from URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const tabId = urlParams.get('tab_id') || '';
+                
+                const wsUrl = scheme + '://' + window.location.host + '/ws/notifications/?tab_id=' + tabId;
+                const presenceUrl = scheme + '://' + window.location.host + '/ws/presence/?tab_id=' + tabId;
+                
+                const countBadge = document.getElementById('notification-count');
+                const list = document.getElementById('notification-list');
 
-                function connect() {
-                    window.presenceWs = new WebSocket(wsUrl);
+                function connectPresence() {
+                    window.presenceWs = new WebSocket(presenceUrl);
                     window.presenceWs.onopen = () => {
                         console.log('Presence Active');
                         setStatusUI({{ user.id }}, 'online');
@@ -460,21 +478,11 @@
                     };
                     window.presenceWs.onclose = () => { 
                         setStatusUI({{ user.id }}, 'offline');
-                        setTimeout(connect, 5000); 
+                        setTimeout(connectPresence, 5000); 
                     };
                 }
-                
-                if (window.WebSocket) connect();
-            })();
 
-            // Notifications WebSocket
-            (function() {
-                window.unseenCount = 0;
-                const wsUrl = scheme + '://' + window.location.host + '/ws/notifications/';
-                const countBadge = document.getElementById('notification-count');
-                const list = document.getElementById('notification-list');
-
-                function connect() {
+                function connectNotifications() {
                     const ws = new WebSocket(wsUrl);
                     ws.onmessage = (e) => {
                         const data = JSON.parse(e.data);
@@ -482,7 +490,7 @@
                             addNotif(data.payload);
                         }
                     };
-                    ws.onclose = () => setTimeout(connect, 5000);
+                    ws.onclose = () => setTimeout(connectNotifications, 5000);
                 }
 
                 function addNotif(payload) {
@@ -514,6 +522,14 @@
 
                     list.insertBefore(item, list.firstChild);
                     
+                    // Limit to 10 notifications
+                    const items = list.querySelectorAll('.fade-in');
+                    if (items.length > 10) {
+                        for (let i = 10; i < items.length; i++) {
+                            items[i].remove();
+                        }
+                    }
+                    
                     if (document.getElementById('notification-dropdown').classList.contains('hidden')) {
                         window.unseenCount++;
                         countBadge.textContent = window.unseenCount > 9 ? '9+' : window.unseenCount;
@@ -522,7 +538,10 @@
                     }
                 }
 
-                if (window.WebSocket) connect();
+                if (window.WebSocket) {
+                    connectPresence();
+                    connectNotifications();
+                }
             })();
         });
     </script>

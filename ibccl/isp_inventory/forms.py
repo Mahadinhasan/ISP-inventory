@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
-from .models import Material, Task, MaterialRequest, SystemSetting, NotificationSetting, UsedMaterial, BackupRestore, ActivityLog, LogSettings
+from .models import Material, Task, MaterialRequest, SystemSetting, NotificationSetting, UsedMaterial, BackupRestore, ActivityLog, LogSettings, MacSerialNumber, MaterialMacSerialImport, UserProfile
 from .utils import ensure_userprofile
 
 class RegisterForm(UserCreationForm):
@@ -57,9 +57,9 @@ class RegisterForm(UserCreationForm):
         if image:
             if image.size > 2 * 1024 * 1024:
                 raise forms.ValidationError('Profile image must be under 2 MB.')
-            allowed = ('.png', '.jpg', '.jpeg', '.gif', '.webp')
+            allowed = ('.png', '.jpg', '.jpeg', '.webp', '.gif')
             if not image.name.lower().endswith(allowed):
-                raise forms.ValidationError('Allowed formats: PNG, JPG, JPEG, GIF, WEBP.')
+                raise forms.ValidationError('Allowed formats: PNG, JPG, JPEG, WEBP, GIF.')
         return image
 
     def save(self, commit=True):
@@ -184,11 +184,23 @@ class LogSettingsForm(forms.ModelForm):
 
 #Materials name filter for Branch use only approved materials
 class UsedMaterialForm(forms.ModelForm):
+    mac_serial = forms.ModelChoiceField(
+        queryset=MacSerialNumber.objects.none(),
+        required=False,
+        label="Mac/Serial Number",
+        widget=forms.Select(attrs={
+            'class': 'w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500',
+            'id': 'used_material_mac_serial'
+        }),
+        help_text="Required for serialized items like ONUs"
+    )
+
     class Meta:
         model = UsedMaterial
-        fields = ['material', 'client_name', 'client_phone', 'client_address', 'quantity', 'issue', 'status']
+        fields = ['material', 'mac_serial', 'client_name', 'client_phone', 'client_address', 'quantity', 'issue', 'status']
         labels = {
             'material': 'Material Name',
+            'mac_serial': 'Mac/Serial (Optional)',
             'client_name': 'Client Name',
             'client_phone': 'Client Phone',
             'client_address': 'Client Address',
@@ -235,6 +247,12 @@ class UsedMaterialForm(forms.ModelForm):
         self.user = user
         
         if user:
+            # Filter Mac/Serials for this user
+            self.fields['mac_serial'].queryset = MacSerialNumber.objects.filter(
+                assigned_to=user,
+                status='Active'
+            ).order_by('mac_serial')
+            
             try:
                 profile = ensure_userprofile(user)
                 if profile and profile.role == 'Branch':
@@ -340,3 +358,117 @@ class BackupRestoreForm(forms.ModelForm):
     class Meta:
         model = BackupRestore
         fields = ['backup_file', 'backup_type', 'description']
+
+
+class MacSerialImportForm(forms.Form):
+    """Form for NOC to add Mac/Serial numbers for materials and assign to branch users.
+    Only 3 fields: Assign to User (Branch), Material (approved requests), Number of Items.
+    Materials are filtered to only show the NOC user's own materials that the branch user has approved requests for.
+    """
+    
+    assigned_to = forms.ChoiceField(
+        choices=[],
+        widget=forms.Select(attrs={
+            'class': 'w-full px-3 py-2 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:text-white dark:border-indigo-600 transition-all duration-200',
+            'id': 'mac_serial_user'
+        }),
+        label='Assign to User (Branch)'
+    )
+    
+    material = forms.ChoiceField(
+        choices=[('', '-- Select a Branch User first --')],
+        widget=forms.Select(attrs={
+            'class': 'w-full px-3 py-2 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:text-white dark:border-indigo-600 transition-all duration-200',
+            'id': 'mac_serial_material',
+            'disabled': 'disabled'
+        }),
+        label='Material'
+    )
+    
+    quantity = forms.IntegerField(
+        min_value=1,
+        max_value=50,
+        initial=1,
+        widget=forms.NumberInput(attrs={
+            'class': 'w-full px-3 py-2 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:text-white dark:border-indigo-600 transition-all duration-200',
+            'id': 'mac_serial_quantity',
+            'placeholder': 'Enter number of items (max 50)',
+            'min': '1',
+            'max': '50'
+        }),
+        label='Number of Items',
+        help_text='Number of mac/serial entries to add (max 50)'
+    )
+    
+    def __init__(self, *args, **kwargs):
+        self.noc_user = kwargs.pop('noc_user', None)
+        super().__init__(*args, **kwargs)
+        
+        # Build branch user choices
+        branch_profiles = UserProfile.objects.filter(role='Branch').select_related('user').order_by('user__username')
+        user_choices = [('', '-- Select Branch User --')]
+        for profile in branch_profiles:
+            display = profile.user.get_full_name() or profile.user.username
+            user_choices.append((profile.user.id, f"{display} ({profile.user.username})"))
+        self.fields['assigned_to'].choices = user_choices
+        
+        # If form is bound (POST) or has initial data, populate material choices from the selected user's
+        # approved requests — but ONLY for materials created by this NOC role
+        assigned_to_id = self.data.get('assigned_to') or self.initial.get('assigned_to')
+        if assigned_to_id:
+            try:
+                user_id = int(assigned_to_id)
+                # Only show approved requests for materials created by a user with the NOC role
+                requests = MaterialRequest.objects.filter(
+                    requester_id=user_id,
+                    status='Approved',
+                    material__created_by__userprofile__role='NOC'
+                ).select_related('material')
+                
+                material_choices = [('', '-- Select Approved Request/Material --')]
+                for req in requests:
+                    material_choices.append((req.id, f"{req.material.name} (Approved Qty: {req.quantity}) - Requested {req.requested_at.strftime('%Y-%m-%d')}"))
+                
+                self.fields['material'].choices = material_choices
+                self.fields['material'].widget.attrs.pop('disabled', None)
+                self.fields['material'].label = 'Approved Material Request'
+            except (ValueError, TypeError):
+                pass
+    
+    def clean_assigned_to(self):
+        user_id = self.cleaned_data.get('assigned_to')
+        if not user_id:
+            raise forms.ValidationError("Please select a branch user.")
+        try:
+            user = User.objects.get(id=int(user_id))
+            profile = UserProfile.objects.get(user=user, role='Branch')
+            return user
+        except (User.DoesNotExist, UserProfile.DoesNotExist, ValueError):
+            raise forms.ValidationError("Invalid branch user selected.")
+    
+    def clean_material(self):
+        mat_req_id = self.cleaned_data.get('material')
+        if not mat_req_id:
+            raise forms.ValidationError("Please select an approved material request.")
+        try:
+            return MaterialRequest.objects.get(id=int(mat_req_id), status='Approved')
+        except (MaterialRequest.DoesNotExist, ValueError):
+            raise forms.ValidationError("Invalid material request selected.")
+
+
+class MacSerialNumberForm(forms.ModelForm):
+    """Form for adding individual mac/serial numbers"""
+    class Meta:
+        model = MacSerialNumber
+        fields = ['mac_serial', 'quantity']
+        widgets = {
+            'mac_serial': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:text-white',
+                'placeholder': 'Enter mac/serial number'
+            }),
+            'quantity': forms.NumberInput(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:text-white',
+                'min': '1',
+                'value': '1'
+            }),
+        }

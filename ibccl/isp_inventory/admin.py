@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Material, Task, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial, BackupRestore, ActivityLog, LogSettings
+from .models import Material, Task, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial, BackupRestore, ActivityLog, LogSettings, MacSerialNumber, MaterialMacSerialImport
 
 # Custom admin classes for better display
 
@@ -165,3 +165,55 @@ class BackupRestoreAdmin(admin.ModelAdmin):
     get_backup_size.short_description = "Backup Size"
 
 admin.site.register(BackupRestore, BackupRestoreAdmin)
+
+
+class MacSerialNumberAdmin(admin.ModelAdmin):
+    list_display = ['id', 'mac_serial', 'material_name', 'quantity', 'assigned_to_username', 'created_at']
+    list_filter = ['created_at', 'material']
+    search_fields = ['mac_serial', 'material__name', 'assigned_to__username']
+    readonly_fields = ['created_at', 'updated_at']
+    fieldsets = (
+        ('Mac/Serial Info', {
+            'fields': ('mac_serial', 'material', 'quantity')
+        }),
+        ('Assignment', {
+            'fields': ('assigned_to',)
+        }),
+        ('Admin', {
+            'fields': ('added_by',),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    date_hierarchy = 'created_at'
+
+admin.site.register(MacSerialNumber, MacSerialNumberAdmin)
+
+
+class MaterialMacSerialImportAdmin(admin.ModelAdmin):
+    list_display = ['id', 'material_name', 'branch_user_name', 'total_quantity', 'mac_serials_count', 'status', 'created_at']
+    list_filter = ['status', 'created_at', 'material']
+    search_fields = ['material__name', 'assigned_to__username', 'noc_user__username']
+    readonly_fields = ['created_at', 'approved_at']
+    fieldsets = (
+        ('Material & Assignment', {
+            'fields': ('material', 'assigned_to', 'total_quantity', 'mac_serials_count')
+        }),
+        ('Status', {
+            'fields': ('status', 'notes')
+        }),
+        ('Approval Info', {
+            'fields': ('noc_user', 'approved_by', 'approved_at'),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at',),
+            'classes': ('collapse',)
+        }),
+    )
+    date_hierarchy = 'created_at'
+
+admin.site.register(MaterialMacSerialImport, MaterialMacSerialImportAdmin)

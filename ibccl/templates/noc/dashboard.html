@@ -75,27 +75,33 @@
                 </div>
                 <div class="ml-6">
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Internal Communication</p>
-                    <p class="text-lg font-bold text-gray-900 dark:text-white">View</p>
+                    <p class="text-4xl font-bold text-gray-900 dark:text-white">
+                        {% if unread_messages_count > 0 %}
+                            {{ unread_messages_count }}
+                        {% else %}
+                            <span class="text-lg">View</span>
+                        {% endif %}
+                    </p>
                 </div>
             </div>
         </div>
 
         <!-- 6. Reports Card -->
-        <div data-redirect="{% url 'noc:reports' %}"
+        <div onclick="document.getElementById('reportsModal').classList.remove('hidden')"
             class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
                 <div class="p-4 bg-purple-100 dark:bg-purple-900/30 rounded-full">
                     <i class="fas fa-chart-bar text-3xl mr-2 text-purple-600 dark:text-purple-400"></i>
                 </div>
                 <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Reports</p>
-                    <p class="text-lg font-bold text-gray-900 dark:text-white">View</p>
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Reports Summary</p>
+                    <p class="text-lg font-bold text-gray-900 dark:text-white">Monthly Overview</p>
                 </div>
             </div>
         </div>
 
         <!-- 7. Mac/Serial Numbers Card -->
-        <div onclick="document.getElementById('materialsModal').classList.remove('hidden')"
+        <div onclick="document.getElementById('macSerialModal').classList.remove('hidden')"
             class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
             <div class="flex items-center">
                 <div class="p-4 bg-indigo-100 dark:bg-indigo-900 rounded-full">
@@ -103,7 +109,7 @@
                 </div>
                 <div class="ml-6">
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Mac/Serial Numbers</p>
-                    <!-- <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ mac_serial_count }}</p> -->
+                    <p class="text-lg font-bold text-gray-900 dark:text-white">Manage</p>
                 </div>
             </div>
         </div>
@@ -331,6 +337,7 @@
                         <tr class="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b dark:border-midnight-800">
                             <th class="px-6 py-4 text-left">Material</th>
                             <th class="px-6 py-4 text-center">Remaining</th>
+                            <th class="px-6 py-4 text-center">Date</th>
                             <th class="px-6 py-4 text-right">Action</th>
                         </tr>
                     </thead>
@@ -339,6 +346,7 @@
                         <tr class="hover:bg-red-50/20 transition-colors">
                             <td class="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">{{ item.name }}</td>
                             <td class="px-6 py-4 text-sm font-black text-center text-rose-600">{{ item.quantity }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-600 text-center" text-xs>{{ item.added_at|date:"Y-m-d" }}</td>
                             <td class="px-6 py-4 text-right">
                                 <a href="{% url 'noc:materials' %}" class="px-3 py-1 bg-rose-600 text-white rounded-lg text-xs font-bold hover:bg-rose-700 transition">Refill</a>
                             </td>
@@ -356,22 +364,70 @@
     <div id="internalCommModal"
         class="fixed inset-0 bg-gray-900/60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
         onclick="if(event.target === this) this.classList.add('hidden')">
-        <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl w-full max-w-2xl transform transition-all">
-            <div class="p-8 border-b dark:border-midnight-800 flex justify-between items-center bg-pink-50 dark:bg-pink-950/20">
+        <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl w-full max-w-2xl transform transition-all flex flex-col max-h-[85vh] overflow-hidden border dark:border-midnight-800">
+            <div class="p-8 border-b dark:border-midnight-800 flex justify-between items-center bg-gradient-to-r from-pink-50 to-white dark:from-pink-950/20 dark:to-midnight-900">
                 <h3 class="text-2xl font-bold flex items-center text-pink-800 dark:text-pink-400">
-                    <i class="fas fa-comments mr-3"></i> Internal Communication
+                    <i class="fas fa-comments mr-4"></i> Internal Communication
                 </h3>
-                <button onclick="document.getElementById('internalCommModal').classList.add('hidden')"
-                    class="text-pink-800/50 hover:text-pink-800 text-3xl font-light">&times;</button>
-            </div>
-            <div class="p-8 text-center">
-                <i class="fas fa-comment-dots text-6xl text-pink-200 dark:text-pink-900/40 mb-4"></i>
-                <p class="text-lg font-medium text-gray-800 dark:text-gray-200">Secure Messaging Module</p>
-                <p class="text-gray-500 dark:text-gray-400 mt-2 italic">Feature expanding in next update...</p>
-                <div class="mt-8 flex justify-center">
+                <div class="flex items-center gap-4">
+                    <input type="text" placeholder="Search user..." onkeyup="filterTable(this, 'usersChatTable')"
+                        class="border dark:border-midnight-700 rounded-xl px-4 py-2 text-sm focus:ring-pink-500 bg-white dark:bg-midnight-950 dark:text-white">
                     <button onclick="document.getElementById('internalCommModal').classList.add('hidden')"
-                        class="px-8 py-3 bg-pink-600 text-white rounded-2xl font-bold hover:bg-pink-700 transition shadow-lg shadow-pink-200 dark:shadow-none">Close Dashboard View</button>
+                        class="text-pink-800/50 hover:text-pink-800 dark:text-pink-400 text-3xl font-light">&times;</button>
                 </div>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1">
+                <table id="usersChatTable" class="min-w-full divide-y dark:divide-midnight-800">
+                    <thead>
+                        <tr class="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b dark:border-midnight-800">
+                            <th class="px-6 py-4 text-left">User</th>
+                            <th class="px-6 py-4 text-left">Role</th>
+                            <th class="px-6 py-4 text-right">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50 dark:divide-midnight-800">
+                        {% for up in all_users_list %}
+                        {% if up.user != request.user %}
+                        <tr class="hover:bg-pink-50/20 transition-colors group">
+                            <td class="px-6 py-4">
+                                <div class="flex items-center">
+                                    <div class="h-10 w-10 rounded-full bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center text-pink-600 dark:text-pink-400 font-bold mr-3 group-hover:scale-110 transition">
+                                        {{ up.user.username|make_list|first|upper }}
+                                    </div>
+                                    <div>
+                                        <div class="text-sm font-bold text-gray-900 dark:text-white">{{ up.user.username }}</div>
+                                        <div class="text-xs text-gray-500 dark:text-gray-400">
+                                            {% if up.is_active %}
+                                            <span class="flex items-center"><span class="h-1.5 w-1.5 rounded-full bg-green-500 mr-1.5"></span>Online</span>
+                                            {% else %}
+                                            <span class="flex items-center"><span class="h-1.5 w-1.5 rounded-full bg-gray-300 mr-1.5"></span>Offline</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase
+                                    {% if up.role == 'Admin' %}bg-indigo-100 text-indigo-700
+                                    {% elif up.role == 'Branch' %}bg-teal-100 text-teal-700
+                                    {% else %}bg-gray-100 text-gray-700{% endif %}">
+                                    {{ up.role }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-right">
+                                <a href="{% url 'chat' %}?user_id={{ up.user.id }}" 
+                                    class="inline-flex items-center px-4 py-2 bg-pink-600 text-white rounded-xl text-xs font-bold hover:bg-pink-700 transition shadow-lg shadow-pink-200 dark:shadow-none">
+                                    <i class="fas fa-paper-plane mr-2"></i> Message
+                                </a>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="p-6 border-t dark:border-midnight-800 bg-gray-50 dark:bg-midnight-950/50 flex justify-end">
+                <a href="{% url 'chat' %}" class="px-6 py-2 bg-gray-200 dark:bg-midnight-800 text-gray-700 dark:text-white rounded-xl font-bold hover:bg-gray-300 transition">Go to Chat Room</a>
             </div>
         </div>
     </div>
@@ -394,12 +450,96 @@
         </div>
     </div>
 
-    <!-- Recent Network Activity Table -->
+    <!-- Reports Summary Modal -->
+    <div id="reportsModal"
+        class="fixed inset-0 bg-gray-900/60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+        onclick="if(event.target === this) this.classList.add('hidden')">
+        <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl w-full max-w-2xl transform transition-all border dark:border-midnight-800">
+            <div class="p-8 border-b dark:border-midnight-800 flex justify-between items-center bg-gradient-to-r from-purple-50 to-white dark:from-purple-950/20 dark:to-midnight-900">
+                <h3 class="text-2xl font-bold flex items-center text-purple-800 dark:text-purple-400">
+                    <i class="fas fa-file-invoice mr-4"></i> Monthly Reports Summary
+                </h3>
+                <button onclick="document.getElementById('reportsModal').classList.add('hidden')"
+                    class="text-purple-800/50 hover:text-purple-800 dark:text-purple-400 text-3xl font-light">&times;</button>
+            </div>
+            <div class="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Stat 1 -->
+                <div class="bg-indigo-50 dark:bg-indigo-950/30 p-6 rounded-2xl text-center border border-indigo-100 dark:border-indigo-900/50">
+                    <p class="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-2">Items Issued</p>
+                    <p class="text-3xl font-black text-indigo-900 dark:text-indigo-300">{{ total_qty_issued }}</p>
+                    <p class="text-[10px] text-indigo-400 mt-1">This Month</p>
+                </div>
+                <!-- Stat 2 -->
+                <div class="bg-amber-50 dark:bg-amber-950/30 p-6 rounded-2xl text-center border border-amber-100 dark:border-amber-900/50">
+                    <p class="text-xs font-bold text-amber-600 uppercase tracking-widest mb-2">Total Request</p>
+                    <p class="text-3xl font-black text-amber-900 dark:text-amber-300">{{ advance_count }}</p>
+                    <p class="text-[10px] text-amber-500 mt-1">Pending/Approved</p>
+                </div>
+                <!-- Stat 3 -->
+                <div class="bg-teal-50 dark:bg-teal-950/30 p-6 rounded-2xl text-center border border-teal-100 dark:border-teal-900/50">
+                    <p class="text-xs font-bold text-teal-600 uppercase tracking-widest mb-2">Total Used</p>
+                    <p class="text-3xl font-black text-teal-900 dark:text-teal-300">{{ total_used_qty }}</p>
+                    <p class="text-[10px] text-teal-500 mt-1">Units Consumed</p>
+                </div>
+            </div>
+            <div class="px-8 pb-8 space-y-4">
+                <div class="flex gap-4">
+                    <a href="{% url 'noc:reports' %}" 
+                        class="flex-1 px-6 py-4 bg-purple-600 text-white rounded-2xl font-bold hover:bg-purple-700 transition shadow-lg text-center flex items-center justify-center gap-2">
+                        <i class="fas fa-chart-pie"></i> View Detailed Analytics
+                    </a>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <a href="{% url 'noc:reports' %}?preset=month" 
+                        class="px-4 py-3 bg-gray-100 dark:bg-midnight-800 text-gray-700 dark:text-white rounded-xl text-sm font-bold hover:bg-gray-200 transition text-center flex items-center justify-center gap-2">
+                        <i class="fas fa-file-excel text-green-600"></i> Month Excel
+                    </a>
+                    <a href="{% url 'noc:reports' %}?preset=month" 
+                        class="px-4 py-3 bg-gray-100 dark:bg-midnight-800 text-gray-700 dark:text-white rounded-xl text-sm font-bold hover:bg-gray-200 transition text-center flex items-center justify-center gap-2">
+                        <i class="fas fa-file-pdf text-red-600"></i> Month PDF
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mac/Serial Numbers Modal -->
+    <div id="macSerialModal"
+        class="fixed inset-0 bg-gray-900/60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+        onclick="if(event.target === this) this.classList.add('hidden')">
+        <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl w-full max-w-2xl transform transition-all border dark:border-midnight-800">
+            <div class="p-8 border-b dark:border-midnight-800 flex justify-between items-center bg-indigo-50 dark:bg-indigo-950/20">
+                <h3 class="text-2xl font-bold flex items-center text-indigo-800 dark:text-indigo-400">
+                    <i class="fas fa-barcode mr-3"></i> Mac/Serial Numbers Management
+                </h3>
+                <button onclick="document.getElementById('macSerialModal').classList.add('hidden')"
+                    class="text-indigo-800/50 hover:text-indigo-800 text-3xl font-light">&times;</button>
+            </div>
+            <div class="p-8">
+                <div class="space-y-4">
+                    <a href="{% url 'noc:add_mac_serials' %}" 
+                        class="block w-full px-6 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition shadow-lg text-center">
+                        <i class="fas fa-plus mr-2"></i> Add Mac/Serial Numbers
+                    </a>
+                    <a href="{% url 'noc:list_mac_serials' %}"
+                        class="block w-full px-6 py-4 bg-indigo-500 text-white rounded-2xl font-bold hover:bg-indigo-600 transition shadow-lg text-center">
+                        <i class="fas fa-list mr-2"></i> View All Mac/Serials
+                    </a>
+                </div>
+                <button onclick="document.getElementById('macSerialModal').classList.add('hidden')"
+                    class="w-full mt-6 px-6 py-3 bg-gray-200 dark:bg-midnight-800 text-gray-700 dark:text-white rounded-2xl font-bold hover:bg-gray-300 transition">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Today's Used Materials Table -->
     <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-xl overflow-hidden border border-gray-100 dark:border-midnight-800 mt-8">
-        <div class="px-8 py-6 bg-gradient-to-r from-gray-50 to-white dark:from-midnight-950 dark:to-midnight-900 border-b border-gray-100 dark:border-midnight-800 flex justify-between items-center">
+        <div class="px-8 py-6 bg-gradient-to-r from-teal-50 to-white dark:from-midnight-950 dark:to-midnight-900 border-b border-gray-100 dark:border-midnight-800 flex justify-between items-center">
             <h3 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
-                <i class="fas fa-stream mr-4 text-indigo-600"></i>
-                Recent Network Activity ({{ recent_requests|length }})
+                <i class="fas fa-clipboard-check mr-4 text-teal-600"></i>
+                Today's Used Materials ({{ today_used_materials.paginator.count }})
             </h3>
         </div>
         <div class="overflow-x-auto">
@@ -407,47 +547,76 @@
                 <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
                     <tr>
                         <th class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Date</th>
-                        <th class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Branch</th>
+                        <th class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Technician</th>
                         <th class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Material</th>
                         <th class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Qty</th>
                         <th class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Status</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white dark:bg-midnight-900 divide-y divide-gray-200 dark:divide-midnight-800">
-                    {% for req in recent_requests %}
+                    {% for item in today_used_materials %}
                     <tr class="hover:bg-gray-50 dark:hover:bg-midnight-800/50 transition">
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
-                            {{ req.requested_at|date:"d M Y" }}
+                            {{ item.added_at|date:"h:i A" }}
                         </td>
                         <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
-                            {{ req.requester.username }}
+                            {{ item.technician.username }}
                         </td>
                         <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
-                            {{ req.material.name }}
+                            {{ item.material.name }}
+                            {% if item.mac_serial %}
+                            <br><span class="text-[10px] text-gray-500">SN: {{ item.mac_serial.serial_number }}</span>
+                            {% endif %}
                         </td>
-                        <td class="px-6 py-4 text-sm font-bold text-indigo-600 dark:text-indigo-400">
-                            {{ req.quantity }}
+                        <td class="px-6 py-4 text-sm font-bold text-teal-600 dark:text-teal-400">
+                            {{ item.quantity }}
                         </td>
                         <td class="px-6 py-4">
                             <span class="px-3 py-1 inline-flex text-[10px] font-bold leading-5 rounded-full uppercase
-                                {% if req.status == 'Approved' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
-                                {% elif req.status == 'Pending' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
+                                {% if item.status == 'Accepted' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
+                                {% elif item.status == 'Pending' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
                                 {% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400{% endif %}">
-                                {{ req.status }}
+                                {{ item.status }}
                             </span>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
                         <td colspan="5" class="px-6 py-16 text-center text-gray-500 text-lg dark:text-gray-400">
-                            <i class="fas fa-inbox text-6xl mb-4 text-gray-300 dark:text-midnight-800"></i><br>
-                            No recent requests detected
+                            <i class="fas fa-clipboard text-6xl mb-4 text-gray-300 dark:text-midnight-800"></i><br>
+                            No materials used today
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+        
+        <!-- Pagination Controls -->
+        {% if today_used_materials.has_other_pages %}
+        <div class="px-8 py-4 bg-gray-50 dark:bg-midnight-950/50 border-t border-gray-100 dark:border-midnight-800 flex items-center justify-between">
+            <div class="text-sm text-gray-500 dark:text-gray-400">
+                Showing <span class="font-medium text-gray-900 dark:text-white">{{ today_used_materials.start_index }}</span> to <span class="font-medium text-gray-900 dark:text-white">{{ today_used_materials.end_index }}</span> of <span class="font-medium text-gray-900 dark:text-white">{{ today_used_materials.paginator.count }}</span> entries
+            </div>
+            <div class="flex space-x-2">
+                {% if today_used_materials.has_previous %}
+                <a href="?page={{ today_used_materials.previous_page_number }}" class="px-3 py-1 border border-gray-300 dark:border-midnight-700 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-midnight-800 transition"><i class="fas fa-chevron-left"></i></a>
+                {% endif %}
+                
+                {% for num in today_used_materials.paginator.page_range %}
+                    {% if today_used_materials.number == num %}
+                    <span class="px-3 py-1 border border-teal-500 bg-teal-50 text-teal-600 dark:bg-teal-900/30 dark:border-teal-700 dark:text-teal-400 rounded-lg text-sm font-bold">{{ num }}</span>
+                    {% elif num > today_used_materials.number|add:'-3' and num < today_used_materials.number|add:'3' %}
+                    <a href="?page={{ num }}" class="px-3 py-1 border border-gray-300 dark:border-midnight-700 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-midnight-800 transition">{{ num }}</a>
+                    {% endif %}
+                {% endfor %}
+
+                {% if today_used_materials.has_next %}
+                <a href="?page={{ today_used_materials.next_page_number }}" class="px-3 py-1 border border-gray-300 dark:border-midnight-700 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-midnight-800 transition"><i class="fas fa-chevron-right"></i></a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 

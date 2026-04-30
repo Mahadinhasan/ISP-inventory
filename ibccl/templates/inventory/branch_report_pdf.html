@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Branch Report — {{ from_date }} to {{ to_date }}</title>
+    <style>
+        /* xhtml2pdf-compatible CSS */
+        @page {
+            size: A4;
+            margin: 1.5cm 1.8cm 2cm;
+
+            @frame footer {
+                -pdf-frame-content: footer-content;
+                bottom: 0cm;
+                left: 0cm;
+                right: 0cm;
+                height: 1cm;
+            }
+        }
+
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 10pt;
+            color: #1f2937;
+            line-height: 1.45;
+        }
+
+        /* ── Header ── */
+        .report-header {
+            background: #4f46e5;
+            color: #fff;
+            padding: 14px 18px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+        }
+
+        .report-header h1 {
+            font-size: 18pt;
+            font-weight: 900;
+            margin: 0 0 4px;
+            letter-spacing: -0.3px;
+        }
+
+        .report-header p {
+            font-size: 9pt;
+            opacity: 0.9;
+            margin: 2px 0;
+        }
+
+        /* ── Summary Grid ── */
+        .summary-grid {
+            width: 100%;
+            margin-bottom: 14px;
+        }
+
+        .summary-grid td {
+            width: 25%;
+            padding: 0 5px;
+            vertical-align: top;
+        }
+
+        .stat-box {
+            background: #f5f3ff;
+            border-left: 4px solid #6d28d9;
+            border-radius: 5px;
+            padding: 10px 12px;
+            text-align: center;
+        }
+
+        .stat-box .num {
+            font-size: 22pt;
+            font-weight: 900;
+            color: #4f46e5;
+            line-height: 1;
+        }
+
+        .stat-box .lbl {
+            font-size: 8pt;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+
+        .stat-box.green {
+            background: #ecfdf5;
+            border-color: #10b981;
+        }
+
+        .stat-box.green .num {
+            color: #059669;
+        }
+
+        .stat-box.yellow {
+            background: #fffbeb;
+            border-color: #f59e0b;
+        }
+
+        .stat-box.yellow .num {
+            color: #d97706;
+        }
+
+        .stat-box.red {
+            background: #fef2f2;
+            border-color: #ef4444;
+        }
+
+        .stat-box.red .num {
+            color: #dc2626;
+        }
+
+        /* ── Section heading ── */
+        .section-head {
+            background: #4f46e5;
+            color: #fff;
+            padding: 6px 10px;
+            font-size: 10pt;
+            font-weight: 700;
+            border-radius: 4px;
+            margin: 14px 0 6px;
+        }
+
+        .section-subhead {
+            background: #6366f1;
+            color: #fff;
+            padding: 4px 8px;
+            font-size: 9pt;
+            font-weight: 700;
+            border-radius: 3px;
+            margin: 10px 0 4px;
+        }
+
+        /* ── Tables ── */
+        table.data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8.5pt;
+            margin-bottom: 10px;
+        }
+
+        table.data-table th {
+            background: #6d28d9;
+            color: #fff;
+            padding: 5px 7px;
+            text-align: left;
+            font-weight: 700;
+            font-size: 7.5pt;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        table.data-table td {
+            padding: 4.5px 7px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        table.data-table tr:nth-child(even) td {
+            background: #f5f3ff;
+        }
+
+        /* Status badges */
+        .badge {
+            display: inline;
+            padding: 2px 7px;
+            border-radius: 10px;
+            font-size: 7pt;
+            font-weight: 700;
+        }
+
+        .approved {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .accepted {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .pending {
+            background: #fef9c3;
+            color: #78350f;
+        }
+
+        .rejected {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        /* ── Footer ── */
+        #footer-content {
+            font-size: 8pt;
+            color: #9ca3af;
+            text-align: center;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 4px;
+        }
+
+        .meta-row {
+            width: 100%;
+            margin-bottom: 12px;
+            font-size: 8.5pt;
+            color: #6b7280;
+        }
+
+        .meta-row td {
+            padding: 1px 0;
+        }
+
+        .page-break {
+            page-break-after: always;
+        }
+
+        .empty-message {
+            text-align: center;
+            color: #9ca3af;
+            padding: 12px;
+            font-style: italic;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Header -->
+    <div class="report-header">
+        <h1>Branch Report</h1>
+        <p><strong>Branch:</strong> {{ branch_name }}</p>
+        <p><strong>Period:</strong> {{ from_date }} → {{ to_date }}</p>
+        <p><strong>Generated:</strong> {{ generated_at }} &nbsp;|&nbsp; <strong>By:</strong> {{ generated_by }}</p>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- MATERIAL REQUESTS SECTION -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+
+    <div class="section-head">Material Requests Summary</div>
+
+    <table class="summary-grid">
+        <tr>
+            <td>
+                <div class="stat-box">
+                    <div class="num">{{ req_total_count }}</div>
+                    <div class="lbl">Total Requests</div>
+                </div>
+            </td>
+            <td>
+                <div class="stat-box green">
+                    <div class="num">{{ req_approved_count }}</div>
+                    <div class="lbl">Approved</div>
+                </div>
+            </td>
+            <td>
+                <div class="stat-box yellow">
+                    <div class="num">{{ req_pending_count }}</div>
+                    <div class="lbl">Pending</div>
+                </div>
+            </td>
+            <td>
+                <div class="stat-box red">
+                    <div class="num">{{ req_rejected_count }}</div>
+                    <div class="lbl">Rejected</div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <table class="summary-grid">
+        <tr>
+            <td>
+                <div class="stat-box green">
+                    <div class="num">{{ req_approved_qty }}</div>
+                    <div class="lbl">Total Units Approved</div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Pending Requests -->
+    {% if req_pending_list %}
+    <div class="section-subhead">Pending Requests</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Material</th>
+                <th>Category</th>
+                <th>Qty</th>
+                <th>Type</th>
+                <th>Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for req in req_pending_list %}
+            <tr>
+                <td>{{ req.requested_at|date:"d M Y" }}</td>
+                <td>{{ req.material.name }}</td>
+                <td>{{ req.material.category }}</td>
+                <td>{{ req.quantity }}</td>
+                <td>{{ req.request_type }}</td>
+                <td>{{ req.notes|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Approved Requests -->
+    {% if req_approved_list %}
+    <div class="section-subhead">Approved Requests</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Material</th>
+                <th>Category</th>
+                <th>Qty</th>
+                <th>Type</th>
+                <th>Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for req in req_approved_list %}
+            <tr>
+                <td>{{ req.requested_at|date:"d M Y" }}</td>
+                <td>{{ req.material.name }}</td>
+                <td>{{ req.material.category }}</td>
+                <td>{{ req.quantity }}</td>
+                <td>{{ req.request_type }}</td>
+                <td>{{ req.notes|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Rejected Requests -->
+    {% if req_rejected_list %}
+    <div class="section-subhead">Rejected Requests</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Material</th>
+                <th>Category</th>
+                <th>Qty</th>
+                <th>Type</th>
+                <th>Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for req in req_rejected_list %}
+            <tr>
+                <td>{{ req.requested_at|date:"d M Y" }}</td>
+                <td>{{ req.material.name }}</td>
+                <td>{{ req.material.category }}</td>
+                <td>{{ req.quantity }}</td>
+                <td>{{ req.request_type }}</td>
+                <td>{{ req.notes|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Page Break -->
+    <div class="page-break"></div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- USED MATERIALS SECTION -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+
+    <div class="section-head">Used Materials Summary</div>
+
+    <table class="summary-grid">
+        <tr>
+            <td>
+                <div class="stat-box">
+                    <div class="num">{{ um_total_count }}</div>
+                    <div class="lbl">Total Records</div>
+                </div>
+            </td>
+            <td>
+                <div class="stat-box green">
+                    <div class="num">{{ um_accepted_count }}</div>
+                    <div class="lbl">Accepted</div>
+                </div>
+            </td>
+            <td>
+                <div class="stat-box yellow">
+                    <div class="num">{{ um_pending_count }}</div>
+                    <div class="lbl">Pending</div>
+                </div>
+            </td>
+            <td>
+                <div class="stat-box red">
+                    <div class="num">{{ um_rejected_count }}</div>
+                    <div class="lbl">Rejected</div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <table class="summary-grid">
+        <tr>
+            <td>
+                <div class="stat-box green">
+                    <div class="num">{{ um_accepted_qty }}</div>
+                    <div class="lbl">Total Units Accepted</div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Pending Used Materials -->
+    {% if um_pending_list %}
+    <div class="section-subhead">Pending Used Materials</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Material</th>
+                <th>Category</th>
+                <th>Qty Used</th>
+                <th>Issue</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for um in um_pending_list %}
+            <tr>
+                <td>{{ um.added_at|date:"d M Y" }}</td>
+                <td>{{ um.material.name }}</td>
+                <td>{{ um.material.category }}</td>
+                <td>{{ um.quantity }}</td>
+                <td>{{ um.issue|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Accepted Used Materials -->
+    {% if um_accepted_list %}
+    <div class="section-subhead">Accepted Used Materials</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Material</th>
+                <th>Category</th>
+                <th>Qty Used</th>
+                <th>Issue</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for um in um_accepted_list %}
+            <tr>
+                <td>{{ um.added_at|date:"d M Y" }}</td>
+                <td>{{ um.material.name }}</td>
+                <td>{{ um.material.category }}</td>
+                <td>{{ um.quantity }}</td>
+                <td>{{ um.issue|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Rejected Used Materials -->
+    {% if um_rejected_list %}
+    <div class="section-subhead">Rejected Used Materials</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Material</th>
+                <th>Category</th>
+                <th>Qty Used</th>
+                <th>Issue</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for um in um_rejected_list %}
+            <tr>
+                <td>{{ um.added_at|date:"d M Y" }}</td>
+                <td>{{ um.material.name }}</td>
+                <td>{{ um.material.category }}</td>
+                <td>{{ um.quantity }}</td>
+                <td>{{ um.issue|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Footer -->
+    <div id="footer-content">
+        ISP Inventory System — Branch Report &nbsp;|&nbsp; Generated on {{ generated_at }} by {{ generated_by }}
+        &nbsp;|&nbsp; <pdf:pagenumber> / <pdf:pagecount>
+    </div>
+
+</body>
+
+</html>

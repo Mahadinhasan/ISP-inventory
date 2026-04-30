@@ -4,6 +4,8 @@ from django.utils import timezone
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
 
+from django.core.validators import FileExtensionValidator
+
 class UserProfile(models.Model):
     ROLE_CHOICES = [
         ('Admin', 'Admin'),
@@ -17,11 +19,16 @@ class UserProfile(models.Model):
     address = models.TextField(blank=True)
     city = models.CharField(max_length=100, blank=True)
     zip_code = models.CharField(max_length=20, blank=True)
-    image = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
+    image = models.ImageField(
+        upload_to='profile_pics/', 
+        blank=True, 
+        null=True,
+        validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'gif', 'webp'  ])]
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     last_login = models.DateTimeField(null=True, blank=True)
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=False)
     last_active = models.DateTimeField(null=True, blank=True)
     is_verified = models.BooleanField(default=False)
     email_notifications = models.BooleanField(default=True)
@@ -299,7 +306,7 @@ class MaterialRequest(models.Model):
     @property
     def used_materials_count(self):
         """Return count of used materials linked to this request."""
-        return self.used_materials.count()
+        return self.used_materials.filter(status='Accepted').count()
     
     @property
     def used_materials_display(self):
@@ -369,6 +376,7 @@ class UsedMaterial(models.Model):
     client_address = models.TextField(blank=True, verbose_name='Client Address')
     client_phone = models.CharField(max_length=20, blank=True, verbose_name='Client Phone')
     # Material Usage Details
+    mac_serial = models.ForeignKey('MacSerialNumber', on_delete=models.SET_NULL, null=True, blank=True, related_name='used_records', help_text="Specific Mac/Serial number used")
     quantity = models.IntegerField(default=1)
     issue = models.TextField(blank=True, verbose_name='Technical Issue / Notes')
     # Status and Notes
@@ -565,3 +573,96 @@ class InternalMessage(models.Model):
 
     def __str__(self):
         return f"Message from {self.sender.username} to {self.receiver.username}"
+
+
+class MacSerialNumber(models.Model):
+    """Store Mac/Serial numbers for materials assigned to branch users"""
+    STATUS_CHOICES = [
+        ('Active', 'Active'),
+        ('Used', 'Used'),
+        ('Transferred', 'Transferred'),
+        ('Retired', 'Retired'),
+    ]
+
+    material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name='mac_serials')
+    mac_serial = models.CharField(max_length=255, unique=True, help_text="Unique Mac/Serial number")
+    quantity = models.IntegerField(default=1, help_text="Quantity for this mac/serial")
+    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_mac_serials', help_text="Branch user this is assigned to")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Active', help_text="Current status of this Mac/Serial entry")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    added_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='added_mac_serials', help_text="NOC user who added this")
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Mac/Serial Number'
+        verbose_name_plural = 'Mac/Serial Numbers'
+        indexes = [
+            models.Index(fields=['material', '-created_at']),
+            models.Index(fields=['assigned_to', '-created_at']),
+            models.Index(fields=['status']),
+        ]
+    
+    def __str__(self):
+        return f"{self.material.name} - {self.mac_serial}"
+    
+    @property
+    def material_name(self):
+        """Return material name"""
+        return self.material.name if self.material else 'N/A'
+    
+    @property
+    def assigned_to_username(self):
+        """Return assigned user's username"""
+        return self.assigned_to.username if self.assigned_to else 'Unassigned'
+
+
+class MaterialMacSerialImport(models.Model):
+    """Track Mac/Serial import transactions from NOC to Branch users"""
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
+    ]
+    
+    material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name='mac_serial_imports')
+    assigned_to = models.ForeignKey(User, on_delete=models.CASCADE, related_name='mac_serial_imports', help_text="Branch user receiving the materials")
+    noc_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_mac_serial_imports', help_text="NOC user who created this import")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    total_quantity = models.IntegerField(default=1, help_text="Total quantity for this import")
+    mac_serials_count = models.IntegerField(default=0, help_text="Number of mac/serial entries")
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_mac_serial_imports', help_text="Who approved this import")
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Material Mac/Serial Import'
+        verbose_name_plural = 'Material Mac/Serial Imports'
+        indexes = [
+            models.Index(fields=['assigned_to', '-created_at']),
+            models.Index(fields=['status', '-created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.material.name} - {self.assigned_to.username} - {self.status}"
+    
+    @property
+    def material_name(self):
+        """Return material name"""
+        return self.material.name if self.material else 'N/A'
+    
+    @property
+    def branch_user_name(self):
+        """Return branch user's full name"""
+        if self.assigned_to:
+            return self.assigned_to.get_full_name() or self.assigned_to.username
+        return 'N/A'
+    
+    @property
+    def noc_user_name(self):
+        """Return NOC user's full name"""
+        if self.noc_user:
+            return self.noc_user.get_full_name() or self.noc_user.username
+        return 'N/A'

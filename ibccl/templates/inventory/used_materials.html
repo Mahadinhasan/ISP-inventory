@@ -58,6 +58,9 @@
                             Material Name</th>
                         <th scope="col"
                             class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
+                            MAC/Serial</th>
+                        <th scope="col"
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
                             Category</th>
                         <th scope="col"
                             class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
@@ -74,6 +77,9 @@
                         <th scope="col"
                             class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
                             Issue</th>
+                        <th scope="col"
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
+                            Mac/Serial</th>
                         <th scope="col"
                             class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">Status</th>
                         <th scope="col"
@@ -93,6 +99,7 @@
                         <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ item.technician.username }}</td>
                         {% endif %}
                         <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ item.material.name }}</td>
+                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">{{ item.mac_serial|default:"N/A" }}</td>
                         <td class="px-4 py-4 whitespace-nowrap">
                             <span class="px-3 py-1 rounded-full text-xs font-semibold 
                                 {% if item.material.category == 'Internet' %}bg-blue-100 text-blue-800
@@ -107,6 +114,7 @@
                         <td class="px-4 py-4 text-sm text-gray-700">{{ item.client_address|default:"N/A"|truncatewords:10 }}</td>
                         <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{{ item.client_phone|default:"N/A" }}</td>
                         <td class="px-4 py-4 text-sm text-gray-700">{{ item.issue|default:"N/A"|truncatewords:8 }}</td>
+                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-mono">{{ item.mac_serial|default:"N/A" }}</td>
                         <td class="px-4 py-4 whitespace-nowrap">
                             <span class="px-3 py-1 rounded-full text-xs font-semibold
                                 {% if item.status == 'Pending' %}bg-yellow-100 text-yellow-800
@@ -190,15 +198,19 @@
                     </div>
                 </div>
 
-                <!-- Quantity -->
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">
-                        <i class="fas fa-cubes text-indigo-600 mr-1"></i>Quantity *
-                    </label>
-                    {{ form.quantity }}
-                    {% if form.quantity.errors %}
-                    <p class="text-red-500 text-xs mt-1">{{ form.quantity.errors.0 }}</p>
-                    {% endif %}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">
+                            <i class="fas fa-barcode text-indigo-600 mr-1"></i>Mac/Serial Number
+                        </label>
+                        {{ form.mac_serial }}
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">
+                            <i class="fas fa-cubes text-indigo-600 mr-1"></i>Quantity *
+                        </label>
+                        {{ form.quantity }}
+                    </div>
                 </div>
 
                 <!-- Client Name & Phone -->
@@ -462,6 +474,9 @@
                 throw new Error(data.error);
             }
             document.getElementById('id_material').value = data.material;
+            if (document.getElementById('id_mac_serial')) {
+                document.getElementById('id_mac_serial').value = data.mac_serial || '';
+            }
             document.getElementById('id_client_name').value = data.client_name || '';
             document.getElementById('id_client_phone').value = data.client_phone || '';
             document.getElementById('id_client_address').value = data.client_address || '';

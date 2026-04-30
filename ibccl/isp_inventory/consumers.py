@@ -32,7 +32,7 @@ def _get_initial_monitoring_data(user=None):
 
     for profile in branch_profiles:
         u = profile.user
-        used_filter = Q(technician=u)
+        used_filter = Q(technician=u, status='Accepted')
         if is_noc:
             used_filter &= Q(material__created_by=user)
             
@@ -169,7 +169,8 @@ def set_user_online_status(user, is_online):
         from .models import UserProfile
         profile = UserProfile.objects.get(user=user)
         profile.is_online = is_online
-        profile.save(update_fields=['is_online'])
+        profile.is_active = is_online
+        profile.save(update_fields=['is_online', 'is_active'])
         return True
     except Exception:
         return False
@@ -310,11 +311,18 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         # Personal group for receiving messages
         self.user_group = f"user_chat_{self.user.id}"
         await self.channel_layer.group_add(self.user_group, self.channel_name)
+        
+        # Also join presence group for real-time status updates in chat
+        await self.channel_layer.group_add(PRESENCE_GROUP, self.channel_name)
+        
         await self.accept()
 
     async def disconnect(self, close_code):
         if hasattr(self, 'user_group'):
             await self.channel_layer.group_discard(self.user_group, self.channel_name)
+        
+        # Discard from presence group as well
+        await self.channel_layer.group_discard(PRESENCE_GROUP, self.channel_name)
 
     async def receive_json(self, content):
         """Handle incoming message from the user's browser."""
@@ -331,8 +339,9 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             if not saved_msg:
                 return
 
-            # Send to receiver's group
-            receiver_group = f"user_chat_{receiver_id}"
+            # Use the validated integer ID for the group name
+            rid = int(receiver_id)
+            receiver_group = f"user_chat_{rid}"
             message_data = {
                 'type': 'chat_message',
                 'message': {
@@ -353,11 +362,17 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         """Receive message from group and send to WebSocket."""
         await self.send_json(event)
 
+    async def status_update(self, event):
+        """Receive status update (online/offline) from presence group and forward to client."""
+        await self.send_json(event)
+
     @database_sync_to_async
     def save_message(self, receiver_id, content):
         from .models import InternalMessage
         try:
-            receiver = User.objects.get(id=receiver_id)
+            # Ensure receiver_id is an integer
+            rid = int(receiver_id)
+            receiver = User.objects.get(id=rid)
             msg = InternalMessage.objects.create(
                 sender=self.user,
                 receiver=receiver,
@@ -367,6 +382,11 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 'id': msg.id,
                 'created_at': msg.created_at.isoformat()
             }
+        except (ValueError, User.DoesNotExist) as e:
+            print(f"Chat error: Invalid receiver_id {receiver_id} or user not found. Details: {e}")
+            return None
         except Exception as e:
-            print(f"Error saving chat message: {e}")
+            print(f"CRITICAL: Error saving chat message: {e}")
+            import traceback
+            traceback.print_exc()
             return None

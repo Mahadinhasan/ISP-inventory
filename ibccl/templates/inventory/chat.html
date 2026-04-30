@@ -1,4 +1,4 @@
-{% extends 'inventory/base.html' %}
+{% extends base_template %}
 {% load static %}
 
 {% block title %}Messages | ISP Inventory{% endblock %}
@@ -37,23 +37,30 @@
                     {% else %}
                         <img src="https://ui-avatars.com/api/?name={{ u.username }}&background=6366f1&color=fff&bold=true" class="w-12 h-12 rounded-full border-2 border-transparent group-hover:border-indigo-500 transition-colors duration-200 shadow-sm">
                     {% endif %}
-                    <div id="status-dot-{{ u.id }}" class="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full {% if u.userprofile.is_online %}bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]{% else %}bg-gray-400{% endif %} border-2 border-white dark:border-midnight-900 transition-colors duration-300"></div>
+                    <div data-status-id="{{ u.id }}" class="status-indicator-dot absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full {% if u.userprofile.is_online %}status-online shadow-[0_0_8px_rgba(34,197,94,0.6)]{% else %}status-offline{% endif %} border-2 border-white dark:border-midnight-900 transition-colors duration-300"></div>
                 </div>
                 <div class="ml-4 flex-1 text-left min-w-0">
-                    <div class="flex justify-between items-start">
+                    <div class="flex justify-between items-center">
                         <p class="text-sm font-bold text-gray-900 dark:text-white truncate">{{ u.username }}</p>
-                        <p class="text-[10px] text-gray-400 dark:text-gray-500 font-medium whitespace-nowrap">{{ u.userprofile.get_role_display }}</p>
-                    </div>
-                    <div class="flex justify-between items-center mt-0.5">
-                        <p id="snippet-{{ u.id }}" class="text-xs text-gray-500 dark:text-gray-400 truncate pr-2">
+                        <p id="time-{{ u.id }}" class="text-[10px] text-gray-400 dark:text-gray-500 font-medium whitespace-nowrap">
                             {% if u.last_message %}
-                                {{ u.last_message.content }}
-                            {% else %}
-                                Click to start chatting
+                                {{ u.last_message.created_at|date:"h:i A" }}
                             {% endif %}
                         </p>
-                        <div id="unread-{{ u.id }}" class="hidden min-w-[20px] h-5 bg-indigo-600 rounded-full flex items-center justify-center shadow-lg shadow-indigo-600/30">
-                            <span class="text-[10px] text-white font-bold">!</span>
+                    </div>
+                    <div class="flex justify-between items-center mt-0.5">
+                        <div class="flex flex-col min-w-0 flex-1">
+                            <!-- <p class="text-[9px] text-indigo-500 dark:text-indigo-400 font-bold uppercase tracking-tighter">{{ u.userprofile.get_role_display }}</p> -->
+                            <p id="snippet-{{ u.id }}" class="text-xs text-gray-500 dark:text-gray-400 truncate pr-2 mt-0.5">
+                                {% if u.last_message %}
+                                    {{ u.last_message.content }}
+                                {% else %}
+                                    Click to start chatting
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div id="unread-{{ u.id }}" class="hidden min-w-[18px] h-[18px] bg-indigo-600 rounded-full flex items-center justify-center shadow-lg shadow-indigo-600/30">
+                            <span class="text-[9px] text-white font-bold">!</span>
                         </div>
                     </div>
                 </div>
@@ -80,19 +87,15 @@
                 <button onclick="toggleMobileList()" class="md:hidden mr-3 p-2 text-gray-500"><i class="fas fa-chevron-left"></i></button>
                 <div class="relative">
                     <img id="active-user-avatar" src="" class="w-11 h-11 rounded-full border-2 border-indigo-100 dark:border-midnight-700 object-cover shadow-sm">
-                    <div id="active-user-status-dot" class="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-gray-400 border-2 border-white dark:border-midnight-900 shadow-sm"></div>
+                    <div id="active-user-status-dot" class="status-indicator-dot absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-gray-400 border-2 border-white dark:border-midnight-900 shadow-sm"></div>
                 </div>
                 <div class="ml-4">
                     <h4 id="active-user-name" class="font-bold text-gray-900 dark:text-white leading-tight">...</h4>
                     <p id="active-user-presence" class="text-[11px] font-medium text-gray-500 dark:text-gray-400 flex items-center">
-                        <span class="w-2 h-2 rounded-full bg-gray-400 mr-2" id="header-status-dot"></span>
-                        <span id="header-status-text">offline</span>
+                        <span class="status-indicator-dot w-2 h-2 rounded-full bg-gray-400 mr-2" id="header-status-dot"></span>
+                        <span id="header-status-text" class="status-text">offline</span>
                     </p>
                 </div>
-            </div>
-            <div class="flex items-center space-x-2">
-                <button class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-indigo-500 hover:bg-gray-100 dark:hover:bg-midnight-800 rounded-full transition-all duration-200"><i class="fas fa-search"></i></button>
-                <button class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-indigo-500 hover:bg-gray-100 dark:hover:bg-midnight-800 rounded-full transition-all duration-200"><i class="fas fa-ellipsis-v"></i></button>
             </div>
         </div>
 
@@ -103,18 +106,14 @@
 
         <!-- Input Area -->
         <div class="p-4 bg-white dark:bg-midnight-900 border-t border-gray-100 dark:border-midnight-800 shadow-[0_-5px_20px_-15px_rgba(0,0,0,0.1)]">
-            <form id="chat-form" class="flex items-center space-x-3 max-w-5xl mx-auto">
-                <button type="button" class="flex-shrink-0 w-10 h-10 rounded-full text-gray-400 hover:text-indigo-500 hover:bg-gray-100 dark:hover:bg-midnight-800 transition-colors">
-                    <i class="fas fa-plus"></i>
-                </button>
+            <form id="chat-form" class="flex items-center space-x-3 max-w-5xl mx-auto w-full">
+                <!-- Add button removed -->
                 <div class="relative flex-1 group">
                     <input type="text" id="chat-message-input" autocomplete="off" placeholder="Write a message..."
-                        class="w-full pl-4 pr-12 py-3 bg-gray-100/80 dark:bg-midnight-950/80 border-transparent focus:bg-white dark:focus:bg-midnight-950 border focus:border-indigo-500 text-sm rounded-2xl focus:ring-0 transition-all duration-200 outline-none dark:text-gray-300 shadow-sm">
-                    <button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-indigo-500">
-                        <i class="far fa-face-smile text-lg"></i>
-                    </button>
+                        class="w-full pl-4 pr-4 py-3 bg-gray-100/80 dark:bg-midnight-950/80 border-transparent focus:bg-white dark:focus:bg-midnight-950 border focus:border-indigo-500 text-sm rounded-2xl focus:ring-0 transition-all duration-200 outline-none dark:text-gray-300 shadow-sm">
+                    <!-- Sticker button removed -->
                 </div>
-                <button type="submit" id="chat-send-btn"
+                <button type="button" id="chat-send-btn" onclick="sendMessage()"
                     class="h-12 w-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-600/40 transition-all duration-200 transform hover:scale-105 active:scale-95 group">
                     <i class="fas fa-paper-plane group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"></i>
                 </button>
@@ -201,37 +200,73 @@
     let chatSocket = null;
     let currentUser = parseInt("{{ user.id }}");
 
-    // WebSocket Setup
+    // WebSocket Setup with improved resilience
     const setupChatSocket = () => {
-        const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const wsUrl = scheme + '://' + window.location.host + '/ws/chat/';
+        console.log('Attempting to establish WebSocket connection...');
+        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const host = window.location.host;
         
-        chatSocket = new WebSocket(wsUrl);
+        // Get tab_id from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const tabId = urlParams.get('tab_id') || '';
+        
+        const wsUrl = `${protocol}://${host}/ws/chat/?tab_id=${tabId}`;
+        
+        console.log('WebSocket URL:', wsUrl);
+        
+        try {
+            chatSocket = new WebSocket(wsUrl);
 
-        chatSocket.onopen = () => console.log('Chat WebSocket connected');
+            chatSocket.onopen = (e) => {
+                console.log('✅ Chat WebSocket connected successfully');
+            };
 
-        chatSocket.onmessage = function(e) {
-            const data = JSON.parse(e.data);
-            if (data.type === 'chat_message') {
-                const msg = data.message;
-                
-                // If this is for the active chat
-                if (activeUserId && (msg.sender_id == activeUserId || msg.sender_id == currentUser)) {
-                    appendMessage(msg);
-                    scrollToBottom();
-                } else {
-                    // Update sidebar unread badge and snippet
-                    updateSidebarNotification(msg);
+            chatSocket.onmessage = (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    console.log('📥 WebSocket message received:', data);
+                    
+                    if (data.type === 'chat_message') {
+                        const msg = data.message;
+                        const sId = parseInt(msg.sender_id);
+                        const aId = activeUserId ? parseInt(activeUserId) : null;
+                        const cId = parseInt(currentUser);
+
+                        console.log(`Checking match: Sender=${sId}, Active=${aId}, Me=${cId}`);
+                        
+                        // If this message belongs in the current active chat window
+                        // Either I sent it, or it's from the person I'm talking to
+                        if (aId && (sId === aId || sId === cId)) {
+                            console.log('✅ Message matches active chat, appending...');
+                            appendMessage(msg);
+                            scrollToBottom();
+                        } else {
+                            console.log('ℹ️ Message for background user, updating sidebar...');
+                            updateSidebarNotification(msg);
+                        }
+                    } else if (data.type === 'status_update') {
+                        updateUserStatusUI(data.payload);
+                    }
+                } catch (err) {
+                    console.error('❌ Error parsing WebSocket message:', err, e.data);
                 }
-            }
-        };
+            };
 
-        chatSocket.onclose = function(e) {
-            console.log('Chat WebSocket closed, reconnecting...');
-            setTimeout(setupChatSocket, 3000);
-        };
+            chatSocket.onclose = (e) => {
+                console.warn('⚠️ Chat WebSocket closed. Code:', e.code, 'Reason:', e.reason);
+                console.log('Reconnecting in 3 seconds...');
+                setTimeout(setupChatSocket, 3000);
+            };
+
+            chatSocket.onerror = (err) => {
+                console.error('❌ WebSocket error observed:', err);
+            };
+        } catch (err) {
+            console.error('❌ Failed to initialize WebSocket:', err);
+        }
     };
 
+    // Initialize the socket
     setupChatSocket();
 
     const selectUser = async (userId, username, fullName, element) => {
@@ -256,28 +291,35 @@
         document.getElementById('active-user-name').innerText = fullName;
         document.getElementById('active-user-avatar').src = element.querySelector('img').src;
         
-        // Sync header status dot color
-        const sideDot = document.getElementById('status-dot-' + userId);
-        const headerDot = document.getElementById('header-status-dot');
+        // Set data-status-id for header elements so global setStatusUI can target them
         const headerStatusIcon = document.getElementById('active-user-status-dot');
+        const headerDot = document.getElementById('header-status-dot');
+        const headerText = document.getElementById('header-status-text');
+        
+        headerStatusIcon.setAttribute('data-status-id', userId);
+        headerDot.setAttribute('data-status-id', userId);
+        headerText.setAttribute('data-status-text-id', userId);
+        
+        // Sync header status dot color initially
+        const sideDot = element.querySelector('.status-indicator-dot');
         const statusText = document.getElementById('header-status-text');
         
-        if (sideDot.classList.contains('bg-green-500')) {
-            headerDot.classList.remove('bg-gray-400');
-            headerDot.classList.add('bg-green-500');
-            headerStatusIcon.classList.remove('bg-gray-400');
-            headerStatusIcon.classList.add('bg-green-500');
-            statusText.innerText = 'online';
+        if (sideDot.classList.contains('status-online')) {
+            headerDot.className = 'status-indicator-dot w-2 h-2 rounded-full status-online mr-2';
+            headerStatusIcon.className = 'status-indicator-dot absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full status-online border-2 border-white dark:border-midnight-900 shadow-sm';
+            statusText.innerText = 'Online';
+            statusText.className = 'status-text text-green-600';
         } else {
-            headerDot.classList.remove('bg-green-500');
-            headerDot.classList.add('bg-gray-400');
-            headerStatusIcon.classList.remove('bg-green-500');
-            headerStatusIcon.classList.add('bg-gray-400');
-            statusText.innerText = 'offline';
+            headerDot.className = 'status-indicator-dot w-2 h-2 rounded-full status-offline mr-2';
+            headerStatusIcon.className = 'status-indicator-dot absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full status-offline border-2 border-white dark:border-midnight-900 shadow-sm';
+            statusText.innerText = 'Offline';
+            statusText.className = 'status-text text-gray-400';
         }
 
-        // Load messages
-        const response = await fetch(`/api/chat/${userId}/`);
+        // Load messages with tab_id for authentication
+        const urlParams = new URLSearchParams(window.location.search);
+        const tabId = urlParams.get('tab_id') || '';
+        const response = await fetch(`/api/chat/${userId}/?tab_id=${tabId}`);
         const data = await response.json();
         
         if (data.success) {
@@ -352,72 +394,134 @@
             badge.classList.remove('hidden');
         }
 
-        // Notification sound (optional)
-        // new Audio('{% static "sounds/notification.mp3" %}').play().catch(e=>{});
+        // Update time
+        const timeEl = document.getElementById('time-' + senderId);
+        if (timeEl) {
+            const now = new Date();
+            timeEl.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        // Optional: Re-order sidebar to put this user at top
+        const userItem = document.querySelector(`.user-item[onclick*="selectUser(${senderId}"]`);
+        if (userItem) {
+            const list = document.getElementById('sidebar-user-list');
+            list.prepend(userItem);
+        }
+    };
+
+    const updateUserStatusUI = (payload) => {
+        const userId = payload.user_id;
+        const status = payload.status;
+        const isOnline = (status === 'online');
+
+        // Update sidebar dots
+        const sidebarDots = document.querySelectorAll(`.status-indicator-dot[data-status-id="${userId}"]`);
+        sidebarDots.forEach(dot => {
+            if (isOnline) {
+                dot.className = 'status-indicator-dot absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full status-online shadow-[0_0_8px_rgba(34,197,94,0.6)] border-2 border-white dark:border-midnight-900 transition-colors duration-300';
+            } else {
+                dot.className = 'status-indicator-dot absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full status-offline border-2 border-white dark:border-midnight-900 transition-colors duration-300';
+            }
+        });
+
+        // Update header if active
+        if (activeUserId == userId) {
+            const headerDot = document.getElementById('header-status-dot');
+            const headerStatusIcon = document.getElementById('active-user-status-dot');
+            const statusText = document.getElementById('header-status-text');
+
+            if (isOnline) {
+                headerDot.className = 'status-indicator-dot w-2 h-2 rounded-full status-online mr-2';
+                headerStatusIcon.className = 'status-indicator-dot absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full status-online border-2 border-white dark:border-midnight-900 shadow-sm';
+                statusText.innerText = 'Online';
+                statusText.className = 'status-text text-green-600';
+            } else {
+                headerDot.className = 'status-indicator-dot w-2 h-2 rounded-full status-offline mr-2';
+                headerStatusIcon.className = 'status-indicator-dot absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full status-offline border-2 border-white dark:border-midnight-900 shadow-sm';
+                statusText.innerText = 'Offline';
+                statusText.className = 'status-text text-gray-400';
+            }
+        }
     };
 
     const toggleMobileList = () => {
         document.getElementById('chat-window-active').classList.add('hidden');
     };
 
-    // Form submission
-    document.getElementById('chat-form').onsubmit = (e) => {
-        e.preventDefault();
+    // Global function to send messages
+    window.sendMessage = () => {
+        console.log('sendMessage triggered');
         const input = document.getElementById('chat-message-input');
-        const message = input.value.trim();
+        if (!input) {
+            console.error('Input field not found!');
+            return;
+        }
         
-        if (message && activeUserId && chatSocket.readyState === WebSocket.OPEN) {
-            chatSocket.send(JSON.stringify({
+        const message = input.value.trim();
+        console.log('Message:', message, 'ActiveUser:', activeUserId);
+        
+        if (!activeUserId) {
+            alert('Please select a user to chat with first.');
+            return;
+        }
+
+        if (!message) return;
+
+        if (chatSocket && chatSocket.readyState === WebSocket.OPEN) {
+            const payload = {
                 'type': 'chat_message',
                 'receiver_id': activeUserId,
                 'message': message
-            }));
+            };
+            console.log('Sending payload:', payload);
+            chatSocket.send(JSON.stringify(payload));
+            
+            // Update own sidebar for this receiver
+            const snippet = document.getElementById('snippet-' + activeUserId);
+            if (snippet) {
+                snippet.innerText = message;
+                snippet.classList.remove('font-bold', 'text-indigo-600', 'dark:text-indigo-400');
+            }
+            const timeEl = document.getElementById('time-' + activeUserId);
+            if (timeEl) {
+                const now = new Date();
+                timeEl.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+            // Move to top
+            const userItem = document.querySelector(`.user-item[onclick*="selectUser(${activeUserId}"]`);
+            if (userItem) {
+                const list = document.getElementById('sidebar-user-list');
+                list.prepend(userItem);
+            }
+
             input.value = '';
+            input.focus();
+        } else {
+            const state = chatSocket ? chatSocket.readyState : 'NOT_CREATED';
+            console.error('WebSocket is not ready. State:', state);
+            alert('Chat connection is not active. Please refresh the page.');
         }
     };
 
-    // Presence Sync for sidebar and header
-    (function syncChatPresence() {
-        const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const wsUrl = scheme + '://' + window.location.host + '/ws/presence/';
-        let pWs = new WebSocket(wsUrl);
-        pWs.onmessage = (e) => {
-            const data = JSON.parse(e.data);
-            if (data.type === 'status_update') {
-                const uId = data.payload.user_id;
-                const status = data.payload.status;
-                const dot = document.getElementById('status-dot-' + uId);
-                if (dot) {
-                    if (status === 'online') {
-                        dot.classList.remove('bg-gray-400');
-                        dot.classList.add('bg-green-500');
-                        dot.classList.add('shadow-[0_0_8px_rgba(34,197,94,0.6)]');
-                    } else {
-                        dot.classList.remove('bg-green-500');
-                        dot.classList.remove('shadow-[0_0_8px_rgba(34,197,94,0.6)]');
-                        dot.classList.add('bg-gray-400');
-                    }
-                }
-                
-                if (activeUserId == uId) {
-                    const headerDot = document.getElementById('header-status-dot');
-                    const headerStatusIcon = document.getElementById('active-user-status-dot');
-                    const statusText = document.getElementById('header-status-text');
-                    
-                    if (status === 'online') {
-                        headerDot.className = 'w-2 h-2 rounded-full bg-green-500 mr-2';
-                        headerStatusIcon.className = 'absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-white dark:border-midnight-900';
-                        statusText.innerText = 'online';
-                    } else {
-                        headerDot.className = 'w-2 h-2 rounded-full bg-gray-400 mr-2';
-                        headerStatusIcon.className = 'absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-gray-400 border-2 border-white dark:border-midnight-900';
-                        statusText.innerText = 'offline';
-                    }
-                }
+    // Attach form submit listener as backup
+    const chatForm = document.getElementById('chat-form');
+    if (chatForm) {
+        chatForm.onsubmit = (e) => {
+            e.preventDefault();
+            window.sendMessage();
+        };
+    }
+
+    // Explicitly handle Enter key on the input
+    const msgInput = document.getElementById('chat-message-input');
+    if (msgInput) {
+        msgInput.onkeydown = (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                window.sendMessage();
             }
         };
-        pWs.onclose = () => setTimeout(syncChatPresence, 5000);
-    })();
+    }
 
     // Search functionality
     document.getElementById('user-search').oninput = function(e) {

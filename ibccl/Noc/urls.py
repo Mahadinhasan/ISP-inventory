@@ -21,4 +21,11 @@ urlpatterns = [
     path('reports/', views.noc_reports, name='reports'),
     path('notifications/', views.noc_notifications, name='notifications'),
     path('profile/', views.noc_profile, name='profile'),
+    # Mac/Serial Numbers
+    path('mac-serials/add/', views.add_mac_serials, name='add_mac_serials'),
+    path('mac-serials/edit/<int:pk>/', views.edit_mac_serials, name='edit_mac_serials'),
+    path('mac-serials/list/', views.list_mac_serials, name='list_mac_serials'),
+    path('mac-serials/delete/<int:pk>/', views.delete_mac_serial, name='delete_mac_serial'),
+    # API
+    path('api/branch-materials/', views.get_branch_materials, name='get_branch_materials'),
 ]

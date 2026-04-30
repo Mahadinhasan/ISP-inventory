@@ -10,14 +10,13 @@
         </div>
         
         <div class="flex gap-2">
-            <form method="get" class="flex items-center group" id="searchForm">
+            <form method="get" class="flex items-center group">
                 <input type="text" name="search" placeholder="Search..." value="{{ request.GET.search }}"
                     class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-l-2xl px-6 py-3 focus:outline-none focus:border-indigo-500 transition-all w-64 dark:text-white">
                 <button type="submit"
                     class="bg-gray-100 dark:bg-midnight-800 text-gray-500 dark:text-gray-400 px-5 py-3 rounded-r-2xl border-2 border-l-0 border-gray-100 dark:border-midnight-800 hover:bg-gray-200 dark:hover:bg-midnight-700 transition-all">
                     <i class="fas fa-search"></i>
                 </button>
-                {% if request.GET.user %}<input type="hidden" name="user" value="{{ request.GET.user }}">{% endif %}
             </form>
             {% if role == 'Branch' %}
             <button onclick="openRequestModal('Regular')"

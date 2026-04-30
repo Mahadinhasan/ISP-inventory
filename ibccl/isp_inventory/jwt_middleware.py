@@ -3,6 +3,9 @@ from django.contrib.auth.models import User, AnonymousUser
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+from channels.db import database_sync_to_async
+from channels.middleware import BaseMiddleware
+from urllib.parse import parse_qs
 
 User = get_user_model()
 
@@ -77,3 +80,48 @@ class JWTCookieAuthMiddleware(MiddlewareMixin):
                     new_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
                     response['Location'] = new_url
         return response
+
+
+class JWTAuthMiddleware(BaseMiddleware):
+    """
+    Channels middleware that authenticates users via JWT cookies.
+    Requires 'tab_id' in the query string.
+    """
+    async def __call__(self, scope, receive, send):
+        query_string = scope.get('query_string', b'').decode()
+        query_params = parse_qs(query_string)
+        tab_id = query_params.get('tab_id', [None])[0]
+
+        if tab_id:
+            # Channels 3.0+ scope['cookies'] is available
+            cookies = scope.get('cookies', {})
+            # If scope['cookies'] is not populated, parse from headers
+            if not cookies:
+                from django.http import parse_cookie
+                headers = dict(scope.get('headers', []))
+                cookie_header = headers.get(b'cookie', b'').decode()
+                cookies = parse_cookie(cookie_header)
+
+            access_token = cookies.get(f'jwt_access_{tab_id}')
+            if access_token:
+                scope['user'] = await self.get_user_from_token(access_token)
+            else:
+                scope['user'] = AnonymousUser()
+        else:
+            scope['user'] = AnonymousUser()
+
+        return await super().__call__(scope, receive, send)
+
+    @database_sync_to_async
+    def get_user_from_token(self, token_str):
+        try:
+            from rest_framework_simplejwt.tokens import AccessToken
+            validated = AccessToken(token_str)
+            user_id = validated['user_id']
+            return User.objects.get(pk=user_id)
+        except Exception:
+            return AnonymousUser()
+
+
+def JWTAuthMiddlewareStack(inner):
+    return JWTAuthMiddleware(inner)

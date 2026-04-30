@@ -1,9 +1,10 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import authenticate, logout
 from rest_framework_simplejwt.tokens import RefreshToken
-from isp_inventory.models import UserProfile, Material, MaterialRequest, UsedMaterial, InternalMessage
+from isp_inventory.models import UserProfile, Material, MaterialRequest, UsedMaterial, InternalMessage, MacSerialNumber, MaterialMacSerialImport
 from django.db.models import Sum, Count, Q
 from django.db.models.functions import TruncDate
 from django.utils import timezone
@@ -44,6 +45,12 @@ def noc_login_view(request):
                     tab_id = uuid.uuid4().hex[:8]
 
                 request.tab_id = tab_id # Set for middleware to catch and append to redirect
+                
+                # Update profile activity status
+                profile.is_active = True
+                profile.last_login = timezone.now()
+                profile.save(update_fields=['is_active', 'last_login'])
+                
                 response = redirect('noc:dashboard')
                 from isp_inventory.views import _set_jwt_cookies
                 _set_jwt_cookies(response, user, tab_id)
@@ -70,6 +77,14 @@ def noc_logout_view(request):
         for cookie_name in list(request.COOKIES.keys()):
             if cookie_name.startswith('jwt_access_') or cookie_name.startswith('jwt_refresh_'):
                 response.delete_cookie(cookie_name)
+    
+    # Update profile activity status to False on logout
+    try:
+        profile = request.user.userprofile
+        profile.is_active = False
+        profile.save(update_fields=['is_active'])
+    except Exception:
+        pass
     
     # Also clear session just in case
     logout(request)
@@ -141,14 +156,41 @@ def noc_dashboard(request):
     ).count()
     used_materials_count = UsedMaterial.objects.filter(
         material__category='Internet', 
-        material__created_by=request.user
+        material__created_by=request.user,
+        status='Accepted'
     ).count()
-    low_stock_materials = internet_materials.filter(status='Low Stock').count()
+    low_stock_materials = internet_materials.filter(Q(status='Low Stock') | Q(status='Out of Stock')).count()
     
+    # Internal Communication: unread messages
+    unread_messages_count = InternalMessage.objects.filter(receiver=request.user, is_read=False).count()
+
     # Specific for NOC role: MAC/Serial count (materials with serial info)
     mac_serial_count = internet_materials.filter(
         Q(notes__icontains='MAC') | Q(notes__icontains='Serial') | Q(name__icontains='MAC') | Q(name__icontains='Serial')
     ).count()
+
+    # Report Shortcuts: Current month stats
+    month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    total_qty_issued = MaterialRequest.objects.filter(
+        material__category='Internet',
+        material__created_by=request.user,
+        status='Approved',
+        requested_at__gte=month_start
+    ).aggregate(total=Sum('quantity'))['total'] or 0
+    
+    advance_count = MaterialRequest.objects.filter(
+        material__category='Internet',
+        material__created_by=request.user,
+        request_type='Advance',
+        requested_at__gte=month_start
+    ).count()
+
+    total_used_qty = UsedMaterial.objects.filter(
+        material__category='Internet',
+        material__created_by=request.user,
+        status='Accepted',
+        added_at__gte=month_start
+    ).aggregate(total=Sum('quantity'))['total'] or 0
 
     # Context for modals
     total_users = UserProfile.objects.count()
@@ -187,6 +229,23 @@ def noc_dashboard(request):
         Q(status='Low Stock') | Q(status='Out of Stock')
     ).order_by('status', 'name')
 
+    # Today's Used Materials for NOC Dashboard (Paginated)
+    today = timezone.now().date()
+    today_used_materials_all = UsedMaterial.objects.filter(
+        material__category='Internet',
+        material__created_by=request.user,
+        added_at__date=today
+    ).select_related('technician', 'material').order_by('-added_at')
+
+    paginator = Paginator(today_used_materials_all, 10)
+    page_number = request.GET.get('page')
+    try:
+        today_used_materials = paginator.page(page_number)
+    except PageNotAnInteger:
+        today_used_materials = paginator.page(1)
+    except EmptyPage:
+        today_used_materials = paginator.page(paginator.num_pages)
+
     recent_requests = MaterialRequest.objects.filter(
         material__category='Internet', 
         material__created_by=request.user
@@ -198,6 +257,10 @@ def noc_dashboard(request):
         'used_materials_count': used_materials_count,
         'low_stock_materials': low_stock_materials,
         'mac_serial_count': mac_serial_count,
+        'unread_messages_count': unread_messages_count,
+        'total_qty_issued': total_qty_issued,
+        'advance_count': advance_count,
+        'total_used_qty': total_used_qty,
         'total_users': total_users,
         'all_users_list': all_users_list,
         'pending_requests_list': pending_requests_list,
@@ -206,6 +269,7 @@ def noc_dashboard(request):
         'all_used_materials': all_used_materials,
         'technician_approved_materials': technician_approved_materials,
         'low_stock_material_list': low_stock_material_list,
+        'today_used_materials': today_used_materials,
         'recent_requests': recent_requests,
         'all_materials': all_internet_materials,
         'role': 'NOC'
@@ -757,7 +821,17 @@ def noc_profile(request):
         
         # Image handling
         if 'image' in request.FILES:
-            profile.image = request.FILES['image']
+            image = request.FILES['image']
+            if image.size > 2 * 1024 * 1024:
+                messages.error(request, "Profile image must be under 2 MB.")
+                return redirect('noc:profile')
+            
+            allowed = ('.png', '.jpg', '.jpeg', '.webp', '.gif')
+            if not image.name.lower().endswith(allowed):
+                messages.error(request, "Allowed image formats: PNG, JPG, JPEG, WEBP, GIF.")
+                return redirect('noc:profile')
+                
+            profile.image = image
             
         # Password handling
         password = request.POST.get('password')
@@ -782,3 +856,217 @@ def custom_404_view(request, exception=None):
         'request_path': request.path,
     }
     return render(request, '404.html', context, status=404)
+
+
+@login_required
+@noc_role_required
+def add_mac_serials(request):
+    """NOC view to add Mac/Serial numbers for materials and assign to branch users"""
+    from isp_inventory.forms import MacSerialImportForm
+    
+    # Check for request_id in GET to pre-populate
+    request_id = request.GET.get('request_id')
+    initial_data = {}
+    if request_id:
+        try:
+            mat_req = MaterialRequest.objects.get(
+                pk=request_id, 
+                status='Approved',
+                material__created_by__userprofile__role='NOC'
+            )
+            initial_data = {
+                'assigned_to': mat_req.requester.id,
+                'material': mat_req.id,
+                'quantity': mat_req.quantity
+            }
+        except MaterialRequest.DoesNotExist:
+            messages.warning(request, "Selected request not found or not approved.")
+
+    if request.method == 'POST':
+        form = MacSerialImportForm(request.POST, noc_user=request.user)
+        if form.is_valid():
+            # In the improved form, 'material' field now returns the MaterialRequest object
+            mat_req = form.cleaned_data['material']
+            assigned_to = form.cleaned_data['assigned_to']
+            quantity = form.cleaned_data['quantity']
+            
+            try:
+                material = mat_req.material
+                
+                # Double check that the requester matches the assigned_to
+                if mat_req.requester != assigned_to:
+                    messages.error(request, "Selected material request does not match the branch user.")
+                else:
+                    with transaction.atomic():
+                        # Create the import record
+                        import_record = MaterialMacSerialImport.objects.create(
+                            material=material,
+                            assigned_to=assigned_to,
+                            noc_user=request.user,
+                            total_quantity=quantity,
+                            mac_serials_count=quantity,
+                            status='Pending'
+                        )
+                        
+                        # Store data in session for the next step
+                        request.session['mac_serial_import_id'] = import_record.id
+                        request.session['mac_serial_quantity'] = quantity
+                        
+                        messages.success(request, f"Import initialized for {material.name}. Please enter Mac/Serial numbers.")
+                        return redirect('noc:edit_mac_serials', pk=import_record.id)
+            except MaterialRequest.DoesNotExist:
+                messages.error(request, "Invalid material request selected.")
+            except Exception as e:
+                messages.error(request, f"Error initializing import: {str(e)}")
+    else:
+        form = MacSerialImportForm(initial=initial_data, noc_user=request.user)
+    
+    return render(request, 'noc/add_mac_serials.html', {'form': form})
+
+
+@login_required
+@noc_role_required
+def edit_mac_serials(request, pk):
+    """Edit mac/serial numbers for an import"""
+    import_record = get_object_or_404(MaterialMacSerialImport, pk=pk, noc_user=request.user)
+    
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+                # Get all mac/serial data from POST
+                mac_serials_data = []
+                for i in range(1, import_record.mac_serials_count + 1):
+                    mac_serial = request.POST.get(f'mac_serial_{i}', '').strip()
+                    quantity = request.POST.get(f'quantity_{i}', '1')
+                    
+                    if mac_serial:
+                        mac_serials_data.append({
+                            'mac_serial': mac_serial,
+                            'quantity': int(quantity) if quantity.isdigit() else 1
+                        })
+                
+                if not mac_serials_data:
+                    messages.error(request, "Please enter at least one mac/serial number.")
+                    return render(request, 'noc/edit_mac_serials.html', {
+                        'import_record': import_record,
+                        'mac_serials_range': range(1, import_record.mac_serials_count + 1)
+                    })
+                
+                # Create MacSerialNumber records
+                for data in mac_serials_data:
+                    MacSerialNumber.objects.create(
+                        material=import_record.material,
+                        mac_serial=data['mac_serial'],
+                        quantity=data['quantity'],
+                        assigned_to=import_record.assigned_to,
+                        added_by=request.user
+                    )
+                
+                # Update import record
+                import_record.status = 'Approved'
+                import_record.approved_at = timezone.now()
+                import_record.approved_by = request.user
+                import_record.save()
+                
+                messages.success(request, f"Mac/Serial numbers added successfully for {import_record.material.name}!")
+                return redirect('noc:list_mac_serials')
+        except Exception as e:
+            messages.error(request, f"Error saving mac/serial numbers: {str(e)}")
+    
+    context = {
+        'import_record': import_record,
+        'mac_serials_range': range(1, import_record.mac_serials_count + 1)
+    }
+    return render(request, 'noc/edit_mac_serials.html', context)
+
+
+@login_required
+@noc_role_required
+def list_mac_serials(request):
+    """View all Mac/Serial numbers managed by NOC"""
+    mac_serials = MacSerialNumber.objects.filter(added_by=request.user).select_related('material', 'assigned_to').order_by('-created_at')
+    
+    # Filter by Branch User
+    user_filter = request.GET.get('user_id')
+    if user_filter:
+        try:
+            mac_serials = mac_serials.filter(assigned_to_id=int(user_filter))
+        except (ValueError, TypeError):
+            pass
+
+    # Search functionality
+    search_query = request.GET.get('search', '').strip()
+    if search_query:
+        mac_serials = mac_serials.filter(
+            Q(mac_serial__icontains=search_query) |
+            Q(material__name__icontains=search_query) |
+            Q(assigned_to__username__icontains=search_query)
+        )
+    
+    # Pagination
+    paginator = Paginator(mac_serials, 20)
+    page = request.GET.get('page')
+    try:
+        mac_serials_page = paginator.page(page)
+    except PageNotAnInteger:
+        mac_serials_page = paginator.page(1)
+    except EmptyPage:
+        mac_serials_page = paginator.page(paginator.num_pages)
+    
+    # Get all branch users for the dropdown filter
+    branch_users = User.objects.filter(userprofile__role='Branch').order_by('username')
+    
+    # Summary statistics
+    total_count = mac_serials.count()
+    
+    context = {
+        'mac_serials': mac_serials_page,
+        'search_query': search_query,
+        'user_filter': user_filter,
+        'branch_users': branch_users,
+        'total_count': total_count,
+        'page_title': 'Mac/Serial Numbers'
+    }
+    return render(request, 'noc/list_mac_serials.html', context)
+
+
+@login_required
+@noc_role_required
+def delete_mac_serial(request, pk):
+    """Delete a Mac/Serial number"""
+    mac_serial = get_object_or_404(MacSerialNumber, pk=pk, added_by=request.user)
+    
+    if request.method == 'POST':
+        material_name = mac_serial.material.name
+        mac_serial.delete()
+        messages.success(request, f"Mac/Serial number deleted for {material_name}.")
+        return redirect('noc:list_mac_serials')
+    
+    return render(request, 'noc/confirm_delete_mac_serial.html', {'mac_serial': mac_serial})
+    
+@login_required
+@noc_role_required
+def get_branch_materials(request):
+    """AJAX view to get approved NOC material requests for a branch user"""
+    user_id = request.GET.get('user_id')
+    if not user_id:
+        return JsonResponse({'error': 'User ID required'}, status=400)
+        
+    # Get approved requests for materials created by NOC role for this user
+    requests = MaterialRequest.objects.filter(
+        requester_id=user_id,
+        status='Approved',
+        material__created_by__userprofile__role='NOC'
+    ).select_related('material')
+    
+    data = []
+    for req in requests:
+        data.append({
+            'id': req.id,
+            'material_name': req.material.name,
+            'quantity': req.quantity,
+            'date': req.requested_at.strftime('%Y-%m-%d'),
+            'display_text': f"{req.material.name} (Approved: {req.quantity}) - {req.requested_at.strftime('%Y-%m-%d')}"
+        })
+        
+    return JsonResponse({'materials': data})

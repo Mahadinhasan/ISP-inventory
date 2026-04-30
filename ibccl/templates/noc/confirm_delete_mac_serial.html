@@ -1,0 +1,78 @@
+{% extends 'noc/base.html' %}
+{% block title %}Delete Mac/Serial - NOC Dashboard{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="max-w-2xl mx-auto">
+        <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-xl p-8 border border-red-200 dark:border-red-900/30">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full mb-4">
+                    <i class="fas fa-exclamation-triangle text-3xl text-red-600 dark:text-red-400"></i>
+                </div>
+                <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Delete Mac/Serial</h1>
+                <p class="text-gray-600 dark:text-gray-400 mt-2">This action cannot be undone</p>
+            </div>
+
+            <!-- Mac/Serial Details -->
+            <div class="bg-gray-50 dark:bg-midnight-950 rounded-2xl p-6 mb-8 border border-gray-200 dark:border-midnight-800">
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Mac/Serial Number</p>
+                        <p class="text-xl font-bold text-indigo-600 dark:text-indigo-400 font-mono">{{ mac_serial.mac_serial }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Material</p>
+                        <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ mac_serial.material.name }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Assigned To</p>
+                        <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ mac_serial.assigned_to_username }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Current Status</p>
+                        <span class="inline-block px-3 py-1 rounded-full text-sm font-bold
+                            {% if mac_serial.status == 'Pending' %}
+                                bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
+                            {% elif mac_serial.status == 'Active' %}
+                                bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
+                            {% else %}
+                                bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400
+                            {% endif %}">
+                            {{ mac_serial.status }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Warning Message -->
+            <div class="bg-red-50 dark:bg-red-950/20 border-l-4 border-red-600 dark:border-red-400 p-4 rounded-lg mb-8">
+                <p class="text-red-800 dark:text-red-300 font-medium">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    Deleting this mac/serial number will permanently remove it from the system.
+                </p>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex gap-4">
+                <form method="post" class="flex-1">
+                    {% csrf_token %}
+                    <button type="submit" class="w-full px-6 py-4 bg-red-600 text-white rounded-2xl font-bold hover:bg-red-700 transition shadow-lg">
+                        <i class="fas fa-trash mr-2"></i>Yes, Delete This Mac/Serial
+                    </button>
+                </form>
+                <a href="{% url 'noc:list_mac_serials' %}" class="flex-1 px-6 py-4 bg-gray-300 dark:bg-midnight-800 text-gray-900 dark:text-white rounded-2xl font-bold hover:bg-gray-400 dark:hover:bg-midnight-700 transition text-center">
+                    <i class="fas fa-times mr-2"></i>Cancel
+                </a>
+            </div>
+
+            <!-- Info Box -->
+            <div class="mt-8 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-900">
+                <p class="text-sm text-blue-800 dark:text-blue-400">
+                    <i class="fas fa-lightbulb mr-2"></i>
+                    If you need to mark this as inactive instead of deleting, you can edit the status instead.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

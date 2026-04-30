@@ -1,0 +1,144 @@
+{% extends 'noc/base.html' %}
+{% block title %}Add Mac/Serial Numbers - NOC Dashboard{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="mb-8">
+        <h1 class="text-4xl font-bold text-gray-900 dark:text-white">Add Mac/Serial Numbers</h1>
+        <p class="mt-2 text-lg text-gray-600 dark:text-gray-400">Assign mac/serial numbers to materials for branch users</p>
+    </div>
+
+    <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-xl p-8 border border-gray-100 dark:border-midnight-800">
+        <form method="post" class="space-y-8">
+            {% csrf_token %}
+
+            <!-- User Selection (Branch Only) -->
+            <div class="form-group mb-4">
+                <label for="{{ form.assigned_to.id_for_label }}" class="block text-base font-bold text-gray-900 dark:text-white mb-1">
+                    <i class="fas fa-user mr-2 text-indigo-600"></i>{{ form.assigned_to.label }}
+                </label>
+                {{ form.assigned_to }}
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Only branch users are available for assignment
+                </p>
+                {% if form.assigned_to.errors %}
+                    <div class="mt-2 text-red-600 dark:text-red-400 text-sm">
+                        {{ form.assigned_to.errors }}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Material Selection -->
+            <div class="form-group mb-4">
+                <label for="{{ form.material.id_for_label }}" class="block text-base font-bold text-gray-900 dark:text-white mb-1">
+                    <i class="fas fa-box mr-2 text-blue-600"></i>{{ form.material.label }}
+                </label>
+                {{ form.material }}
+                {% if form.material.errors %}
+                    <div class="mt-2 text-red-600 dark:text-red-400 text-sm">
+                        {{ form.material.errors }}
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Quantity Selection -->
+            <div class="form-group mb-4">
+                <label for="{{ form.quantity.id_for_label }}" class="block text-base font-bold text-gray-900 dark:text-white mb-1">
+                    <i class="fas fa-hashtag mr-2 text-green-600"></i>{{ form.quantity.label }}
+                </label>
+                <div class="flex items-center gap-3">
+                    {{ form.quantity }}
+                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                        <p class="font-semibold">Creates <span id="quantityDisplay" class="text-indigo-600 dark:text-indigo-400 font-bold">1</span> fields</p>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                    Each field will be used to enter an individual mac/serial number with its quantity
+                </p>
+                {% if form.quantity.errors %}
+                    <div class="mt-2 text-red-600 dark:text-red-400 text-sm">
+                        {{ form.quantity.errors }}
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Form Actions -->
+            <div class="flex gap-3 pt-4">
+                <button type="submit" class="flex-1 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg">
+                    <i class="fas fa-arrow-right mr-2"></i>Next: Enter Mac/Serials
+                </button>
+                <a href="{% url 'noc:dashboard' %}" class="px-6 py-3 bg-gray-300 dark:bg-midnight-800 text-gray-900 dark:text-white rounded-xl font-bold hover:bg-gray-400 dark:hover:bg-midnight-700 transition text-center">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // Update the quantity display
+    document.getElementById('mac_serial_quantity').addEventListener('input', function() {
+        document.getElementById('quantityDisplay').textContent = this.value;
+    });
+
+    // AJAX to load materials when branch user is selected
+    const userSelect = document.getElementById('mac_serial_user');
+    const materialSelect = document.getElementById('mac_serial_material');
+
+    if (userSelect) {
+        userSelect.addEventListener('change', function() {
+            const userId = this.value;
+            
+            // Clear current materials
+            materialSelect.innerHTML = '<option value="">-- Loading materials... --</option>';
+            materialSelect.disabled = true;
+
+            if (!userId) {
+                materialSelect.innerHTML = '<option value="">-- Select a Branch User first --</option>';
+                return;
+            }
+
+            // Fetch materials via AJAX - include tab_id for multi-tab authentication
+            const tabId = sessionStorage.getItem('tab_id');
+            let fetchUrl = `{% url 'noc:get_branch_materials' %}?user_id=${userId}`;
+            if (tabId) fetchUrl += `&tab_id=${tabId}`;
+
+            fetch(fetchUrl)
+                .then(response => {
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.materials && data.materials.length > 0) {
+                        let html = '<option value="">-- Select Approved Material --</option>';
+                        data.materials.forEach(req => {
+                            html += `<option value="${req.id}" data-qty="${req.quantity}">${req.display_text}</option>`;
+                        });
+                        materialSelect.innerHTML = html;
+                        materialSelect.disabled = false;
+                    } else {
+                        materialSelect.innerHTML = '<option value="">No approved NOC requests found for this user</option>';
+                        materialSelect.disabled = true;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching materials:', error);
+                    materialSelect.innerHTML = '<option value="">Error loading materials</option>';
+                });
+        });
+
+        // Auto-fill quantity when material (request) is selected
+        materialSelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            const qty = selectedOption.getAttribute('data-qty');
+            const qtyInput = document.getElementById('mac_serial_quantity');
+            
+            if (qty && qtyInput) {
+                qtyInput.value = qty;
+                // Trigger the quantity display update
+                document.getElementById('quantityDisplay').textContent = qty;
+            }
+        });
+    }
+</script>
+{% endblock %}

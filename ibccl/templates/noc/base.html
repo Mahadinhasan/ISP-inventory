@@ -45,9 +45,9 @@
     </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}ISP Inventory{% endblock %}</title>
+    <title>{% if user.is_authenticated %}{{ user.username }} | {% endif %}{% block title %}ISP Inventory{% endblock %}</title>
     <!--added favicon-->
-    <link rel="icon" type="image" href="{% static 'static/image/favicon.png' %}">
+    <link rel="icon" type="image/png" href="{% static 'image/favicon.png' %}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         // Configure Tailwind CSS with dark mode support and midnight theme
@@ -883,6 +883,162 @@
                 }
 
                 connect();
+            })();
+
+            // ========== Real-time Presence System ==========
+            function setStatusUI(userId, status) {
+                const isOnline = (status === 'online');
+                
+                // Update all dots (Navbar/Lists)
+                document.querySelectorAll(`.status-indicator-dot[data-status-id="${userId}"]`).forEach(dot => {
+                    if (isOnline) {
+                        dot.classList.remove('status-offline');
+                        dot.classList.add('status-online');
+                    } else {
+                        dot.classList.remove('status-online');
+                        dot.classList.add('status-offline');
+                    }
+                });
+
+                // Update all icons
+                document.querySelectorAll(`.status-indicator-icon[data-status-id="${userId}"]`).forEach(icon => {
+                    if (isOnline) {
+                        icon.classList.remove('text-gray-400');
+                        icon.classList.add('text-green-500');
+                    } else {
+                        icon.classList.remove('text-green-500');
+                        icon.classList.add('text-gray-400');
+                    }
+                });
+
+                // Update status text
+                document.querySelectorAll(`.status-text[data-status-text-id="${userId}"]`).forEach(text => {
+                    text.textContent = isOnline ? 'Online' : 'Offline';
+                    if (isOnline) {
+                        text.classList.remove('bg-red-100', 'text-red-800', 'text-gray-400');
+                        text.classList.add('bg-green-100', 'text-green-800');
+                    } else {
+                        text.classList.remove('bg-green-100', 'text-green-800', 'text-green-600');
+                        text.classList.add('bg-red-100', 'text-red-800');
+                    }
+                });
+
+                // Update all badges (Profile Page Header)
+                document.querySelectorAll(`.status-indicator-badge[data-status-id="${userId}"]`).forEach(badge => {
+                    if (isOnline) {
+                        badge.classList.remove('bg-gray-400');
+                        badge.classList.add('bg-green-500', 'shadow-[0_0_8px_rgba(34,197,94,0.6)]');
+                    } else {
+                        badge.classList.remove('bg-green-500', 'shadow-[0_0_8px_rgba(34,197,94,0.6)]');
+                        badge.classList.add('bg-gray-400');
+                    }
+                });
+            }
+
+            // Combined Notifications & Presence WebSocket
+            (function() {
+                const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+                window.unseenCount = 0;
+                
+                // Get tab_id from URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const tabId = urlParams.get('tab_id') || '';
+                
+                const wsUrl = scheme + '://' + window.location.host + '/ws/notifications/?tab_id=' + tabId;
+                const presenceUrl = scheme + '://' + window.location.host + '/ws/presence/?tab_id=' + tabId;
+                
+                const countBadge = document.getElementById('notification-count');
+                const list = document.getElementById('notification-list');
+
+                function connectPresence() {
+                    const pWs = new WebSocket(presenceUrl);
+                    pWs.onopen = () => {
+                        console.log('NOC Presence Active');
+                        setStatusUI({{ user.id }}, 'online');
+                    };
+                    pWs.onmessage = (e) => {
+                        try {
+                            const data = JSON.parse(e.data);
+                            if (data.type === 'status_update' && data.payload) {
+                                setStatusUI(data.payload.user_id, data.payload.status);
+                            }
+                        } catch(err) {}
+                    };
+                    pWs.onclose = () => { 
+                        setStatusUI({{ user.id }}, 'offline');
+                        setTimeout(connectPresence, 5000); 
+                    };
+                }
+
+                function connectNotifications() {
+                    const nWs = new WebSocket(wsUrl);
+                    nWs.onmessage = (e) => {
+                        try {
+                            const data = JSON.parse(e.data);
+                            if (data.type === 'notification' && data.payload) {
+                                addNotif(data.payload);
+                            }
+                        } catch(err) {}
+                    };
+                    nWs.onclose = () => setTimeout(connectNotifications, 5000);
+                }
+
+                function addNotif(payload) {
+                    const empty = document.getElementById('empty-notifications');
+                    if (empty) empty.remove();
+
+                    const item = document.createElement('div');
+                    item.className = 'px-4 py-3 border-b border-gray-100 dark:border-midnight-800 hover:bg-gray-50 dark:hover:bg-midnight-950 cursor-pointer fade-in';
+                    
+                    let icon = '<i class="fas fa-bell text-indigo-500"></i>';
+                    if (payload.category === 'request') icon = '<i class="fas fa-clipboard-list text-blue-500"></i>';
+                    else if (payload.category === 'message') icon = '<i class="fas fa-envelope text-green-500"></i>';
+                    else if (payload.category === 'stock') icon = '<i class="fas fa-exclamation-triangle text-orange-500"></i>';
+
+                    item.innerHTML = `
+                        <div class="flex items-start">
+                            <div class="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center mr-3 flex-shrink-0">${icon}</div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-xs font-bold text-gray-900 dark:text-white">${payload.title || 'New Notification'}</p>
+                                <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">${payload.message}</p>
+                            </div>
+                        </div>
+                    `;
+                    
+                    item.onclick = () => {
+                        if (payload.category === 'request') {
+                            window.location.href = "{% if user.userprofile.role == 'NOC' %}{% url 'noc:requests' %}{% else %}{% url 'requests' %}{% endif %}";
+                        } else if (payload.category === 'message') {
+                            window.location.href = "{% url 'chat' %}";
+                        } else {
+                            window.location.href = "{% if user.userprofile.role == 'NOC' %}{% url 'noc:dashboard' %}{% else %}{% url 'dashboard' %}{% endif %}";
+                        }
+                    };
+
+                    list.insertBefore(item, list.firstChild);
+                    
+                    // Limit to 10 notifications
+                    const items = list.querySelectorAll('.fade-in');
+                    if (items.length > 10) {
+                        for (let i = 10; i < items.length; i++) {
+                            items[i].remove();
+                        }
+                    }
+                    
+                    if (document.getElementById('notification-dropdown').classList.contains('hidden')) {
+                        window.unseenCount++;
+                        if (countBadge) {
+                            countBadge.textContent = window.unseenCount > 9 ? '9+' : window.unseenCount;
+                            countBadge.classList.remove('scale-0');
+                            countBadge.classList.add('scale-100');
+                        }
+                    }
+                }
+
+                if (window.WebSocket) {
+                    connectPresence();
+                    connectNotifications();
+                }
             })();
         });
     </script>
