@@ -111,11 +111,12 @@ class TaskForm(forms.ModelForm):
 class RequestForm(forms.ModelForm):
     class Meta:
         model = MaterialRequest
-        fields = ['material', 'quantity', 'request_type', 'send_by']
+        fields = ['material', 'quantity', 'request_type', 'pass_on', 'send_by']
         labels = {
             'send_by': 'User Notes',
             'request_type': 'Request Type',
             'send_by': 'Send By',
+            'pass_on': 'Pass On',
         }
         widgets = {
             'material': forms.Select(attrs={
@@ -259,7 +260,7 @@ class UsedMaterialForm(forms.ModelForm):
                     # Filter to only show materials that have been approved for this Branch
                     approved_requests = MaterialRequest.objects.filter(
                         requester=user, 
-                        status='Approved'
+                        status='Received'
                     )
                     approved_material_ids = approved_requests.values_list('material', flat=True).distinct()
                     
@@ -294,7 +295,7 @@ class UsedMaterialForm(forms.ModelForm):
                 total_approved = MaterialRequest.objects.filter(
                     requester=self.user,
                     material=material,
-                    status='Approved'
+                    status='Received'
                 ).aggregate(total=Sum('quantity'))['total'] or 0
                 
                 # Calculate total used/pending for this material
@@ -340,7 +341,7 @@ class UsedMaterialForm(forms.ModelForm):
                     # Check if the selected material is in approved materials for this Branch
                     approved_material_ids = MaterialRequest.objects.filter(
                         requester=self.user,
-                        status='Approved'
+                        status='Received'
                     ).values_list('material', flat=True).distinct()
                     
                     if material.id not in approved_material_ids:

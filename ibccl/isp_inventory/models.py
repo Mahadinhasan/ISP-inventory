@@ -282,7 +282,13 @@ class MaterialMonthlyCount(models.Model):
         return self.month.year == now.year and self.month.month == now.month
 
 class MaterialRequest(models.Model):
-    STATUS_CHOICES = [('Pending', 'Pending'), ('Approved', 'Approved'), ('Rejected', 'Rejected')]
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Approved', 'Approved'),
+        ('Dispatched', 'Dispatched'),
+        ('Received', 'Received'),
+        ('Rejected', 'Rejected')
+    ]
     REQUEST_TYPE_CHOICES = [('Regular', 'Regular'), ('Advance', 'Advance')]
     material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name='material_requests')
     requester = models.ForeignKey(User, on_delete=models.CASCADE, related_name='material_requests')
@@ -292,6 +298,8 @@ class MaterialRequest(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
     request_type = models.CharField(max_length=20, choices=REQUEST_TYPE_CHOICES, default='Regular')  # Regular or Advance
     admin_note = models.CharField(max_length=200, blank=True) #material quantity update note
+    pass_on = models.TextField(blank=True) # Who transmitted the material (filled by storekeeper when approved)
+    pass_on_at = models.DateTimeField(null=True, blank=True) # When the pass_on was last updated
     received_by = models.TextField(blank=True) # Who received the material (filled by branch user when approved)
     received_at = models.DateTimeField(null=True, blank=True) # When the received_by was last updated
     requested_at = models.DateTimeField(auto_now_add=True)
@@ -304,6 +312,11 @@ class MaterialRequest(models.Model):
         return f"{self.requester} - {self.material.name}"
     
     @property
+    def can_receive(self):
+        """Branch can receive only if status is Approved and pass_on is filled by storekeeper."""
+        return self.status == 'Approved' and bool(self.pass_on.strip())
+    
+    @property
     def used_materials_count(self):
         """Return count of used materials linked to this request."""
         return self.used_materials.filter(status='Accepted').count()
@@ -314,7 +327,30 @@ class MaterialRequest(models.Model):
         items = self.used_materials.all()
         if not items:
             return '-'
-        return ', '.join([f"{item.quantity}x {item.material.name}" for item in items])  
+        return ', '.join([f"{item.quantity}x {item.material.name}" for item in items])
+    
+    def save(self, *args, **kwargs):
+        # Automatically update status to Dispatched when storekeeper adds pass_on
+        if self.pk:
+            try:
+                old_request = MaterialRequest.objects.get(pk=self.pk)
+                if (old_request.status == 'Approved' and 
+                    not old_request.pass_on.strip() and 
+                    self.pass_on.strip()):
+                    self.status = 'Dispatched'
+                    self.pass_on_at = timezone.now()
+                elif old_request.pass_on.strip() != self.pass_on.strip():
+                    self.pass_on_at = timezone.now()
+                if old_request.received_by.strip() != self.received_by.strip():
+                    self.received_at = timezone.now()
+            except MaterialRequest.DoesNotExist:
+                pass
+        elif self.pass_on.strip():
+            self.pass_on_at = timezone.now()
+        if self.received_by.strip():
+            self.received_at = timezone.now()
+        super().save(*args, **kwargs)
+
 
 class SystemSetting(models.Model):
     key = models.CharField(max_length=100, unique=True)

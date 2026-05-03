@@ -273,10 +273,10 @@ def dashboard(request):
         # For Branch: start with approved requests where material is in Normal stock
         approved_qs = MaterialRequest.objects.filter(
             requester=request.user,
-            status='Approved',
+            status='Received',
             requested_at__year=now.year,
             requested_at__month=now.month,
-            is_archived=False
+            is_archived=True
         ).select_related('material').order_by('requested_at') # Order by oldest first for FIFO consumption
 
         # For each material, get the total used amount (Accepted status) for the current month
@@ -286,7 +286,7 @@ def dashboard(request):
             status='Accepted',
             added_at__year=now.year,
             added_at__month=now.month,
-            is_archived=False
+            is_archived=True
         ).values('material_id').annotate(total=Sum('quantity'))
         
         for u in used_qs:
@@ -348,7 +348,7 @@ def dashboard(request):
         advance_materials = MaterialRequest.objects.filter(
             requester=request.user,
             request_type='Advance',
-            status='Approved',
+            status='Received',
             is_archived=False
         ).select_related('material').order_by('-requested_at')
     else:
@@ -369,7 +369,7 @@ def dashboard(request):
         # Calculate stock: Approved Requests (In) - Used Materials (Out) for current month
         total_in = MaterialRequest.objects.filter(
             requester=request.user, 
-            status='Approved',
+            status='Received',
             requested_at__year=now.year,
             requested_at__month=now.month,
             is_archived=False
@@ -444,7 +444,7 @@ def dashboard(request):
         for branch_user in branch_users:
             approved_qs = MaterialRequest.objects.filter(
                 requester=branch_user,
-                status='Approved',
+                status='Received',
                 requested_at__year=now.year,
                 requested_at__month=now.month,
                 is_archived=False
@@ -487,7 +487,7 @@ def dashboard(request):
     
     if role == 'Branch':
         total_qty_issued = MaterialRequest.objects.filter(
-            requester=request.user, status='Approved', requested_at__gte=month_start
+            requester=request.user, status='Received', requested_at__gte=month_start
         ).aggregate(total=Sum('quantity'))['total'] or 0
         advance_count = MaterialRequest.objects.filter(
             requester=request.user, request_type='Advance', requested_at__gte=month_start
@@ -498,7 +498,7 @@ def dashboard(request):
     else:
         # Admin/Storekeeper
         total_qty_issued = MaterialRequest.objects.filter(
-            status='Approved', requested_at__gte=month_start
+            status='Received', requested_at__gte=month_start
         ).aggregate(total=Sum('quantity'))['total'] or 0
         advance_count = MaterialRequest.objects.filter(
             request_type='Advance', requested_at__gte=month_start
@@ -526,7 +526,7 @@ def dashboard(request):
         'all_users_list': all_users_list,
         'low_stock_materials': low_stock_materials,
         'low_stock_material_list': low_stock_material_list,
-        'pending_requests_list': pending_requests_qs.select_related('requester', 'material').order_by('-requested_at'),
+        'pending_requests_list': pending_requests_qs.select_related('requester', 'material').order_by('-requested_at').filter(is_archived=False),
         'materials_monitoring': materials_monitoring,
         'unread_messages_count': unread_messages_count,
         'total_qty_issued': total_qty_issued,
@@ -560,7 +560,7 @@ def materials_monitoring_view(request):
     for branch_user in branch_users:
         approved_qs = MaterialRequest.objects.filter(
             requester=branch_user,
-            status='Approved',
+            status='Received',
             requested_at__year=now.year,
             requested_at__month=now.month,
             is_archived=False
@@ -835,6 +835,8 @@ def requests_view(request):
     #Request count (pending/approved/rejected)
     pending_count = base_requests.filter(status='Pending').count()
     approved_count = base_requests.filter(status='Approved').count()
+    dispatched_count = base_requests.filter(status='Dispatched').count()
+    received_count = base_requests.filter(status='Received').count()
     rejected_count = base_requests.filter(status='Rejected').count()
     advance_count = base_requests.filter(request_type='Advance').count()
     
@@ -846,7 +848,7 @@ def requests_view(request):
     users = User.objects.filter(id__in=all_branch_users).select_related('userprofile').annotate(
         request_count=Sum(
             Case(
-                When(material_requests__status='Approved', then=1),
+                When(material_requests__status='Received', then=1),
                 default=0,
                 output_field=IntegerField()
             )
@@ -870,6 +872,8 @@ def requests_view(request):
             base_requests = base_requests.filter(requester=selected_user)
             pending_count = base_requests.filter(status='Pending').count()
             approved_count = base_requests.filter(status='Approved').count()
+            dispatched_count = base_requests.filter(status='Dispatched').count()
+            received_count = base_requests.filter(status='Received').count()
             rejected_count = base_requests.filter(status='Rejected').count()
         except User.DoesNotExist:
             selected_user = None
@@ -921,16 +925,50 @@ def requests_view(request):
             except MaterialRequest.DoesNotExist:
                 return JsonResponse({'success': False, 'error': 'Request not found.'}, status=404)
 
-            if req.status != 'Approved':
-                return JsonResponse({'success': False, 'error': 'Only approved requests can be recorded.'}, status=400)
+            if req.status != 'Dispatched':
+                return JsonResponse({'success': False, 'error': 'Only dispatched requests can be received.'}, status=400)
 
             req.received_by = received_by
             req.received_at = timezone.now()
-            req.save(update_fields=['received_by', 'received_at'])
+            req.status = 'Received'
+            req.save(update_fields=['received_by', 'received_at', 'status'])
             return JsonResponse({
                 'success': True,
                 'received_by': req.received_by,
                 'received_at': req.received_at.isoformat() if req.received_at else None,
+                'status': req.status,
+            })
+
+        # Save pass_on (Storekeeper/Admin only) via AJAX (expects JSON)
+        if action == 'save_pass_on':
+            if role not in ['Admin', 'Storekeeper']:
+                return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
+
+            req_id = (request.POST.get('req_id') or '').strip()
+            pass_on = (request.POST.get('pass_on') or '').strip()
+
+            if not req_id.isdigit():
+                return JsonResponse({'success': False, 'error': 'Invalid request id.'}, status=400)
+            if not pass_on:
+                return JsonResponse({'success': False, 'error': 'Pass On details are required.'}, status=400)
+
+            try:
+                req = MaterialRequest.objects.get(pk=int(req_id))
+            except MaterialRequest.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Request not found.'}, status=404)
+
+            if req.status != 'Approved':
+                return JsonResponse({'success': False, 'error': 'Only approved requests can be dispatched.'}, status=400)
+
+            req.pass_on = pass_on
+            req.pass_on_at = timezone.now()
+            req.status = 'Dispatched'
+            req.save(update_fields=['pass_on', 'pass_on_at', 'status'])
+            return JsonResponse({
+                'success': True,
+                'pass_on': req.pass_on,
+                'pass_on_at': req.pass_on_at.isoformat() if req.pass_on_at else None,
+                'status': req.status,
             })
         
         # Create Request
@@ -993,7 +1031,7 @@ def requests_view(request):
                 req = MaterialRequest.objects.get(pk=req_id)
                 
                 if action == 'accept':
-                    if req.status == 'Approved':
+                    if req.status in ['Approved', 'Dispatched', 'Received']:
                         messages.warning(request, "Request already approved.")
                         return redirect('requests')
                     
@@ -1042,7 +1080,7 @@ def requests_view(request):
                          return redirect('requests')
 
                 elif action == 'reject':
-                    if req.status == 'Approved':
+                    if req.status in ['Approved', 'Dispatched', 'Received']:
                         try:
                             with transaction.atomic():
                                 # Return quantity to material stock
@@ -1079,6 +1117,8 @@ def requests_view(request):
     return render(request, 'inventory/requests.html', {
         'pending_count': pending_count,
         'approved_count': approved_count,
+        'dispatched_count': dispatched_count,
+        'received_count': received_count,
         'rejected_count': rejected_count,
         'requests': requests_page, 
         'form': form,
@@ -1146,11 +1186,11 @@ def reports_view(request):
 
     # ── Summary Stats ─────────────────────────────────────────────────────────
     total_requests   = requests_qs.count()
-    approved_count   = requests_qs.filter(status='Approved').count()
+    approved_count   = requests_qs.filter(status='Received').count()
     pending_count    = requests_qs.filter(status='Pending').count()
     rejected_count   = requests_qs.filter(status='Rejected').count()
-    total_qty_issued = requests_qs.filter(status='Approved').aggregate(total=Sum('quantity'))['total'] or 0
-    advance_count    = requests_qs.filter(request_type='Advance').count()
+    total_qty_issued = requests_qs.filter(status='Received').aggregate(total=Sum('quantity'))['total'] or 0
+    advance_count    = requests_qs.filter(request_type='Advance', status='Received').count()
 
     # Material stock summary
     total_materials  = Material.objects.count()
@@ -1170,7 +1210,7 @@ def reports_view(request):
 
     # ── Top 10 materials by approved quantity ─────────────────────────────────
     top_materials = (
-        requests_qs.filter(status='Approved')
+        requests_qs.filter(status='Received')
         .values('material__name')
         .annotate(total_qty=Sum('quantity'), req_count=Count('id'))
         .order_by('-total_qty')[:10]
@@ -1184,10 +1224,10 @@ def reports_view(request):
             .values('requester__username', 'requester__first_name', 'requester__last_name')
             .annotate(
                 total_req=Count('id'),
-                approved=Count('id', filter=Q(status='Approved')),
+                approved=Count('id', filter=Q(status='Received')),
                 pending=Count('id', filter=Q(status='Pending')),
                 rejected=Count('id', filter=Q(status='Rejected')),
-                qty_issued=Sum('quantity', filter=Q(status='Approved'))
+                qty_issued=Sum('quantity', filter=Q(status='Received'))
             ).order_by('-approved')[:15]
         )
 
@@ -1197,7 +1237,7 @@ def reports_view(request):
         .annotate(day=TruncDate('requested_at'))
         .values('day')
         .annotate(
-            approved=Count('id', filter=Q(status='Approved')),
+            approved=Count('id', filter=Q(status='Received')),
             pending=Count('id', filter=Q(status='Pending')),
             rejected=Count('id', filter=Q(status='Rejected')),
         )
@@ -1210,7 +1250,7 @@ def reports_view(request):
 
     # Material category breakdown
     category_data = (
-        requests_qs.filter(status='Approved')
+        requests_qs.filter(status='Received')
         .values('material__category')
         .annotate(qty=Sum('quantity'))
         .order_by('-qty')
@@ -1236,7 +1276,7 @@ def reports_view(request):
 
     if role == 'Branch':
         branch_req_pending  = requests_qs.filter(status='Pending').order_by('-requested_at')
-        branch_req_approved = requests_qs.filter(status='Approved').order_by('-requested_at')
+        branch_req_approved = requests_qs.filter(status='Received').order_by('-requested_at')
         branch_req_rejected = requests_qs.filter(status='Rejected').order_by('-requested_at')
 
         branch_um_pending  = used_qs.filter(status='Pending').order_by('-added_at')
@@ -1391,7 +1431,7 @@ def _generate_branch_excel_report(request, requests_qs, start, end, from_date, t
     ws_req_approved.row_dimensions[1].height = 28
     ws_req_approved.append([])
     
-    approved_requests = requests_qs.filter(status='Approved').order_by('-requested_at')
+    approved_requests = requests_qs.filter(status='Received').order_by('-requested_at')
     style_header_row(ws_req_approved, headers, widths)
     
     for req in approved_requests:

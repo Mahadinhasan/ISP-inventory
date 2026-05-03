@@ -52,6 +52,12 @@
         <div class="px-5 py-2.5 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 rounded-xl border border-green-100 dark:border-green-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
             <i class="fas fa-check"></i> Approved: {{ approved_count }}
         </div>
+        <div class="px-5 py-2.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded-xl border border-blue-100 dark:border-blue-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
+            <i class="fas fa-truck"></i> Dispatched: {{ dispatched_count }}
+        </div>
+        <div class="px-5 py-2.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-xl border border-emerald-100 dark:border-emerald-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
+            <i class="fas fa-box-open"></i> Received: {{ received_count }}
+        </div>
         <div class="px-5 py-2.5 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 rounded-xl border border-red-100 dark:border-red-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
             <i class="fas fa-times"></i> Rejected: {{ rejected_count }}
         </div>
@@ -61,7 +67,7 @@
     </div>
     <!-----------Unified Requests Table----------->
     <div class="bg-white/40 dark:bg-midnight-900/40 glass-card rounded-[0.6rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-midnight-800 mx-4">
-        <table class="min-w-full divide-y divide-gray-100 dark:divide-midnight-800">
+        <table class="min-w-full divide-y divide-gray-900 dark:divide-midnight-800">
             <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
                 <tr>
                     {% if user.userprofile.role == 'Branch' %}
@@ -77,6 +83,7 @@
                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Admin Note</th>
+                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pass on</th>
                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Received By</th>
                     {% if user.userprofile.role == 'Admin' %}
                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -106,6 +113,8 @@
                         <span class="px-3 py-1 text-xs font-semibold rounded-full border 
                             {% if req.status == 'Pending' %}bg-yellow-100 text-yellow-800 border-yellow-200
                             {% elif req.status == 'Approved' %}bg-green-100 text-green-800 border-green-200
+                            {% elif req.status == 'Dispatched' %}bg-blue-100 text-blue-800 border-blue-200
+                            {% elif req.status == 'Received' %}bg-emerald-100 text-emerald-800 border-emerald-200
                             {% else %}bg-red-100 text-red-800 border-red-200{% endif %}">
                             {{ req.status }}
                         </span>
@@ -124,8 +133,21 @@
                     <td class="px-4 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.admin_note|default:"N/A" }}</td>
                     <td class="px-4 py-4 text-sm">
                         <div class="flex items-center justify-between">
+                            <span class="text-gray-500 italic max-w-xs truncate">{{ req.pass_on|default:"Not Dispatched" }}</span>
+                            {% if role == 'Storekeeper' and userprofile.role != 'Admin' %}
+                                {% if req.status == 'Approved' %}
+                                <button onclick="openPassOnModal('{{ req.id }}')"
+                                    class="ml-1 text-blue-600 hover:text-blue-900 font-medium bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition text-xs whitespace-nowrap">
+                                    Pass on
+                                </button>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td class="px-4 py-4 text-sm">
+                        <div class="flex items-center justify-between">
                             <span class="text-gray-500 italic max-w-xs truncate">{{ req.received_by|default:"Not Received" }}</span>
-                            {% if role == 'Branch' and req.status == 'Approved' and req.requester == user and not req.received_by %}
+                            {% if role == 'Branch' and req.status == 'Dispatched' and req.requester == user %}
                             <button onclick="openReceivedByModal('{{ req.id }}')"
                                 class="ml-1 text-green-600 hover:text-green-900 font-medium bg-green-50 px-2 py-1 rounded hover:bg-green-100 transition text-xs whitespace-nowrap">
                                 <i class="fas fa-plus"></i> Add
@@ -248,14 +270,14 @@
     </div>
 </div>
 
-<!-- Received By Modal (for Branch users to fill in received_by info for approved requests) -->
+<!-- Received By Modal (for Branch users to fill in received_by info for dispatched requests) -->
 <div id="receivedByModal"
     class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm">
     <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all">
         <h3 class="text-xl font-bold mb-4 text-gray-800 flex items-center">
             <i class="fas fa-check-circle mr-2 text-green-600"></i> Record Receipt
         </h3>
-        <p class="text-sm text-gray-600 mb-4">Please enter who received the approved materials:</p>
+        <p class="text-sm text-gray-600 mb-4">Please enter who received the materials:</p>
         <form id="receivedByForm">
             {% csrf_token %}
             <input type="hidden" name="req_id" id="receivedByReqId">
@@ -278,6 +300,42 @@
                 <button type="submit"
                     class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium">
                     <i class="fas fa-save mr-1"></i> Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Pass On Modal (for Storekeepers to fill in pass_on info for approved requests) -->
+<div id="passOnModal"
+    class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm">
+    <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all">
+        <h3 class="text-xl font-bold mb-4 text-gray-800 flex items-center">
+            <i class="fas fa-truck mr-2 text-blue-600"></i> Pass On Material
+        </h3>
+        <p class="text-sm text-gray-600 mb-4">Please enter dispatch details:</p>
+        <form id="passOnForm">
+            {% csrf_token %}
+            <input type="hidden" name="req_id" id="passOnReqId">
+            <input type="hidden" name="action" value="save_pass_on">
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Pass On Details (Name/Vehicle/Note)</label>
+                <textarea name="pass_on" id="passOnText"
+                    class="w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-3"
+                    rows="4"
+                    placeholder="Enter who is taking the material or any dispatch notes..."
+                    required></textarea>
+            </div>
+
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="document.getElementById('passOnModal').classList.add('hidden')"
+                    class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium">
+                    Cancel
+                </button>
+                <button type="submit"
+                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">
+                    <i class="fas fa-paper-plane mr-1"></i> Dispatch
                 </button>
             </div>
         </form>
@@ -349,6 +407,46 @@
         document.getElementById('receivedByText').value = '';
         document.getElementById('receivedByModal').classList.remove('hidden');
     }
+
+    function openPassOnModal(id) {
+        document.getElementById('passOnReqId').value = id;
+        document.getElementById('passOnText').value = '';
+        document.getElementById('passOnModal').classList.remove('hidden');
+    }
+
+    // Handle pass_on form submission via AJAX
+    document.getElementById('passOnForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        let fetchUrl = '{% url "requests" %}';
+        const tabId = sessionStorage.getItem('tab_id');
+        if (tabId) {
+            fetchUrl += `?tab_id=${tabId}`;
+            formData.append('tab_id', tabId);
+        }
+
+        fetch(fetchUrl, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Dispatch information saved successfully!');
+                document.getElementById('passOnModal').classList.add('hidden');
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while saving. Please try again.');
+        });
+    });
 
     // Handle received_by form submission via AJAX
     document.getElementById('receivedByForm').addEventListener('submit', function(e) {
@@ -423,8 +521,8 @@
         if (event.target.id === 'requestModal') {
             document.getElementById('requestModal').classList.add('hidden');
         }
-        if (event.target.id === 'adminModal') {
-            document.getElementById('adminModal').classList.add('hidden');
+        if (event.target.id === 'passOnModal') {
+            document.getElementById('passOnModal').classList.add('hidden');
         }
     }
 </script>

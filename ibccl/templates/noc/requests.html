@@ -84,7 +84,16 @@
                         </span>
                     </td>
                     <td class="px-4 py-4 text-sm text-gray-500 dark:text-gray-400 italic max-w-xs truncate">{{ req.admin_note|default:"N/A" }}</td>
-                    <td class="px-4 py-4 text-sm text-gray-500 dark:text-gray-400 italic max-w-xs truncate">{{ req.received_by|default:"Not Received" }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-500 dark:text-gray-400 italic max-w-xs truncate">
+                        {% if user.userprofile.role == 'Branch' and req.can_receive %}
+                        <button onclick="openReceivedModal('{{ req.id }}', '{{ req.received_by|escapejs }}')"
+                            class="text-green-600 dark:text-green-400 hover:text-green-900 font-medium bg-green-50 dark:bg-green-900/50 px-3 py-1 rounded-lg hover:bg-green-100 transition">
+                            Add
+                        </button>
+                        {% else %}
+                        {{ req.received_by|default:"Not Received" }}
+                        {% endif %}
+                    </td>
                     <td class="px-6 py-4 text-sm text-center">
                         <button onclick="openAdminModal('{{ req.id }}', '{{ req.admin_note|escapejs }}', '{{ req.quantity }}')"
                             class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 font-medium bg-indigo-50 dark:bg-indigo-900/50 px-3 py-1 rounded-lg hover:bg-indigo-100 transition">
@@ -158,6 +167,66 @@
     </div>
 </div>
 
+<!-- Pass On Modal -->
+<div id="passOnModal"
+    class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm">
+    <div class="bg-white dark:bg-midnight-900 rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all border dark:border-midnight-800">
+        <h3 class="text-xl font-bold mb-4 text-gray-800 dark:text-white">Add Pass On</h3>
+        <form id="passOnForm" method="POST" action="{% url 'noc:requests' %}">
+            {% csrf_token %}
+            <input type="hidden" name="req_id" id="passOnReqId">
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-400 mb-2">Pass On Details</label>
+                <textarea name="pass_on" id="passOnText" rows="3"
+                    class="w-full bg-gray-50 dark:bg-midnight-950 border-gray-300 dark:border-midnight-800 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 border p-2 dark:text-white"
+                    placeholder="Enter pass on details..."></textarea>
+            </div>
+
+            <div class="flex gap-3">
+                <button type="submit" name="action" value="add_pass_on"
+                    class="flex-1 flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition">
+                    <i class="fas fa-plus mr-2"></i> Add Pass On
+                </button>
+                <button type="button" onclick="document.getElementById('passOnModal').classList.add('hidden')"
+                    class="flex-1 py-2 bg-gray-100 dark:bg-midnight-800 text-gray-700 dark:text-gray-400 rounded-md hover:bg-gray-200 transition text-sm font-medium">
+                    Cancel
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Received Modal -->
+<div id="receivedModal"
+    class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm">
+    <div class="bg-white dark:bg-midnight-900 rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all border dark:border-midnight-800">
+        <h3 class="text-xl font-bold mb-4 text-gray-800 dark:text-white">Add Received By</h3>
+        <form id="receivedForm" method="POST" action="{% url 'noc:requests' %}">
+            {% csrf_token %}
+            <input type="hidden" name="req_id" id="receivedReqId">
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-400 mb-2">Received By Details</label>
+                <textarea name="received_by" id="receivedText" rows="3"
+                    class="w-full bg-gray-50 dark:bg-midnight-950 border-gray-300 dark:border-midnight-800 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 border p-2 dark:text-white"
+                    placeholder="Enter who received the material..."></textarea>
+            </div>
+
+            <div class="flex gap-3">
+                <button type="submit" name="action" value="add_received"
+                    class="flex-1 flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 transition">
+                    <i class="fas fa-check mr-2"></i> Mark Received
+                </button>
+                <button type="button" onclick="document.getElementById('receivedModal').classList.add('hidden')"
+                    class="flex-1 py-2 bg-gray-100 dark:bg-midnight-800 text-gray-700 dark:text-gray-400 rounded-md hover:bg-gray-200 transition text-sm font-medium">
+                    Cancel
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Pagination Controls -->
 {% if page_obj.has_other_pages %}
 <div class="flex justify-end mt-6 px-4">
@@ -196,15 +265,35 @@
         document.getElementById('adminModal').classList.remove('hidden');
     }
 
+    function openPassOnModal(id, passOn) {
+        document.getElementById('passOnReqId').value = id;
+        document.getElementById('passOnText').value = passOn;
+        document.getElementById('passOnModal').classList.remove('hidden');
+    }
+
+    function openReceivedModal(id, received) {
+        document.getElementById('receivedReqId').value = id;
+        document.getElementById('receivedText').value = received;
+        document.getElementById('receivedModal').classList.remove('hidden');
+    }
+
     // Close on outside click or escape
     window.onclick = function (event) {
         if (event.target.id === 'adminModal') {
             document.getElementById('adminModal').classList.add('hidden');
         }
+        if (event.target.id === 'passOnModal') {
+            document.getElementById('passOnModal').classList.add('hidden');
+        }
+        if (event.target.id === 'receivedModal') {
+            document.getElementById('receivedModal').classList.add('hidden');
+        }
     }
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             document.getElementById('adminModal').classList.add('hidden');
+            document.getElementById('passOnModal').classList.add('hidden');
+            document.getElementById('receivedModal').classList.add('hidden');
         }
     });
 
