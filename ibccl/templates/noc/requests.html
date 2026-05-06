@@ -52,58 +52,58 @@
     </div>
 
     <!-----------Unified Requests Table----------->
-    <div class="bg-white/40 dark:bg-midnight-900/40 glass-card rounded-[0.6rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-midnight-800 mx-4">
-        <table class="min-w-full divide-y divide-gray-100 dark:divide-midnight-800">
+    <div class="bg-white/40 dark:bg-midnight-900/40 glass-card rounded-[0.6rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-midnight-800 mx-4 overflow-x-auto">
+        <table class="min-w-[800px] w-full divide-y divide-gray-900 dark:divide-midnight-800 text-[11px]">
             <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
-                <tr class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    <th class="px-5 py-4 text-left">Branch</th>
-                    <th class="px-5 py-4 text-left">Material</th>
-                     <th class="px-5 py-4 text-left text-center">Qty</th>
-                     <th class="px-5 py-4 text-left">Date</th>
-                    <th class="px-5 py-4 text-left">Send By</th>
-                    <th class="px-5 py-4 text-left">Status</th>
-                    <th class="px-5 py-4 text-left">NOC Note</th>
-                    <th class="px-5 py-4 text-left">Received By</th>
-                    <th class="px-5 py-4 text-center">Actions</th>
+                <tr class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th class="px-3 md:px-5 py-4 text-left">Branch</th>
+                    <th class="px-3 md:px-5 py-4 text-left">Material</th>
+                     <th class="px-3 md:px-5 py-4 text-left text-center">Qty</th>
+                     <th class="px-3 md:px-5 py-4 text-left">Date</th>
+                    <th class="px-3 md:px-5 py-4 text-left hidden md:table-cell">Send By</th>
+                    <th class="px-3 md:px-5 py-4 text-left">Status</th>
+                    <th class="px-3 md:px-5 py-4 text-left hidden lg:table-cell">NOC Note</th>
+                    <th class="px-3 md:px-5 py-4 text-left hidden md:table-cell">Received By</th>
+                    <th class="px-3 md:px-5 py-4 text-center">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
                 {% for req in requests %}
                 <tr class="hover:bg-gray-50 dark:hover:bg-midnight-800/50 transition">
-                    <td class="px-4 py-4 text-sm text-gray-900 dark:text-white">{{ req.requester.username }}</td>
-                    <td class="px-4 py-4 text-sm text-gray-900 dark:text-white">{{ req.material.name }}</td>
-                    <td class="px-4 py-4 text-sm font-bold text-indigo-600 dark:text-indigo-400 bg-gray-50 dark:bg-midnight-950/50 rounded text-center">{{ req.quantity }}</td>
-                    <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">{{ req.requested_at|date:"Y-M-d" }}</td>
-                    <td class="px-4 py-4 text-sm text-gray-500 dark:text-gray-400 italic max-w-xs truncate">{{ req.send_by|default:"Unknown" }}</td>
-                    <td class="px-4 py-4">
-                        <span class="px-3 py-1 text-xs font-semibold rounded-full border 
+                    <td class="px-5 md:px-6 py-4 text-[11px] text-gray-900 dark:text-white">{{ req.requester.username }}</td>
+                    <td class="px-5 md:px-6 py-4 text-[11px] text-gray-900 dark:text-white">{{ req.material.name }}</td>
+                    <td class="px-5 md:px-6 py-4 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 bg-gray-50 dark:bg-midnight-950/50 rounded text-center">{{ req.quantity }}</td>
+                    <td class="px-5 md:px-6 py-4 text-[11px] text-gray-600 dark:text-gray-400">{{ req.requested_at|date:"Y-M-d" }}</td>
+                    <td class="px-5 md:px-6 py-4 text-[11px] text-gray-500 dark:text-gray-400 italic max-w-xs truncate hidden md:table-cell" title="{{ req.send_by|default:'Unknown' }}">{{ req.send_by|default:"Unknown" }}</td>
+                    <td class="px-5 md:px-6 py-4">
+                        <span class="px-2 md:px-3 py-1 text-[10px] md:text-xs font-semibold rounded-full border 
                             {% if req.status == 'Pending' %}bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/40 dark:text-yellow-400
                             {% elif req.status == 'Approved' %}bg-green-100 text-green-800 border-green-200 dark:bg-green-900/40 dark:text-green-400
                             {% else %}bg-red-100 text-red-800 border-red-200 dark:bg-red-900/40 dark:text-red-400{% endif %}">
                             {{ req.status }}
                         </span>
                     </td>
-                    <td class="px-4 py-4 text-sm text-gray-500 dark:text-gray-400 italic max-w-xs truncate">{{ req.admin_note|default:"N/A" }}</td>
-                    <td class="px-4 py-4 text-sm text-gray-500 dark:text-gray-400 italic max-w-xs truncate">
+                    <td class="px-5 md:px-6 py-4 text-[11px] text-gray-500 dark:text-gray-400 italic max-w-xs truncate hidden lg:table-cell" title="{{ req.admin_note|default:'N/A' }}">{{ req.admin_note|default:"N/A" }}</td>
+                    <td class="px-5 md:px-6 py-4 text-[11px] text-gray-500 dark:text-gray-400 italic max-w-xs truncate hidden md:table-cell">
                         {% if user.userprofile.role == 'Branch' and req.can_receive %}
                         <button onclick="openReceivedModal('{{ req.id }}', '{{ req.received_by|escapejs }}')"
-                            class="text-green-600 dark:text-green-400 hover:text-green-900 font-medium bg-green-50 dark:bg-green-900/50 px-3 py-1 rounded-lg hover:bg-green-100 transition">
+                            class="text-green-600 dark:text-green-400 hover:text-green-900 font-medium bg-green-50 dark:bg-green-900/50 px-2 md:px-3 py-1 rounded-lg hover:bg-green-100 transition text-[10px] md:text-xs">
                             Add
                         </button>
                         {% else %}
                         {{ req.received_by|default:"Not Received" }}
                         {% endif %}
                     </td>
-                    <td class="px-6 py-4 text-sm text-center">
+                    <td class="px-5 md:px-6 py-4 text-[11px] text-center">
                         <button onclick="openAdminModal('{{ req.id }}', '{{ req.admin_note|escapejs }}', '{{ req.quantity }}')"
-                            class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 font-medium bg-indigo-50 dark:bg-indigo-900/50 px-3 py-1 rounded-lg hover:bg-indigo-100 transition">
+                            class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 font-medium bg-indigo-50 dark:bg-indigo-900/50 px-2 md:px-3 py-1 rounded-lg hover:bg-indigo-100 transition text-[10px] md:text-xs">
                             Manage
                         </button>
                     </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="10" class="px-6 py-12 text-center text-gray-500 text-xl dark:text-gray-400">
+                    <td colspan="9" class="px-6 py-12 text-center text-gray-500 text-xl dark:text-gray-400">
                         <i class="fas fa-inbox text-4xl mb-3 text-gray-300"></i><br>
                         No requests found
                     </td>

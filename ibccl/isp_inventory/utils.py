@@ -41,6 +41,30 @@ def ensure_userprofile(user):
     return profile
 
 
+def deduct_material_stock(material, qty):
+    """Deduct approved quantity from material stock.
+
+    The function deducts from `quantity` first and only uses
+    `Remaining_stock` when necessary.
+    """
+    if qty <= material.quantity:
+        material.quantity -= qty
+    else:
+        diff = qty - material.quantity
+        material.quantity = 0
+        material.Remaining_stock = max(material.Remaining_stock - diff, 0)
+    material.save()
+
+
+def restore_material_stock(material, qty):
+    """Restore material stock when a request is rejected.
+
+    This only returns the requested quantity to the in-stock amount.
+    """
+    material.quantity += qty
+    material.save()
+
+
 # ==================== MONTHLY COUNT UTILITIES ====================
 
 def get_current_month_date():

@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, logout
 from rest_framework_simplejwt.tokens import RefreshToken
 from isp_inventory.models import UserProfile, Material, MaterialRequest, UsedMaterial, InternalMessage, MacSerialNumber, MaterialMacSerialImport
+from isp_inventory.utils import deduct_material_stock, restore_material_stock
 from django.db.models import Sum, Count, Q
 from django.db.models.functions import TruncDate
 from django.utils import timezone
@@ -115,13 +116,7 @@ def noc_dashboard(request):
                     messages.warning(request, f"Request for {mat_request.material.name} is already approved.")
                 elif mat_request.material.quantity + mat_request.material.Remaining_stock >= mat_request.quantity:
                     with transaction.atomic():
-                        if mat_request.quantity <= mat_request.material.quantity:
-                            mat_request.material.quantity -= mat_request.quantity
-                        else:
-                            diff = mat_request.quantity - mat_request.material.quantity
-                            mat_request.material.quantity = 0
-                            mat_request.material.Remaining_stock -= diff
-                        mat_request.material.save()
+                        deduct_material_stock(mat_request.material, mat_request.quantity)
                         mat_request.status = 'Approved'
                         mat_request.save()
                     messages.success(request, f"Request for {mat_request.material.name} approved.")
@@ -130,8 +125,7 @@ def noc_dashboard(request):
             elif action == 'reject':
                 if mat_request.status == 'Approved':
                     with transaction.atomic():
-                        mat_request.material.quantity += mat_request.quantity
-                        mat_request.material.save()
+                        restore_material_stock(mat_request.material, mat_request.quantity)
                         mat_request.status = 'Rejected'
                         mat_request.save()
                     messages.success(request, f"Request for {mat_request.material.name} rejected and stock returned.")
@@ -143,6 +137,7 @@ def noc_dashboard(request):
 
     from isp_inventory.views import process_month_end_reset
     process_month_end_reset()
+    now = timezone.now()
     internet_materials = Material.objects.filter(category='Internet', created_by=request.user)
     all_internet_materials = internet_materials.order_by('-added_at')
     
@@ -152,7 +147,10 @@ def noc_dashboard(request):
     pending_requests = MaterialRequest.objects.filter(
         material__category='Internet', 
         material__created_by=request.user, 
-        status='Pending'
+        status='Pending',
+        is_archived=False,
+        requested_at__year=now.year,
+        requested_at__month=now.month,
     ).count()
     used_materials_count = UsedMaterial.objects.filter(
         material__category='Internet', 
@@ -182,6 +180,7 @@ def noc_dashboard(request):
         material__category='Internet',
         material__created_by=request.user,
         request_type='Advance',
+        is_archived=False,
         requested_at__gte=month_start
     ).count()
 
@@ -199,13 +198,19 @@ def noc_dashboard(request):
     pending_requests_list = MaterialRequest.objects.filter(
         material__category='Internet', 
         material__created_by=request.user, 
-        status='Pending'
+        status='Pending',
+        is_archived=False,
+        requested_at__year=now.year,
+        requested_at__month=now.month,
     ).order_by('-requested_at')
     
     advance_materials = MaterialRequest.objects.filter(
         material__category='Internet', 
         material__created_by=request.user, 
-        request_type='Advance'
+        request_type='Advance',
+        is_archived=False,
+        requested_at__year=now.year,
+        requested_at__month=now.month,
     ).order_by('-requested_at')
     
     materials_monitoring = MaterialRequest.objects.filter(
@@ -398,13 +403,7 @@ def noc_requests(request):
 
                 if mat_request.material.quantity + mat_request.material.Remaining_stock >= requested_qty:
                     with transaction.atomic():
-                        if requested_qty <= mat_request.material.quantity:
-                            mat_request.material.quantity -= requested_qty
-                        else:
-                            diff = requested_qty - mat_request.material.quantity
-                            mat_request.material.quantity = 0
-                            mat_request.material.Remaining_stock -= diff
-                        mat_request.material.save()
+                        deduct_material_stock(mat_request.material, requested_qty)
                         mat_request.quantity = requested_qty
                         mat_request.status = 'Approved'
                         mat_request.admin_note = request.POST.get('admin_note', mat_request.admin_note)
@@ -413,10 +412,9 @@ def noc_requests(request):
                 else:
                     messages.error(request, f"Insufficient stock for {mat_request.material.name}.")
             elif action == 'reject':
-                if mat_request.status == 'Approved':
+                if mat_request.status in ['Approved', 'Received']:
                     with transaction.atomic():
-                        mat_request.material.quantity += mat_request.quantity
-                        mat_request.material.save()
+                        restore_material_stock(mat_request.material, mat_request.quantity)
                         mat_request.status = 'Rejected'
                         mat_request.admin_note = request.POST.get('admin_note', mat_request.admin_note)
                         mat_request.save()
@@ -492,13 +490,7 @@ def approve_request(request, pk):
             messages.warning(request, "Request already approved.")
         elif mat_request.material.quantity + mat_request.material.Remaining_stock >= mat_request.quantity:
             with transaction.atomic():
-                if mat_request.quantity <= mat_request.material.quantity:
-                    mat_request.material.quantity -= mat_request.quantity
-                else:
-                    diff = mat_request.quantity - mat_request.material.quantity
-                    mat_request.material.quantity = 0
-                    mat_request.material.Remaining_stock -= diff
-                mat_request.material.save()
+                deduct_material_stock(mat_request.material, mat_request.quantity)
                 mat_request.status = 'Approved'
                 mat_request.save()
             messages.success(request, "Request approved.")
@@ -513,8 +505,7 @@ def reject_request(request, pk):
     if request.method == 'POST':
         if mat_request.status == 'Approved':
             with transaction.atomic():
-                mat_request.material.quantity += mat_request.quantity
-                mat_request.material.save()
+                restore_material_stock(mat_request.material, mat_request.quantity)
                 mat_request.status = 'Rejected'
                 mat_request.save()
             messages.success(request, "Request rejected and stock returned.")
@@ -537,13 +528,7 @@ def noc_used_materials(request):
                     messages.warning(request, "Usage record already accepted.")
                 elif used_mat.material.quantity + used_mat.material.Remaining_stock >= used_mat.quantity:
                     with transaction.atomic():
-                        if used_mat.quantity <= used_mat.material.quantity:
-                            used_mat.material.quantity -= used_mat.quantity
-                        else:
-                            diff = used_mat.quantity - used_mat.material.quantity
-                            used_mat.material.quantity = 0
-                            used_mat.material.Remaining_stock -= diff
-                        used_mat.material.save()
+                        deduct_material_stock(used_mat.material, used_mat.quantity)
                         used_mat.status = 'Accepted'
                         used_mat.admin_note = request.POST.get('admin_note', used_mat.admin_note)
                         used_mat.save()
@@ -553,8 +538,7 @@ def noc_used_materials(request):
             elif action == 'reject':
                 if used_mat.status == 'Accepted':
                     with transaction.atomic():
-                        used_mat.material.quantity += used_mat.quantity
-                        used_mat.material.save()
+                        restore_material_stock(used_mat.material, used_mat.quantity)
                         used_mat.status = 'Rejected'
                         used_mat.admin_note = request.POST.get('admin_note', used_mat.admin_note)
                         used_mat.save()

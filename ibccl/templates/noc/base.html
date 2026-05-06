@@ -48,6 +48,9 @@
     <title>{% if user.is_authenticated %}{{ user.username }} | {% endif %}{% block title %}ISP Inventory{% endblock %}</title>
     <!--added favicon-->
     <link rel="icon" type="image/png" href="{% static 'image/favicon.png' %}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         // Configure Tailwind CSS with dark mode support and midnight theme
@@ -94,6 +97,16 @@
             -webkit-backdrop-filter: var(--glass-blur);
             border: 1px solid var(--glass-border);
             box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+        }
+
+        body {
+            font-family: 'Public Sans', sans-serif;
+        }
+
+        table,
+        th,
+        td {
+            font-family: 'Public Sans', sans-serif;
         }
 
         /* Enable smooth theme transitions */

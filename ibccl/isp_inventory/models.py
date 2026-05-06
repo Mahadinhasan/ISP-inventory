@@ -122,6 +122,8 @@ class Material(models.Model):
     ]
     Type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='Piece')
     quantity = models.IntegerField(default=0)
+    rate = models.IntegerField(default=0)
+    total_price = models.IntegerField(default=0, blank=True)
     Remaining_stock = models.IntegerField(default=0)
     min_stock_level = models.IntegerField(default=0)
     notes = models.TextField(blank=True)
@@ -219,6 +221,12 @@ class Material(models.Model):
         try:
             if self.quantity is None:
                 self.quantity = 0
+            
+            # Calculate total price
+            if self.rate is None:
+                self.rate = 0
+            self.total_price = self.quantity * self.rate
+
             if self.quantity <= 0:
                 self.status = 'Out of Stock'
             elif self.quantity < (self.min_stock_level or 0):
@@ -230,17 +238,17 @@ class Material(models.Model):
             pass
         super().save(*args, **kwargs)
 
-class Task(models.Model):
-    STATUS_CHOICES = [('Pending', 'Pending'), ('In Progress', 'In Progress'), ('Completed', 'Completed')]
-    title = models.CharField(max_length=200)
-    customer = models.CharField(max_length=100)
-    address = models.TextField()
-    Branch = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tasks')
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
-    created_at = models.DateTimeField(auto_now_add=True)
+# class Task(models.Model):
+#     STATUS_CHOICES = [('Pending', 'Pending'), ('In Progress', 'In Progress'), ('Completed', 'Completed')]
+#     title = models.CharField(max_length=200)
+#     customer = models.CharField(max_length=100)
+#     address = models.TextField()
+#     Branch = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tasks')
+#     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+#     created_at = models.DateTimeField(auto_now_add=True)
 
-    def __str__(self):
-        return self.title
+#     def __str__(self):
+#         return self.title
 
 
 class MaterialMonthlyCount(models.Model):
@@ -293,6 +301,8 @@ class MaterialRequest(models.Model):
     material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name='material_requests')
     requester = models.ForeignKey(User, on_delete=models.CASCADE, related_name='material_requests')
     quantity = models.IntegerField()
+    rate = models.IntegerField(default=0)
+    total_price = models.IntegerField(default=0, blank=True)
     notes = models.TextField(blank=True) # Deprecated logic potentially, but keeping for compatibility
     send_by = models.TextField(blank=True) # Explicit User Note
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')

@@ -8,6 +8,7 @@ urlpatterns = [
     path('dashboard/', views.dashboard, name='dashboard'),
     path('materials/', views.materials_view, name='materials'),
     path('materials/<int:pk>/json/', views.material_json, name='material_json'),
+    path('materials/export/excel/', views.materials_export_excel, name='materials_export_excel'),
     # path('tasks/', views.tasks_view, name='tasks'),
     path('requests/', views.requests_view, name='requests'),
     path('profile/', views.profile_view, name='profile'),

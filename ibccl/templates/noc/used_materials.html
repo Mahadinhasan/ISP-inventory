@@ -58,40 +58,11 @@
         </form>
     </div>
 
-    <script>
-        // Helper function to ensure tab_id is always in the form before submission
-        function submitFilterForm() {
-            const form = document.getElementById('filter-form');
-            const tabIdInput = form.querySelector('input[name="tab_id"]');
-            
-            // Get tab_id from sessionStorage
-            let tabId = sessionStorage.getItem('tab_id');
-            if (!tabId) {
-                tabId = Math.random().toString(36).substring(2, 10);
-                sessionStorage.setItem('tab_id', tabId);
-            }
-            
-            // Add or update tab_id in the form
-            if (tabIdInput) {
-                tabIdInput.value = tabId;
-            } else {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'tab_id';
-                input.value = tabId;
-                form.appendChild(input);
-            }
-            
-            // Submit the form
-            form.submit();
-        }
-    </script>
-
     <!-- Used Materials List -->
     <div
         class="bg-white dark:bg-midnight-900/40 glass-card rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-midnight-800 mx-4">
         <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-100 dark:divide-midnight-800">
+            <table class="min-w-full divide-y divide-gray-900 dark:divide-midnight-800">
                 <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
                     <tr>
                         {% if role != 'Branch' %}
@@ -464,6 +435,36 @@
         });
     });
 </script>
+
+
+    <script>
+        // Helper function to ensure tab_id is always in the form before submission
+        function submitFilterForm() {
+            const form = document.getElementById('filter-form');
+            const tabIdInput = form.querySelector('input[name="tab_id"]');
+            
+            // Get tab_id from sessionStorage
+            let tabId = sessionStorage.getItem('tab_id');
+            if (!tabId) {
+                tabId = Math.random().toString(36).substring(2, 10);
+                sessionStorage.setItem('tab_id', tabId);
+            }
+            
+            // Add or update tab_id in the form
+            if (tabIdInput) {
+                tabIdInput.value = tabId;
+            } else {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'tab_id';
+                input.value = tabId;
+                form.appendChild(input);
+            }
+            
+            // Submit the form
+            form.submit();
+        }
+    </script>
 
 <style>
     .glass-card {

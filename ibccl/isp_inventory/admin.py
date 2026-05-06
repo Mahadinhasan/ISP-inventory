@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Material, Task, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial, BackupRestore, ActivityLog, LogSettings, MacSerialNumber, MaterialMacSerialImport
+from .models import Material, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial, BackupRestore, ActivityLog, LogSettings, MacSerialNumber, MaterialMacSerialImport
 
 # Custom admin classes for better display
 
@@ -56,11 +56,11 @@ class UsedMaterialAdmin(admin.ModelAdmin):
 
 # Register your models here.
 class materialAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name', 'category', 'quantity','Remaining_stock', 'min_stock_level', 'status', 'updated_at']
+    list_display = ['id', 'name', 'category', 'Type','quantity','Remaining_stock', 'min_stock_level', 'status', 'updated_at','rate','total_price']
     list_filter = ['category', 'status']
     search_fields = ['name', 'category']
 admin.site.register(Material, materialAdmin)
-admin.site.register(Task, admin.ModelAdmin)
+# admin.site.register(Task, admin.ModelAdmin)
 class MaterialRequestAdmin(admin.ModelAdmin):
     list_display = ['id', 'requester', 'material', 'quantity', 'status', 'requested_at']
     list_filter = ['status', 'requested_at']

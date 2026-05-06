@@ -3,18 +3,18 @@
 
 {% block content %}
 <div class="fade-in">
-    <div class="flex flex-col md:flex-row justify-between items-center mb-10 gap-6 px-4 pt-6">
+    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6 px-4 pt-6">
         <div>
             <h1 class="text-4xl font-black text-gray-900 dark:text-white tracking-tight">Material Requests</h1>
             <p class="text-gray-500 dark:text-gray-400 font-medium">Manage branch material requests</p>
         </div>
         
-        <div class="flex gap-2">
-            <form method="get" class="flex items-center group">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:w-auto">
+            <form method="get" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                 <input type="text" name="search" placeholder="Search..." value="{{ request.GET.search }}"
-                    class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-l-2xl px-6 py-3 focus:outline-none focus:border-indigo-500 transition-all w-64 dark:text-white">
+                    class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-full px-5 py-3 focus:outline-none focus:border-indigo-500 transition-all w-full sm:w-72 dark:text-white">
                 <button type="submit"
-                    class="bg-gray-100 dark:bg-midnight-800 text-gray-500 dark:text-gray-400 px-5 py-3 rounded-r-2xl border-2 border-l-0 border-gray-100 dark:border-midnight-800 hover:bg-gray-200 dark:hover:bg-midnight-700 transition-all">
+                    class="bg-gray-100 dark:bg-midnight-800 text-gray-500 dark:text-gray-400 px-5 py-3 rounded-full border-2 border-l-0 border-gray-100 dark:border-midnight-800 hover:bg-gray-200 dark:hover:bg-midnight-700 transition-all w-full sm:w-auto">
                     <i class="fas fa-search"></i>
                 </button>
             </form>
@@ -45,7 +45,7 @@
         </div>
     </div>
     <!--Request count-->
-    <div class="flex flex-wrap gap-4 mb-8 px-4">
+     <div class="flex flex-wrap gap-4 mb-8 px-4">
         <div class="px-5 py-2.5 bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 rounded-xl border border-yellow-100 dark:border-yellow-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
             <i class="fas fa-hourglass-half"></i> Pending: {{ pending_count }}
         </div>
@@ -66,35 +66,39 @@
         </div>
     </div>
     <!-----------Unified Requests Table----------->
-    <div class="bg-white/40 dark:bg-midnight-900/40 glass-card rounded-[0.6rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-midnight-800 mx-4">
-        <table class="min-w-full divide-y divide-gray-900 dark:divide-midnight-800">
-            <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
-                <tr>
-                    {% if user.userprofile.role == 'Branch' %}
-                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                    {% endif %}
+    <div class="bg-white/40 dark:bg-midnight-900/40 glass-card rounded-[0.6rem] shadow-2xl border border-gray-100 dark:border-midnight-800 mx-4">
+        <div class="overflow-x-auto w-full">
+            <table class="min-w-[980px] w-full table-auto divide-y divide-gray-900 dark:divide-midnight-800">
+                <thead class="bg-gray-50/80 dark:bg-midnight-950/80">
+                    <tr>
+                        {% if user.userprofile.role == 'Branch' %}
+                        <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">ID</th>
+                        {% endif %}
                     {% if user.userprofile.role == 'Admin' or user.userprofile.role == 'Storekeeper' %}
-                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
+                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Branch</th>
                     {% endif %}
-                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Material</th>
-                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
-                     <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Send By</th>
-                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Admin Note</th>
-                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pass on</th>
-                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Received By</th>
+                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Material</th>
+                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Qty</th>
+                    {% if user.userprofile.role != 'Branch' %}
+                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Est. Amount</th>
+                    {% endif %}
+                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Date</th>
+                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Send By</th>
+                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Status</th>
+                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Type</th>
+                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Admin Note</th>
+                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Pass on</th>
+                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Received By</th>
                     {% if user.userprofile.role == 'Admin' %}
-                    <th class="px-5 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Actions</th>
                     {% endif %}
                 </tr>
             </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
+            <tbody class="bg-white dark:bg-midnight-950 divide-y divide-gray-200 dark:divide-midnight-800">
                 {% for req in requests %}
                 {% if user.userprofile.role == 'Branch' %}
-                <tr class="hover:bg-gray-50 transition duration-150 {% if req.request_type == 'Advance' %}border-l-4 border-indigo-400{% endif %}">
-                    <td class="px-2 py-2 text-sm font-medium text-gray-900">
+                <tr class="hover:bg-gray-50 dark:hover:bg-midnight-900 transition duration-150 {% if req.request_type == 'Advance' %}border-l-4 border-indigo-400{% endif %}">
+                    <td class="px-2 py-2 text-sm font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">
                         {% if req.request_type == 'Advance' %}
                             ADV-{{req.id|stringformat:"03d"}}
                         {% else %}
@@ -105,9 +109,12 @@
                 {% if user.userprofile.role == 'Admin' or user.userprofile.role == 'Storekeeper' %}
                     <td class="px-4 py-4 text-sm text-gray-900">{{ req.user.get_full_name|default:req.requester.username }}</td>
                 {% endif %}
-                    <td class="px-4 py-4 text-sm text-gray-900">{{ req.material.name }}</td>
-                    <td class="px-4 py-4 text-sm font-bold text-gray-900 bg-gray-50 rounded text-center">{{ req.quantity }}</td>
-                    <td class="px-4 py-4 text-sm text-gray-600">{{ req.requested_at|date:"Y-M-d" }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap">{{ req.material.name }}</td>
+                    <td class="px-4 py-4 text-sm font-semibold text-gray-900 bg-gray-50 rounded text-center dark:bg-midnight-900">{{ req.quantity }}</td>
+                    {% if user.userprofile.role != 'Branch' %}
+                    <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">{{ req.estimated_amount|default:"0" }} /-</td>
+                    {% endif %}
+                    <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">{{ req.requested_at|date:"Y-M-d" }}</td>
                     <td class="px-4 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.send_by|default:"Unknown" }}</td>
                     <td class="px-4 py-4">
                         <span class="px-3 py-1 text-xs font-semibold rounded-full border 
@@ -147,11 +154,18 @@
                     <td class="px-4 py-4 text-sm">
                         <div class="flex items-center justify-between">
                             <span class="text-gray-500 italic max-w-xs truncate">{{ req.received_by|default:"Not Received" }}</span>
-                            {% if role == 'Branch' and req.status == 'Dispatched' and req.requester == user %}
-                            <button onclick="openReceivedByModal('{{ req.id }}')"
-                                class="ml-1 text-green-600 hover:text-green-900 font-medium bg-green-50 px-2 py-1 rounded hover:bg-green-100 transition text-xs whitespace-nowrap">
-                                <i class="fas fa-plus"></i> Add
-                            </button>
+                            {% if role == 'Branch' and req.requester == user %}
+                                {% if req.status == 'Dispatched' %}
+                                <button onclick="openReceivedByModal('{{ req.id }}')"
+                                    class="ml-1 text-green-600 hover:text-green-900 font-medium bg-green-50 px-2 py-1 rounded hover:bg-green-100 transition text-xs whitespace-nowrap">
+                                    <i class="fas fa-plus"></i> Add
+                                </button>
+                                {% elif req.status == 'Approved' and req.material.created_by.userprofile.role == 'NOC' %}
+                                <button onclick="openReceivedByModal('{{ req.id }}')"
+                                    class="ml-1 text-green-600 hover:text-green-900 font-medium bg-green-50 px-2 py-1 rounded hover:bg-green-100 transition text-xs whitespace-nowrap">
+                                    <i class="fas fa-plus"></i> Add
+                                </button>
+                                {% endif %}
                             {% endif %}
                         </div>
                     </td>

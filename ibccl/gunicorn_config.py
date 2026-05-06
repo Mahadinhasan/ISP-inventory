@@ -1,7 +1,7 @@
 import multiprocessing
 
 # The socket to bind
-bind = "0.0.0.0:8000"
+bind = "unix:/home/ibccl/webserver/mysite/mysite.sock"
 
 # Number of worker processes
 workers = multiprocessing.cpu_count() * 2 + 1
@@ -10,8 +10,8 @@ workers = multiprocessing.cpu_count() * 2 + 1
 worker_class = "uvicorn.workers.UvicornWorker"
 
 # Logging setup
-accesslog = "-"  # Output to stdout
-errorlog = "-"   # Output to stderr
+accesslog = "/var/log/gunicorn/access.log"
+errorlog = "/var/log/gunicorn/error.log"
 loglevel = "info"
 
 # Maximum number of pending connections

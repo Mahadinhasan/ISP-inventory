@@ -47,6 +47,9 @@
     <title>{% if user.is_authenticated %}{{ user.username }} | {% endif %}{% block title %}ISP Inventory{% endblock %}</title>
     <!--added favicon-->
     <link rel="icon" type="image/png" href="{% static 'image/favicon.png' %}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         // Configure Tailwind CSS with dark mode support
@@ -81,7 +84,14 @@
         }
 
         body {
+            font-family: 'Public Sans', sans-serif;
             transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1), color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        table,
+        th,
+        td {
+            font-family: 'Public Sans', sans-serif;
         }
 
         /* Premium Dark Mode Glassmorphism */
@@ -321,10 +331,10 @@
         {% block content %}{% endblock %}
     </main>
 
-    <footer class="mt-25 py-8 border-t border-gray-100 dark:border-midnight-800 text-end max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <p class="text-xs text-gray-400 dark:text-gray-500 font-medium">
-            &copy; <span id="current-year"></span> ISP Inventory System. All rights reserved.
-        </p>
+    <footer class="bg-white shadow-inner border-t border-gray-200 mt-10">
+        <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-500">
+            &copy; <span class="current-year"></span> ISP Inventory System. All rights reserved.
+        </div>
     </footer>
 
     <script>
@@ -337,6 +347,11 @@
                 link.classList.remove('text-gray-500');
                 link.classList.add('text-indigo-600', 'bg-indigo-50/50', 'dark:bg-indigo-500/10', 'rounded-lg');
             }
+        });
+        //current year for footer
+        const year = new Date().getFullYear();
+        document.querySelectorAll('.current-year').forEach(el => {
+            el.textContent = year;
         });
 
         // Dropdown Logic

@@ -4,65 +4,63 @@
 
 {% block content %}
 <div class="fade-in px-4 py-6">
-    <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-8 tracking-tight">Materials Management</h1>
+    <div class="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-8">
+        <h1 class="text-4xl font-bold text-gray-900 dark:text-white tracking-tight">Materials Management</h1>
+        
+        <!--Filter-->
+        <form method="get" class="w-full lg:w-auto">
+            <div class="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
+            <div class="flex flex-col gap-2">
+                <label class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider ml-1">Search</label>
+                <input type="text" name="search" value="{{ search }}" placeholder="Item name..."
+                    class="px-3 py-2 bg-gray-50 dark:bg-midnight-950 border border-gray-100 dark:border-midnight-800 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white w-full sm:w-auto">
+            </div>
+            <div class="flex flex-col gap-2">
+                <label class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider ml-1">Category</label>
+                <select name="category" class="px-3 py-2 bg-gray-50 dark:bg-midnight-950 border border-gray-100 dark:border-midnight-800 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white w-full sm:w-auto">
+                    <option value="">All Categories</option>
+                    <option value="Internet" {% if category == 'Internet' %}selected{% endif %}>Internet</option>
+                    <option value="Dish" {% if category == 'Dish' %}selected{% endif %}>Dish</option>
+                    <option value="Fiber" {% if category == 'Fiber' %}selected{% endif %}>Fiber</option>
+                    <option value="Common item" {% if category == 'Common item' %}selected{% endif %}>Common item</option>
+                    <option value="Work shop" {% if category == 'Work shop' %}selected{% endif %}>Work shop</option>
+                </select>
+            </div>
+            <div class="flex flex-col gap-2">
+                <label class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider ml-1">Stock Status</label>
+                <select name="stock_status" class="px-3 py-2 bg-gray-50 dark:bg-midnight-950 border border-gray-100 dark:border-midnight-800 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white w-full sm:w-auto">
+                    <option value="">All Stock Status</option>
+                    <option value="low" {% if stock_status == 'low' %}selected{% endif %}>Low Stock</option>
+                    <option value="normal" {% if stock_status == 'normal' %}selected{% endif %}>Normal Stock</option>
+                    <option value="out_of_stock" {% if stock_status == 'out_of_stock' %}selected{% endif %}>Out of Stock</option>
+                </select>
+            </div>
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm active:scale-95 w-full sm:w-auto sm:mt-6">
+                <i class="fas fa-filter mr-1"></i>Filter
+            </button>
+            </div>
+        </form>
+    </div>
 
     {% if role == 'Storekeeper'%}
-    <button onclick="openAddModal()"
-        class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3.5 rounded-2xl font-bold mb-8 transition-all hover:shadow-lg shadow-indigo-200 dark:shadow-indigo-900/20 flex items-center">
-        <i class="fas fa-plus mr-2"></i>Add Material
-    </button>
-    {% endif %}
-
-    <!--Materials count normal/Low stock/Out of stock-->
-    {% if role == 'Admin' or role == 'Storekeeper' %}
-    <div class="flex flex-wrap gap-4 mb-8 px-4">
-        <div class="px-5 py-2.5 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 rounded-xl border border-green-100 dark:border-green-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
-            <i class="fas fa-check-circle"></i> Normal Stock: {{ total_normal_stock }}
-        </div>
-        <div class="px-5 py-2.5 bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 rounded-xl border border-yellow-100 dark:border-yellow-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
-            <i class="fas fa-info-circle"></i> Low Stock: {{ total_low_stock }}
-        </div>
-        <div class="px-5 py-2.5 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 rounded-xl border border-red-100 dark:border-red-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
-            <i class="fas fa-times-circle"></i> Out of Stock: {{ total_out_of_stock }}
-        </div>
+    <div class="flex flex-wrap gap-4 mb-6">
+        <button onclick="openAddModal()"
+        class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-bold transition-all hover:shadow-lg shadow-indigo-200 dark:shadow-indigo-900/20 flex items-center">
+            <i class="fas fa-plus mr-2"></i>Add Material
+        </button>
+        <button onclick="exportMaterialsExcel()"
+            class="bg-green-600 hover:bg-green-700 text-white px-5 py-3 rounded-xl font-bold transition-all hover:shadow-lg shadow-green-200 dark:shadow-green-900/20 flex items-center">
+            <i class="fas fa-file-excel mr-2"></i>Export Excel
+        </button>
+    </div>
+    {% elif role == 'Admin' %}
+    <div class="flex flex-wrap gap-4 mb-6">
+        <button onclick="exportMaterialsExcel()"
+            class="bg-green-600 hover:bg-green-700 text-white px-5 py-3 rounded-xl font-bold transition-all hover:shadow-lg shadow-green-200 dark:shadow-green-900/20 flex items-center">
+            <i class="fas fa-file-excel mr-2"></i>Export Excel
+        </button>
     </div>
     {% endif %}
-
-
-
-    <!--Filter-->
-    <form method="get" class="mb-8 p-6 bg-white dark:bg-midnight-900/40 glass-card rounded-2xl grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div class="flex flex-col gap-2">
-            <label class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider ml-1">Search</label>
-            <input type="text" name="search" value="{{ search }}" placeholder="Item name..."
-                class="px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-100 dark:border-midnight-800 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white">
-        </div>
-        <div class="flex flex-col gap-2">
-            <label class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider ml-1">Category</label>
-            <select name="category" class="px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-100 dark:border-midnight-800 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white">
-                <option value="">All Categories</option>
-                <option value="Internet" {% if category == 'Internet' %}selected{% endif %}>Internet</option>
-                <option value="Dish" {% if category == 'Dish' %}selected{% endif %}>Dish</option>
-                <option value="Fiber" {% if category == 'Fiber' %}selected{% endif %}>Fiber</option>
-                <option value="Common item" {% if category == 'Common item' %}selected{% endif %}>Common item</option>
-                <option value="Work shop" {% if category == 'Work shop' %}selected{% endif %}>Work shop</option>
-            </select>
-        </div>
-        <div class="flex flex-col gap-2">
-            <label class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider ml-1">Stock Status</label>
-            <select name="stock_status" class="px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-100 dark:border-midnight-800 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white">
-                <option value="">All Stock Status</option>
-                <option value="low" {% if stock_status == 'low' %}selected{% endif %}>Low Stock</option>
-                <option value="normal" {% if stock_status == 'normal' %}selected{% endif %}>Normal Stock</option>
-                <option value="out_of_stock" {% if stock_status == 'out_of_stock' %}selected{% endif %}>Out of Stock</option>
-            </select>
-        </div>
-        <div class="flex items-end">
-            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-xl font-bold transition-all shadow-md active:scale-95">
-                <i class="fas fa-filter mr-2"></i>Filter
-            </button>
-        </div>
-    </form>
 
     <!--Active filters summary-->
     <div class="mb-4 text-sm text-gray-600">
@@ -81,70 +79,88 @@
     </div>
 
     <!-- Table -->
-    <div class="overflow-x-auto bg-white dark:bg-midnight-900/40 glass-card rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-midnight-800">
-        <table class="min-w-full divide-y divide-gray-900 dark:divide-midnight-800">
-            <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
-                <tr>
-                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">ID</th>
-                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Materials Name</th>
-                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Category</th>                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Status</th>
-                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">in Stock</th>
-                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Remaining stock</th>                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Updated At</th>
-                    {% if role == 'Storekeeper' %}
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                    {% endif %}
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200">
-                {% for material in materials_page %}
-                <tr {% if material.stock_status == 'low' %}class="bg-red-50" {% endif %}>
-                    <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ forloop.counter }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ material.name }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">{{ material.category }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <span class="px-2 py-1 rounded-full text-xs font-semibold
-                            {% if material.stock_status == 'normal' %}bg-green-100 text-green-800
-                            {% elif material.stock_status == 'low' %}bg-yellow-100 text-yellow-800
-                            {% else %}bg-red-100 text-red-800{% endif %}">
-                            {{ material.stock_status|capfirst }}
-                        </span>
-                    </td>
-                    <td
-                        class="px-6 py-4 whitespace-nowrap {% if material.stock_status == 'low' %}text-red-600 font-semibold{% endif %}">
-                        <b>{{ material.quantity|default:'0' }}</b> {{ material.Type }}
-                        {% if material.stock_status == 'low' %}
-                        <span
-                            class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs bg-red-100 text-red-800">Low</span>
+    <div class="overflow-x-auto bg-white dark:bg-midnight-900/40 glass-card rounded-2xl shadow-2xl overflow-hidden border border-gray-200 dark:border-midnight-800 mx-4">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-3 px-4 py-4 border-b border-gray-100 dark:border-midnight-800 bg-gray-50 dark:bg-midnight-950/80">
+            <!-- <div>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Materials Inventory</h2>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Sortable, responsive table with compact text and clean row styling.</p>
+            </div> -->
+            <div class="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                <span class="px-3 py-1 bg-gray-100 dark:bg-midnight-900 rounded-full">Total: {{ materials_page.paginator.count }}</span>
+                <span class="px-3 py-1 bg-gray-100 dark:bg-midnight-900 rounded-full">Normal: {{ total_normal_stock }}</span>
+                <span class="px-3 py-1 bg-yellow-100 dark:bg-yellow-950 rounded-full">Low: {{ total_low_stock }}</span>
+                <span class="px-3 py-1 bg-red-100 dark:bg-red-950 rounded-full">Out: {{ total_out_of_stock }}</span>
+                <span class="px-3 py-1 bg-gray-100 dark:bg-midnight-900 rounded-full">Total price: {{total_price|default:0}}৳</span>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full table-auto border-separate border-spacing-y-2 text-sm bg-transparent">
+                <thead class="bg-white dark:bg-midnight-950 border-b border-gray-200 dark:border-midnight-800 sticky top-0">
+                    <tr class="text-xs font-semibold text-gray-700 dark:text-gray-700 uppercase tracking-[0.18em]">
+                        <th class="px-6 py-4 text-center">ID</th>
+                        <th class="px-6 py-4 text-left">Materials</th>
+                        <th class="px-6 py-4 text-left">Category</th>
+                        <th class="px-6 py-4 text-center">Status</th>
+                        <th class="px-6 py-4 text-left">In Stock</th>
+                        <th class="px-6 py-4 text-left">Remaining</th>
+                        <th class="px-6 py-4 text-center">Total Price</th>
+                        <th class="px-6 py-4 text-center">Updated At</th>
+                        {% if role == 'Storekeeper' %}
+                        <th class="px-9 py-4 text-right"><i class="fas fa-edit"></i></th>
                         {% endif %}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="flex flex-wrap gap-3">
-                            <span class="text-sm font-semibold">Remaining: {{ material.Remaining_stock }}</span>
-                            <span class="text-sm font-semibold">Min: {{ material.min_stock_level }}</span>
-                        </div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">{{ material.updated_at|date:"Y-m-d" }}</td>
-                    {% if role == 'Storekeeper' %}
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <button onclick="editMaterial('{{ material.id }}')"
-                            class="text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1 rounded-md transition ml-2">
-                            <i class="fas fa-edit mr-1"></i> Edit
-                        </button>
-                        <form method="post" class="inline">
-                            {% csrf_token %}
-                            <input type="hidden" name="action" value="delete">
-                            <input type="hidden" name="material_id" value="{{ material.id }}">
-                            <button type="submit" onclick="return confirm('Delete this material?')"
-                                class="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1 rounded-md transition ml-2">
-                                <i class="fas fa-trash mr-1"></i> Delete
-                            </button>
-                        </form>
-                    </td>
-                    {% endif %}
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-midnight-800">
+                    {% for material in materials_page %}
+                    <tr class="bg-white dark:bg-midnight-950 shadow-sm rounded-2xl hover:bg-indigo-50 dark:hover:bg-midnight-900/80 transition duration-150 {% if material.stock_status == 'low' %}border-l-4 border-yellow-400 dark:border-yellow-500{% endif %}">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-700 dark:text-gray-100 text-left">{{ material.id }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white text-left">{{ material.name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300 text-left">{{ material.category }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <span class="inline-flex items-center rounded-full px-2.5 py-1 text-sm font-semibold
+                                {% if material.stock_status == 'normal' %}bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300
+                                {% elif material.stock_status == 'low' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300
+                                {% else %}bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300{% endif %}">
+                                {{ material.stock_status|capfirst }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-100 text-left {% if material.stock_status == 'low' %}text-red-700 dark:text-red-300 font-semibold{% endif %}">
+                            <span class="font-bold">{{ material.quantity|default:'0' }}</span> {{ material.Type }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300 text-left">
+                            <div class="flex flex-wrap gap-2 justify-left">
+                                <span class="font-semibold">Rem:</span>
+                                <span>{{ material.Remaining_stock }}</span>
+                                <span class="font-semibold">Min:</span>
+                                <span>{{ material.min_stock_level }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 text-center">{{ material.total_price|default:'0' }}/-</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 text-center">{{ material.updated_at|date:"Y-m-d" }}</td>
+                        {% if role == 'Storekeeper' %}
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-left">
+                            <div class="flex flex-wrap gap-2 justify-left">
+                                <button onclick="editMaterial('{{ material.id }}')"
+                                    class="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-2 rounded-lg transition text-sm">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <form method="post" class="inline">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="material_id" value="{{ material.id }}">
+                                    <button type="submit" onclick="return confirm('Delete this material?')"
+                                        class="inline-flex items-center gap-1 text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition text-sm">
+                                        <i class="fas fa-trash"></i> 
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <!-- Material Modal (Add/Edit) -->
@@ -189,6 +205,20 @@
                             class="w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             placeholder="0">
                     </div>
+
+                    <!-- Rate -->
+                    <div class="form-group">
+                        <label for="id_rate" class="block text-sm font-medium text-gray-700 mb-2">Rate</label>
+                        <input type="number" name="rate" id="id_rate" min="0" required
+                            class="w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            placeholder="0">
+                    </div>
+
+                    <!-- Total Price Display (Auto-calculated) -->
+                    <!-- <div class="form-group">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Total Price (Auto-calculated)</label>
+                        <div class="w-full px-3 py-2 border-2 border-transparent bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 rounded-lg font-bold" id="display_total_price">0</div>
+                    </div> -->
 
                     <!-- Min Stock Level -->
                     <div class="form-group">
@@ -276,6 +306,8 @@
         document.getElementById('modalTitle').textContent = 'Add Material';
         document.getElementById('materialForm').reset();
         document.getElementById('materialId').value = '';
+        const displayTotal = document.getElementById('display_total_price');
+        if (displayTotal) displayTotal.textContent = '0';
 
         // Enable name field for adding new material
         const nameField = document.getElementById('id_name');
@@ -321,7 +353,14 @@
                 setVal('id_name', data.name);
                 setVal('id_category', data.category);
                 setVal('id_quantity', data.quantity);
+                setVal('id_rate', data.rate);
                 setVal('id_min_stock_level', data.min_stock_level);
+                
+                // Update total price display
+                const qty = parseFloat(data.quantity) || 0;
+                const rate = parseFloat(data.rate) || 0;
+                const displayTotal = document.getElementById('display_total_price');
+                if (displayTotal) displayTotal.textContent = (qty * rate).toString();
 
                 // Disable Name field during edit (unique constraint, cannot change)
                 const nameField = document.getElementById('id_name');
@@ -357,6 +396,36 @@
                 alert('Unable to load material data for editing.');
                 document.getElementById('materialModal').classList.add('hidden');
             });
+    }
+
+    function updateTotal() {
+        const qty = parseFloat(document.getElementById('id_quantity').value) || 0;
+        const rate = parseFloat(document.getElementById('id_rate').value) || 0;
+        const displayTotal = document.getElementById('display_total_price');
+        if (displayTotal) displayTotal.textContent = (qty * rate).toString();
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const qtyInput = document.getElementById('id_quantity');
+        const rateInput = document.getElementById('id_rate');
+        if(qtyInput) qtyInput.addEventListener('input', updateTotal);
+        if(rateInput) rateInput.addEventListener('input', updateTotal);
+    });
+
+    function exportMaterialsExcel() {
+        const tabId = sessionStorage.getItem('tab_id');
+        let exportUrl = '{% url 'materials_export_excel' %}';
+        if (tabId) {
+            exportUrl += `?tab_id=${tabId}`;
+        } else {
+            // If no tab_id, try to get it from URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlTabId = urlParams.get('tab_id');
+            if (urlTabId) {
+                exportUrl += `?tab_id=${urlTabId}`;
+            }
+        }
+        window.location.href = exportUrl;
     }
 </script>
 {% endblock %}

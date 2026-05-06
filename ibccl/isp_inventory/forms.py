@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
-from .models import Material, Task, MaterialRequest, SystemSetting, NotificationSetting, UsedMaterial, BackupRestore, ActivityLog, LogSettings, MacSerialNumber, MaterialMacSerialImport, UserProfile
+from .models import Material, MaterialRequest, SystemSetting, NotificationSetting, UsedMaterial, BackupRestore, ActivityLog, LogSettings, MacSerialNumber, MaterialMacSerialImport, UserProfile
 from .utils import ensure_userprofile
 
 class RegisterForm(UserCreationForm):
@@ -74,7 +74,7 @@ class RegisterForm(UserCreationForm):
 class MaterialForm(forms.ModelForm):
     class Meta:
         model = Material
-        fields = ['name', 'category', 'quantity', 'min_stock_level','Type']
+        fields = ['name', 'category', 'quantity', 'min_stock_level','rate','Type']
     
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
@@ -103,10 +103,10 @@ class MaterialForm(forms.ModelForm):
                     self.fields['name'].help_text = "Name cannot be changed by Storekeeper."
                 # Status is auto-calculated by Material.save()
 
-class TaskForm(forms.ModelForm):
-    class Meta:
-        model = Task
-        fields = ['title', 'customer', 'address', 'Branch']
+# class TaskForm(forms.ModelForm):
+#     class Meta:
+#         model = Task
+#         fields = ['title', 'customer', 'address', 'Branch']
 
 class RequestForm(forms.ModelForm):
     class Meta:
