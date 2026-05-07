@@ -313,7 +313,9 @@ class MaterialRequest(models.Model):
     received_by = models.TextField(blank=True) # Who received the material (filled by branch user when approved)
     received_at = models.DateTimeField(null=True, blank=True) # When the received_by was last updated
     requested_at = models.DateTimeField(auto_now_add=True)
-    
+    # Track where stock was deducted from for accurate returns on rejection
+    deducted_from_quantity = models.IntegerField(default=0)
+    deducted_from_remaining = models.IntegerField(default=0)
     # Archive System Fields
     is_archived = models.BooleanField(default=False, help_text="Auto-archived for previous months")
     archived_at = models.DateTimeField(null=True, blank=True, help_text="When the request was archived")
@@ -338,7 +340,15 @@ class MaterialRequest(models.Model):
         if not items:
             return '-'
         return ', '.join([f"{item.quantity}x {item.material.name}" for item in items])
-    
+
+    @property
+    def estimated_amount(self):
+        """Estimated amount = approved quantity × material rate."""
+        try:
+            return self.quantity * (self.material.rate or 0)
+        except Exception:
+            return 0
+
     def save(self, *args, **kwargs):
         # Automatically update status to Dispatched when storekeeper adds pass_on
         if self.pk:

@@ -279,6 +279,7 @@ def dashboard(request):
     used_materials_count = 0
     used_materials_counts = 0
     used_material_form = None
+    total_price1 = 0
     
     if role == 'Branch':
         # For Branch: show only materials that completed full workflow
@@ -533,6 +534,10 @@ def dashboard(request):
         total_used_qty = UsedMaterial.objects.filter(
             status='Accepted', added_at__gte=month_start
         ).aggregate(total=Sum('quantity'))['total'] or 0
+        
+        #Total price
+        total_price_agg1 = Material.objects.aggregate(total=Sum('total_price'))['total']
+        total_price1 = total_price_agg1 if total_price_agg1 is not None else 0
 
     return render(request, 'inventory/dashboard.html', {
         'total_materials': total_materials,
@@ -559,6 +564,7 @@ def dashboard(request):
         'total_qty_issued': total_qty_issued,
         'advance_count': advance_count,
         'total_used_qty': total_used_qty,
+        'total_price1': total_price1,
     })
 
 
@@ -1261,21 +1267,22 @@ def requests_view(request):
                                 messages.error(request, f"Insufficient stock for {mat.name}. Available In Stock: {mat.quantity}, Remaining Stock: {mat.Remaining_stock}, Requested: {approved_qty}")
                                 return redirect('requests')
                             
-                            # Deduct the approved quantity from material
-                            if approved_qty <= mat.quantity:
-                                mat.quantity -= approved_qty
-                            else:
-                                remaining_to_deduct = approved_qty - mat.quantity
-                                mat.quantity = 0
-                                mat.Remaining_stock -= remaining_to_deduct
+                            # Deduct the approved quantity (Prioritize In Stock / Quantity)
+                            take_from_qty = min(approved_qty, mat.quantity)
+                            take_from_rem = approved_qty - take_from_qty
+                            
+                            mat.quantity -= take_from_qty
+                            mat.Remaining_stock -= take_from_rem
                             mat.save()
                             
-                            # Update request with approved quantity
+                            # Update request with tracking info
                             req.quantity = approved_qty
+                            req.deducted_from_quantity = take_from_qty
+                            req.deducted_from_remaining = take_from_rem
                             req.status = 'Approved'
                             req.admin_note = note
                             req.save()
-                            messages.success(request, f"Request approved. {approved_qty} units deducted from {mat.name}.")
+                            messages.success(request, f"Request approved. {approved_qty} units deducted (In Stock: {take_from_qty}, Remaining: {take_from_rem}).")
                     except Exception as e:
                          messages.error(request, f"Transaction failed: {str(e)}")
                          return redirect('requests')
@@ -1284,16 +1291,19 @@ def requests_view(request):
                     if req.status in ['Approved', 'Dispatched', 'Received']:
                         try:
                             with transaction.atomic():
-                                # Return quantity to material stock
+                                # Return quantity to exactly where it was taken from
                                 mat = Material.objects.select_for_update().get(pk=req.material.id)
-                                mat.quantity += req.quantity
+                                mat.quantity += req.deducted_from_quantity
+                                mat.Remaining_stock += req.deducted_from_remaining
                                 mat.save()
                                 
-                                # Update request status
+                                # Update request status and reset tracking
                                 req.status = 'Rejected'
                                 req.admin_note = note
+                                req.deducted_from_quantity = 0
+                                req.deducted_from_remaining = 0
                                 req.save()
-                                messages.success(request, f"Request rejected and {req.quantity} units returned to {mat.name}.")
+                                messages.success(request, f"Request rejected. Values returned to original stock pools.")
                         except Exception as e:
                              messages.error(request, f"Failed to return stock: {str(e)}")
                              return redirect('requests')
@@ -1315,14 +1325,6 @@ def requests_view(request):
     else:
         form = RequestForm()
 
-    # Admin and Storekeeper Est.amount field update
-    if request.method == 'POST' and role in ['Admin', 'Storekeeper']:
-        material_id = request.POST.get('material')
-        quantity = request.POST.get('quantity')
-        if material_id and quantity:
-            material = Material.objects.get(pk=material_id)
-            material.est_amount =  material.price * int(quantity)
-            material.save()
 
     return render(request, 'inventory/requests.html', {
         'pending_count': pending_count,

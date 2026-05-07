@@ -112,7 +112,9 @@
                     <td class="px-4 py-4 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap">{{ req.material.name }}</td>
                     <td class="px-4 py-4 text-sm font-semibold text-gray-900 bg-gray-50 rounded text-center dark:bg-midnight-900">{{ req.quantity }}</td>
                     {% if user.userprofile.role != 'Branch' %}
-                    <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">{{ req.estimated_amount|default:"0" }} /-</td>
+                    <td class="px-4 py-4 text-sm whitespace-nowrap font-semibold {% if req.estimated_amount %}text-emerald-700 dark:text-emerald-400{% else %}text-gray-400{% endif %}">
+                        {{ req.estimated_amount|default:"0" }}/-
+                    </td>
                     {% endif %}
                     <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">{{ req.requested_at|date:"Y-M-d" }}</td>
                     <td class="px-4 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.send_by|default:"Unknown" }}</td>
