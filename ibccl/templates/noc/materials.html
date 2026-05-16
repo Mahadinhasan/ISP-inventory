@@ -52,6 +52,7 @@
                         <th class="px-6 py-4 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 uppercase">Quantity</th>
                         <th class="px-6 py-4 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 uppercase">Min Stock</th>
                         <th class="px-6 py-4 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
+                        <th class="px-6 py-4 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 uppercase">Total Price</th>
                         <th class="px-6 py-4 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 uppercase">Date</th>
                         <th class="px-6 py-4 text-right text-[11px] font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
                     </tr>
@@ -69,10 +70,11 @@
                                 {{ mat.status }}
                             </span>
                         </td>
+                        <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ mat.total_price|default:'0' }}/-</td>
                         <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ mat.added_at|date:"Y-m-d" }}</td>
                         <td class="px-6 py-4 text-right space-x-3">
                             <a href="{% url 'noc:edit_material' mat.pk %}" class="text-indigo-600 hover:text-indigo-900 transition"><i class="fas fa-edit"></i></a>
-                            <a href="{% url 'noc:delete_material' mat.pk %}" class="text-red-600 hover:text-red-900 transition"><i class="fas fa-trash"></i></a>
+                            <!-- <a href="{% url 'noc:delete_material' mat.pk %}" class="text-red-600 hover:text-red-900 transition"><i class="fas fa-trash"></i></a> -->
                         </td>
                     </tr>
                     {% empty %}

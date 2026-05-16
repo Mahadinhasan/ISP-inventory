@@ -185,23 +185,21 @@ class LogSettingsForm(forms.ModelForm):
 
 #Materials name filter for Branch use only approved materials
 class UsedMaterialForm(forms.ModelForm):
-    mac_serial = forms.ModelChoiceField(
-        queryset=MacSerialNumber.objects.none(),
-        required=False,
-        label="Mac/Serial Number",
+    # Combined selection field for material and mac/serial
+    material_selection = forms.ChoiceField(
+        label="Material Name",
+        required=True,
         widget=forms.Select(attrs={
-            'class': 'w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500',
-            'id': 'used_material_mac_serial'
+            'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition',
+            'id': 'id_material_selection'
         }),
-        help_text="Required for serialized items like ONUs"
+        help_text="Select from your approved in-stock materials"
     )
 
     class Meta:
         model = UsedMaterial
-        fields = ['material', 'mac_serial', 'client_name', 'client_phone', 'client_address', 'quantity', 'issue', 'status']
+        fields = ['material_selection', 'client_name', 'client_phone', 'client_address', 'quantity', 'issue', 'status']
         labels = {
-            'material': 'Material Name',
-            'mac_serial': 'Mac/Serial (Optional)',
             'client_name': 'Client Name',
             'client_phone': 'Client Phone',
             'client_address': 'Client Address',
@@ -248,35 +246,49 @@ class UsedMaterialForm(forms.ModelForm):
         self.user = user
         
         if user:
-            # Filter Mac/Serials for this user
-            self.fields['mac_serial'].queryset = MacSerialNumber.objects.filter(
-                assigned_to=user,
-                status='Active'
-            ).order_by('mac_serial')
-            
+            choices = [('', 'Select Material from Stock')]
             try:
                 profile = ensure_userprofile(user)
                 if profile and profile.role == 'Branch':
-                    # Filter to only show materials that have been approved for this Branch
+                    # 1. Add Serialized Items (assigned to this user and Active)
+                    active_serials = MacSerialNumber.objects.filter(
+                        assigned_to=user, 
+                        status='Active'
+                    ).select_related('material')
+                    
+                    for s in active_serials:
+                        choices.append((f"s:{s.id}", f"{s.material.name} (MAC: {s.mac_serial})"))
+                    
+                    # 2. Add Non-Serialized Items (approved for this branch)
+                    # We exclude materials that are handled via MacSerialNumber
+                    serialized_material_ids = MacSerialNumber.objects.filter(
+                        assigned_to=user
+                    ).values_list('material_id', flat=True).distinct()
+                    
                     approved_requests = MaterialRequest.objects.filter(
                         requester=user, 
                         status='Received'
-                    )
-                    approved_material_ids = approved_requests.values_list('material', flat=True).distinct()
+                    ).exclude(material_id__in=serialized_material_ids).select_related('material')
                     
-                    # Filter material queryset to only approved materials
-                    self.fields['material'].queryset = Material.objects.filter(
-                        id__in=approved_material_ids
-                    ).select_related().order_by('name')
-                    
-                    self.fields['material'].help_text = 'Only approved materials are available'
+                    # Group by material to show total available
+                    mats_added = set()
+                    for req in approved_requests:
+                        if req.material.id not in mats_added:
+                            choices.append((f"m:{req.material.id}", f"{req.material.name} (Non-Serialized)"))
+                            mats_added.add(req.material.id)
                 else:
                     # Admin/Storekeeper can see all materials
-                    self.fields['material'].queryset = Material.objects.all().order_by('name')
-                    self.fields['material'].help_text = 'All materials are available'
+                    all_mats = Material.objects.all().order_by('name')
+                    for m in all_mats:
+                        choices.append((f"m:{m.id}", m.name))
+                
+                self.fields['material_selection'].choices = choices
             except Exception:
-                # Fallback to all materials
-                self.fields['material'].queryset = Material.objects.all().order_by('name')
+                # Fallback
+                self.fields['material_selection'].choices = [('', 'No materials available')]
+        else:
+            self.fields['material_selection'].choices = [('', 'Select User first')]
+
     
     
     def clean(self):

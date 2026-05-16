@@ -301,10 +301,7 @@ def dashboard(request):
         used_totals = {}
         used_qs = UsedMaterial.objects.filter(
             technician=request.user,
-            status='Accepted',
-            added_at__year=now.year,
-            added_at__month=now.month,
-            is_archived=True
+            status='Accepted'
         ).values('material_id').annotate(total=Sum('quantity'))
         
         for u in used_qs:
@@ -319,7 +316,7 @@ def dashboard(request):
         for s in all_user_serials:
             if s.material_id not in serials_by_material:
                 serials_by_material[s.material_id] = []
-            serials_by_material[s.material_id].append(s.mac_serial)
+            serials_by_material[s.material_id].append({'mac_serial': s.mac_serial, 'id': s.id})
 
         # Process requests and handle serialized materials
         technician_approved_materials = []
@@ -339,25 +336,24 @@ def dashboard(request):
             if serials:
                 # Split into individual rows for each serial
                 from types import SimpleNamespace
-                for serial in serials:
+                for serial_obj in serials:
                     # Create a "virtual" request object for display
-                    # This avoids affecting the database while allowing granular display
                     virtual_req = SimpleNamespace(
                         id=req.id,
                         material=req.material,
                         requested_at=req.requested_at,
                         available_quantity=1,
-                        serials_display=serial,
+                        serials_display=serial_obj['mac_serial'],
+                        serials_display_id=serial_obj['id'],
                         is_serialized=True
                     )
                     technician_approved_materials.append(virtual_req)
             else:
                 # If no serials, show as a single aggregate row
-                if available_for_this_req > 0:
-                    req.available_quantity = available_for_this_req
-                    req.serials_display = "N/A"
-                    req.is_serialized = False
-                    technician_approved_materials.append(req)
+                req.available_quantity = available_for_this_req
+                req.serials_display = "N/A"
+                req.is_serialized = False
+                technician_approved_materials.append(req)
         
         # Sort by date (newest first)
         technician_approved_materials.reverse()
@@ -373,7 +369,11 @@ def dashboard(request):
         ).select_related('material').order_by('-requested_at')
     else:
         # For Admin & Storekeeper: Get all materials
-        all_materials = Material.objects.all().order_by('-added_at')
+        if role == 'Storekeeper':
+            # Storekeeper sees only in-stock materials in the main list
+            all_materials = Material.objects.filter(quantity__gt=0).order_by('-added_at')
+        else:
+            all_materials = Material.objects.all().order_by('-added_at')
         # Total accepted used materials count
         used_materials_count = UsedMaterial.objects.filter(status='Accepted', is_archived=False).count()
         # Get all advance requests
@@ -391,15 +391,11 @@ def dashboard(request):
         total_in = MaterialRequest.objects.filter(
             requester=request.user, 
             status='Received',
-            requested_at__year=now.year,
-            requested_at__month=now.month,
             is_archived=False
         ).aggregate(s=Sum('quantity'))['s'] or 0
         
         total_out = UsedMaterial.objects.filter(
             technician=request.user,
-            added_at__year=now.year,
-            added_at__month=now.month,
             is_archived=False
         ).aggregate(s=Sum('quantity'))['s'] or 0
         
@@ -409,16 +405,12 @@ def dashboard(request):
         used_materials_count = UsedMaterial.objects.filter(
             technician=request.user,
             status='Accepted',
-            added_at__year=now.year,
-            added_at__month=now.month,
             is_archived=False
         ).aggregate(s=Sum('quantity'))['s'] or 0
         # Used materials record count for current month (number of entries)
         used_materials_count = UsedMaterial.objects.filter(
             technician=request.user,
             status='Accepted',
-            added_at__year=now.year,
-            added_at__month=now.month,
             is_archived=False
         ).count()
         used_material_form = UsedMaterialForm(user=request.user)
@@ -451,8 +443,8 @@ def dashboard(request):
     else:
         # For Admin/Storekeeper: Materials with status 'Low Stock' or 'Out of Stock'
         if role == 'Storekeeper':
-            # For Storekeeper: Materials with Remaining_stock > 0 (materials that were reset)
-            low_stock_items = Material.objects.filter(Remaining_stock__gt=0)
+            # For Storekeeper: Only 'Out of Stock' materials are shown as low stock
+            low_stock_items = Material.objects.filter(status='Out of Stock')
         else:
             low_stock_items = Material.objects.filter(Q(status='Low Stock') | Q(status='Out of Stock'))
         low_stock_materials = low_stock_items.count()
@@ -698,23 +690,27 @@ def materials_view(request):
         material_id = request.POST.get('material_id', '').strip()
 
         # Delete Material (Storekeeper can delete any material)
-        if action == 'delete':
-            if not material_id or not material_id.isdigit():
-                messages.error(request, "Invalid material specified.")
-                return redirect('materials')
-            try:
-                mat = Material.objects.get(pk=material_id)
-                mat.delete()
-                messages.success(request, "Material deleted successfully.")
-            except Material.DoesNotExist:
-                messages.error(request, "Material not found.")
-            return redirect('materials')
+        # if action == 'delete':
+        #     if not material_id or not material_id.isdigit():
+        #         messages.error(request, "Invalid material specified.")
+        #         return redirect('materials')
+        #     try:
+        #         mat = Material.objects.get(pk=material_id)
+        #         mat.soft_delete()
+        #         messages.success(request, "Material deleted successfully.")
+        #     except Material.DoesNotExist:
+        #         messages.error(request, "Material not found.")
+        #     return redirect('materials')
 
         # Create/Edit Material (Storekeeper can edit any material)
         instance = None
         if material_id and material_id != 'undefined' and material_id.isdigit():
             try:
                 instance = Material.objects.get(pk=material_id)
+                # Check if material was created by NOC - Storekeeper cannot edit NOC materials
+                if instance.created_by and hasattr(instance.created_by, 'userprofile') and instance.created_by.userprofile.role == 'NOC':
+                    messages.error(request, "Restricted: Materials created by NOC cannot be edited by Storekeeper.")
+                    return redirect('materials')
             except Material.DoesNotExist:
                 messages.error(request, "Material not found.")
                 return redirect('materials')
@@ -954,7 +950,6 @@ def material_json(request, pk):
         'Remaining_stock': mat.Remaining_stock,
         'min_stock_level': mat.min_stock_level,
         'Type': mat.Type,
-        'status': mat.status,
     }
     return JsonResponse(data)
 
@@ -2873,42 +2868,50 @@ def used_materials_view(request):
             
             form = UsedMaterialForm(request.POST, user=request.user)
             if form.is_valid():
-                material = form.cleaned_data.get('material')
+                selection = form.cleaned_data.get('material_selection')
+                prefix, pk = selection.split(':')
+                
+                if prefix == 's':
+                    try:
+                        mac = MacSerialNumber.objects.get(id=pk, assigned_to=request.user)
+                        material = mac.material
+                        mac_serial = mac
+                        # Force quantity to 1 for serialized items
+                        quantity = 1
+                    except MacSerialNumber.DoesNotExist:
+                        messages.error(request, "Selected Mac/Serial not found or not assigned to you.")
+                        return redirect('used_materials')
+                else:
+                    try:
+                        material = Material.objects.get(id=pk)
+                        mac_serial = None
+                        quantity = form.cleaned_data.get('quantity')
+                    except Material.DoesNotExist:
+                        messages.error(request, "Selected material not found.")
+                        return redirect('used_materials')
+
+                # Check if material is in approved stock
                 approved_material_ids = MaterialRequest.objects.filter(
                     requester=request.user, status='Received'
                 ).values_list('material', flat=True)
                 
-                if material and material.id in approved_material_ids:
+                if material.id in approved_material_ids:
                     um = form.save(commit=False)
                     um.technician = request.user
+                    um.material = material
+                    um.mac_serial = mac_serial
+                    um.quantity = quantity
+                    um.save()
                     
-                    # Deduct stock if status is Accepted during creation
-                    if um.status == 'Accepted':
-                        try:
-                            with transaction.atomic():
-                                # Get material with lock
-                                mat = Material.objects.select_for_update().get(pk=material.id)
-                                total_available = mat.quantity + mat.Remaining_stock
-                                if total_available < um.quantity:
-                                    messages.error(request, f"Insufficient stock for immediate acceptance. Available: {total_available}")
-                                    return redirect('used_materials')
-                                
-                                # Stock deduction logic
-                                if um.quantity <= mat.quantity:
-                                    mat.quantity -= um.quantity
-                                else:
-                                    diff = um.quantity - mat.quantity
-                                    mat.quantity = 0
-                                    mat.Remaining_stock -= diff
-                                mat.save()
-                                um.save()
-                                messages.success(request, "Recorded and stock deducted.")
-                        except Exception as e:
-                            messages.error(request, f"Stock deduction error: {str(e)}")
-                            return redirect('used_materials')
-                    else:
-                        um.save()
-                        messages.success(request, "Used Material recorded successfully!")
+                    # Update MacSerial status based on status
+                    if um.mac_serial:
+                        if um.status == 'Accepted':
+                            um.mac_serial.status = 'Used'
+                        else:
+                            um.mac_serial.status = 'Active'
+                        um.mac_serial.save()
+                        
+                    messages.success(request, "Used Material recorded successfully!")
                     return redirect('used_materials')
                 else:
                     messages.error(request, "You can only record usage for received materials.")
@@ -2928,63 +2931,58 @@ def used_materials_view(request):
             um_id = request.POST.get('um_id')
             try:
                 um = UsedMaterial.objects.get(pk=um_id, technician=request.user)
-                    
                 form = UsedMaterialForm(request.POST, instance=um, user=request.user)
                 if form.is_valid():
-                    material = form.cleaned_data.get('material')
+                    selection = form.cleaned_data.get('material_selection')
+                    prefix, pk = selection.split(':')
+                    
+                    if prefix == 's':
+                        try:
+                            mac = MacSerialNumber.objects.get(id=pk, assigned_to=request.user)
+                            material = mac.material
+                            new_mac = mac
+                            new_qty = 1
+                        except MacSerialNumber.DoesNotExist:
+                            messages.error(request, "Selected Mac/Serial not found.")
+                            return redirect('used_materials')
+                    else:
+                        try:
+                            material = Material.objects.get(id=pk)
+                            new_mac = None
+                            new_qty = form.cleaned_data.get('quantity')
+                        except Material.DoesNotExist:
+                            messages.error(request, "Selected material not found.")
+                            return redirect('used_materials')
+
                     approved_material_ids = MaterialRequest.objects.filter(
                         requester=request.user, status='Received'
                     ).values_list('material', flat=True).distinct()
                     
-                    if material and material.id in approved_material_ids:
-                        old_status = UsedMaterial.objects.get(pk=um.pk).status
+                    if material.id in approved_material_ids:
+                        old_um = UsedMaterial.objects.get(pk=um.pk)
+                        old_mac = old_um.mac_serial
                         new_status = form.cleaned_data.get('status')
-                        new_qty = form.cleaned_data.get('quantity')
-                        old_qty = UsedMaterial.objects.get(pk=um.pk).quantity
 
                         try:
                             with transaction.atomic():
-                                mat = Material.objects.select_for_update().get(pk=material.id)
+                                # Handle MacSerial return/deduction
+                                if old_mac:
+                                    old_mac.status = 'Active'
+                                    old_mac.save()
                                 
-                                # If it was Accepted and is still Accepted, handle quantity change
-                                if old_status == 'Accepted' and new_status == 'Accepted':
-                                    # Return old quantity and deduct new one
-                                    mat.quantity += old_qty
-                                    total_available = mat.quantity + mat.Remaining_stock
-                                    if total_available < new_qty:
-                                        messages.error(request, f"Insufficient stock for updated quantity. Available: {total_available}")
-                                        return redirect('used_materials')
-                                    
-                                    if new_qty <= mat.quantity:
-                                        mat.quantity -= new_qty
+                                if new_mac:
+                                    if new_status == 'Accepted':
+                                        new_mac.status = 'Used'
                                     else:
-                                        diff = new_qty - mat.quantity
-                                        mat.quantity = 0
-                                        mat.Remaining_stock -= diff
-                                    mat.save()
+                                        new_mac.status = 'Active'
+                                    new_mac.save()
                                 
-                                # If it was NOT Accepted and is now Accepted
-                                elif old_status != 'Accepted' and new_status == 'Accepted':
-                                    total_available = mat.quantity + mat.Remaining_stock
-                                    if total_available < new_qty:
-                                        messages.error(request, f"Insufficient stock for acceptance. Available: {total_available}")
-                                        return redirect('used_materials')
-                                    
-                                    if new_qty <= mat.quantity:
-                                        mat.quantity -= new_qty
-                                    else:
-                                        diff = new_qty - mat.quantity
-                                        mat.quantity = 0
-                                        mat.Remaining_stock -= diff
-                                    mat.save()
-
-                                # If it was Accepted and is now NOT Accepted (Rejected/Pending)
-                                elif old_status == 'Accepted' and new_status != 'Accepted':
-                                    mat.quantity += old_qty
-                                    mat.save()
-                                
-                                form.save()
-                                messages.success(request, "Used Material updated and stock adjusted.")
+                                um.material = material
+                                um.mac_serial = new_mac
+                                um.quantity = new_qty
+                                um.status = new_status
+                                um.save()
+                                messages.success(request, "Used Material updated successfully.")
                         except Exception as e:
                             messages.error(request, f"Update error: {str(e)}")
                             return redirect('used_materials')
@@ -3003,21 +3001,17 @@ def used_materials_view(request):
                 messages.error(request, "Only Branch users can delete used materials.")
                 return redirect('used_materials')
                 
+            um_id = request.POST.get('um_id')
             try:
                 um = UsedMaterial.objects.get(pk=um_id, technician=request.user)
                 
-                # Return stock if it was Accepted
-                if um.status == 'Accepted':
-                    try:
-                        with transaction.atomic():
-                            mat = Material.objects.select_for_update().get(pk=um.material.id)
-                            mat.quantity += um.quantity
-                            mat.save()
-                    except Exception as e:
-                        messages.warning(request, f"Could not return stock: {str(e)}")
+                # Return Mac/Serial if applicable
+                if um.mac_serial:
+                    um.mac_serial.status = 'Active'
+                    um.mac_serial.save()
                 
                 um.delete()
-                messages.success(request, "Used Material deleted and stock returned if applicable.")
+                messages.success(request, "Used Material deleted.")
             except UsedMaterial.DoesNotExist:
                 messages.error(request, "Record not found.")
             return redirect('used_materials')
@@ -3033,24 +3027,14 @@ def used_materials_view(request):
                 else:
                     try:
                         with transaction.atomic():
-                            material = Material.objects.select_for_update().get(pk=used_material.material.id)
-                            total_available = material.quantity + material.Remaining_stock
-                            if total_available < used_material.quantity:
-                                messages.error(request, f"Insufficient stock. Available: {total_available}")
-                                return redirect('used_materials')
-                            
-                            if used_material.quantity <= material.quantity:
-                                material.quantity -= used_material.quantity
-                            else:
-                                diff = used_material.quantity - material.quantity
-                                material.quantity = 0
-                                material.Remaining_stock -= diff
-                            material.save()
+                            if used_material.mac_serial:
+                                used_material.mac_serial.status = 'Used'
+                                used_material.mac_serial.save()
                             
                             used_material.status = 'Accepted'
                             used_material.admin_note = admin_note
                             used_material.save()
-                            messages.success(request, "Usage confirmed and stock deducted.")
+                            messages.success(request, "Usage confirmed.")
                     except Exception as e:
                         messages.error(request, f"Error: {str(e)}")
             except UsedMaterial.DoesNotExist:
@@ -3067,13 +3051,11 @@ def used_materials_view(request):
                 else:
                     try:
                         with transaction.atomic():
-                            if used_material.status == 'Accepted':
-                                material = Material.objects.select_for_update().get(pk=used_material.material.id)
-                                material.quantity += used_material.quantity
-                                material.save()
-                                messages.success(request, "Rejected and stock returned.")
-                            else:
-                                messages.success(request, "Rejected.")
+                            if used_material.mac_serial:
+                                used_material.mac_serial.status = 'Active'
+                                used_material.mac_serial.save()
+                                
+                            messages.success(request, "Rejected and serial returned.")
                             
                             used_material.status = 'Rejected'
                             used_material.admin_note = admin_note
@@ -3098,6 +3080,17 @@ def used_materials_view(request):
         except UsedMaterial.DoesNotExist:
             pass
 
+    # Build serials dict for JS filtering
+    all_user_serials = MacSerialNumber.objects.filter(
+        assigned_to=request.user,
+        status='Active'
+    )
+    serials_by_material = {}
+    for s in all_user_serials:
+        if s.material_id not in serials_by_material:
+            serials_by_material[s.material_id] = []
+        serials_by_material[s.material_id].append({'id': s.id, 'serial': s.mac_serial})
+
     return render(request, 'inventory/used_materials.html', {
         'used_materials': used_materials_page,
         'form': form,
@@ -3107,6 +3100,7 @@ def used_materials_view(request):
         'for_approval': for_approval,
         'branch_users': branch_users,
         'search_query': search_query,
+        'serials_by_material_json': _json.dumps(serials_by_material),
     })
 
 @login_required
@@ -3126,10 +3120,11 @@ def get_used_material_api(request, pk):
     except UsedMaterial.DoesNotExist:
         return JsonResponse({'error': 'Record not found or access denied'}, status=404)
 
+    selection = f"s:{used_material.mac_serial.id}" if used_material.mac_serial else f"m:{used_material.material.id}"
+    
     data = {
         'id': used_material.id,
-        'material': used_material.material.id,
-        'mac_serial': used_material.mac_serial.id if used_material.mac_serial else None,
+        'material_selection': selection,
         'client_name': used_material.client_name or '',
         'client_phone': used_material.client_phone or '',
         'client_address': used_material.client_address or '',
@@ -3158,7 +3153,6 @@ def manage_used_material_api(request, pk):
         return JsonResponse({'error': 'Record not found or access denied'}, status=404)
 
     action = request.POST.get('action')
-    admin_note = request.POST.get('admin_note', '')
 
     try:
         with transaction.atomic():
@@ -3168,20 +3162,6 @@ def manage_used_material_api(request, pk):
                     used_material.save()
                     return JsonResponse({'success': True, 'message': 'Status is already Accepted. Note updated.'})
 
-                material = Material.objects.select_for_update().get(pk=used_material.material.id)
-                total_available = material.quantity + material.Remaining_stock
-                
-                if total_available < used_material.quantity:
-                    return JsonResponse({'error': f'Insufficient stock limits. Available: {total_available}, Used: {used_material.quantity}'}, status=400)
-                
-                if used_material.quantity <= material.quantity:
-                    material.quantity -= used_material.quantity
-                else:
-                    remaining_to_deduct = used_material.quantity - material.quantity
-                    material.quantity = 0
-                    material.Remaining_stock -= remaining_to_deduct
-                material.save()
-                
                 used_material.status = 'Accepted'
                 used_material.admin_note = admin_note
                 used_material.save()
@@ -3191,7 +3171,7 @@ def manage_used_material_api(request, pk):
                     used_material.mac_serial.status = 'Used'
                     used_material.mac_serial.save()
                 
-                return JsonResponse({'success': True, 'message': f'Approved. {used_material.quantity} units deducted from {material.name}.'})
+                return JsonResponse({'success': True, 'message': 'Usage confirmed and serial locked.'})
 
             elif action == 'reject':
                 if used_material.status == 'Rejected':
@@ -3199,25 +3179,16 @@ def manage_used_material_api(request, pk):
                     used_material.save()
                     return JsonResponse({'success': True, 'message': 'Status is already Rejected. Note updated.'})
 
-                if used_material.status == 'Accepted':
-                    material = Material.objects.select_for_update().get(pk=used_material.material.id)
-                    material.quantity += used_material.quantity
-                    material.save()
-                    
-                    # Return Mac/Serial status to 'Active'
-                    if used_material.mac_serial:
-                        used_material.mac_serial.status = 'Active'
-                        used_material.mac_serial.save()
-                        
-                    return_msg = f'Rejected. {used_material.quantity} units returned to {material.name}.'
-                else:
-                    return_msg = 'Rejected.'
-
+                # Return Mac/Serial status to 'Active'
+                if used_material.mac_serial:
+                    used_material.mac_serial.status = 'Active'
+                    used_material.mac_serial.save()
+                
                 used_material.status = 'Rejected'
                 used_material.admin_note = admin_note
                 used_material.save()
 
-                return JsonResponse({'success': True, 'message': return_msg})
+                return JsonResponse({'success': True, 'message': 'Rejected and serial released.'})
             else:
                 return JsonResponse({'error': 'Invalid action'}, status=400)
 

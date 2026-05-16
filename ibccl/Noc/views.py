@@ -342,12 +342,15 @@ def add_material(request):
     if request.method == 'POST':
         name = request.POST.get('name')
         quantity = int(request.POST.get('quantity', 0))
+        rate = int(request.POST.get('rate', 0))
         min_stock = int(request.POST.get('min_stock_level', 0))
         
         Material.objects.create(
             name=name,
             category='Internet',
             quantity=quantity,
+            rate = rate,
+            total_price = total_price,
             Remaining_stock=quantity,
             min_stock_level=min_stock,
             created_by=request.user
@@ -363,6 +366,7 @@ def edit_material(request, pk):
     if request.method == 'POST':
         # NOC can only edit quantity and min_stock_level, NOT the name
         material.quantity = int(request.POST.get('quantity', material.quantity))
+        material.rate = int(request.POST.get('rate', material.rate))
         material.min_stock_level = int(request.POST.get('min_stock_level', material.min_stock_level))
         material.save()
         messages.success(request, "Material updated successfully.")

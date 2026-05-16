@@ -192,6 +192,98 @@
 
 <!-- Modals -->
 
+<!--Total usersModal-->
+<div id="usersModal"
+    class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+    onclick="if(event.target === this) this.classList.add('hidden')">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h3 class="text-xl font-bold text-gray-900 flex items-center">
+                <i class="fas fa-users mr-2 text-indigo-600"></i>Total Users ({{ total_users }})
+            </h3>
+            <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'usersTable')"
+                class="border rounded px-2 py-1 ml-4 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+            <button onclick="document.getElementById('usersModal').classList.add('hidden')"
+                class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+        </div>
+        <div class="p-6 overflow-y-auto">
+            <table id="usersTable" class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for u in all_users_list %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-3">
+                                <div class="relative">
+                                    {% if u.userprofile.image %}
+                                    <img src="{{ u.userprofile.image.url }}"
+                                        class="w-10 h-10 rounded-full object-cover border-2 border-indigo-50 shadow-sm transition hover:scale-110">
+                                    {% else %}
+                                    <div
+                                        class="w-10 h-10 bg-gradient-to-br from-indigo-100 to-indigo-200 rounded-full flex items-center justify-center text-indigo-700 font-bold text-lg shadow-sm">
+                                        {{ u.username|slice:":1"|upper }}
+                                    </div>
+                                    {% endif %}
+                                    <div data-status-id="{{ u.id }}"
+                                        class="status-indicator-dot absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white {% if u.userprofile.is_online %}status-online shadow-[0_0_6px_rgba(34,197,94,0.6)]{% else %}status-offline{% endif %}">
+                                    </div>
+                                </div>
+                                <div>
+                                    <p class="font-bold text-gray-900 text-sm">{{ u.username }}</p>
+                                    <p class="text-xs text-gray-500">{{ u.email }}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="px-3 py-1 rounded-full text-xs font-semibold
+                                {% if u.userprofile.role == 'Admin' %}bg-purple-100 text-purple-800
+                                {% elif u.userprofile.role == 'Storekeeper' %}bg-blue-100 text-blue-800
+                                {% elif u.userprofile.role == 'NOC' %}bg-orange-100 text-orange-800
+                                {% else %}bg-green-100 text-green-800{% endif %}">
+                                {{ u.userprofile.role }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span data-status-text-id="{{ u.id }}"
+                                class="status-text px-3 py-1 rounded-full text-xs font-bold
+                                {% if u.userprofile.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                {% if u.userprofile.is_active %}Online{% else %}Offline{% endif %}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <form method="POST" class="inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="toggle_status">
+                                <input type="hidden" name="user_id" value="{{ u.id }}">
+                                <button type="submit"
+                                    title="{% if u.is_active %}Deactivate{% else %}Activate{% endif %}"
+                                    class="inline-flex items-center px-3 py-2 {% if u.is_active %}bg-orange-50 text-orange-700 hover:bg-orange-100{% else %}bg-green-50 text-green-700 hover:bg-green-100{% endif %} rounded-xl transition font-semibold text-sm">
+                                    <i
+                                        class="fas {% if u.is_active %}fa-user-slash{% else %}fa-user-check{% endif %}"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-6 py-12 text-center text-gray-500">
+                            <i class="fas fa-users text-4xl mb-3 text-gray-300"></i><br>
+                            No users found
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
 <!-- Materials Modal -->
 <div id="materialsModal"
@@ -546,6 +638,131 @@
     </div>
 </div>
 
+  <!-- Reports Summary Modal -->
+    <div id="reportsModal"
+        class="fixed inset-0 bg-gray-900/60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+        onclick="if(event.target === this) this.classList.add('hidden')">
+        <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl w-full max-w-2xl transform transition-all border dark:border-midnight-800">
+            <div class="p-8 border-b dark:border-midnight-800 flex justify-between items-center bg-gradient-to-r from-purple-50 to-white dark:from-purple-950/20 dark:to-midnight-900">
+                <h3 class="text-2xl font-bold flex items-center text-purple-800 dark:text-purple-400">
+                    <i class="fas fa-file-invoice mr-4"></i> Monthly Reports Summary
+                </h3>
+                <button onclick="document.getElementById('reportsModal').classList.add('hidden')"
+                    class="text-purple-800/50 hover:text-purple-800 dark:text-purple-400 text-3xl font-light">&times;</button>
+            </div>
+            <div class="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Stat 1 -->
+                <div class="bg-indigo-50 dark:bg-indigo-950/30 p-6 rounded-2xl text-center border border-indigo-100 dark:border-indigo-900/50">
+                    <p class="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-2">Items Issued</p>
+                    <p class="text-3xl font-black text-indigo-900 dark:text-indigo-300">{{ total_qty_issued }}</p>
+                    <p class="text-[10px] text-indigo-400 mt-1">This Month</p>
+                </div>
+                <!-- Stat 2 -->
+                <div class="bg-amber-50 dark:bg-amber-950/30 p-6 rounded-2xl text-center border border-amber-100 dark:border-amber-900/50">
+                    <p class="text-xs font-bold text-amber-600 uppercase tracking-widest mb-2">Advance Req</p>
+                    <p class="text-3xl font-black text-amber-900 dark:text-amber-300">{{ advance_count }}</p>
+                    <p class="text-[10px] text-amber-500 mt-1">Pending/Processed</p>
+                </div>
+                <!-- Stat 3 -->
+                <div class="bg-teal-50 dark:bg-teal-950/30 p-6 rounded-2xl text-center border border-teal-100 dark:border-teal-900/50">
+                    <p class="text-xs font-bold text-teal-600 uppercase tracking-widest mb-2">Total Used</p>
+                    <p class="text-3xl font-black text-teal-900 dark:text-teal-300">{{ total_used_qty }}</p>
+                    <p class="text-[10px] text-teal-500 mt-1">Units Consumed</p>
+                </div>
+            </div>
+            <div class="px-8 pb-8 space-y-4">
+                <div class="flex gap-4">
+                    <a href="{% url 'reports' %}" 
+                        class="flex-1 px-6 py-4 bg-purple-600 text-white rounded-2xl font-bold hover:bg-purple-700 transition shadow-lg text-center flex items-center justify-center gap-2">
+                        <i class="fas fa-chart-pie"></i> View Detailed Analytics
+                    </a>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <a href="{% url 'reports_export_excel' %}" 
+                        class="px-4 py-3 bg-gray-100 dark:bg-midnight-800 text-gray-700 dark:text-white rounded-xl text-sm font-bold hover:bg-gray-200 transition text-center flex items-center justify-center gap-2">
+                        <i class="fas fa-file-excel text-green-600"></i> Month Excel
+                    </a>
+                    <a href="{% url 'reports_export_pdf' %}" 
+                        class="px-4 py-3 bg-gray-100 dark:bg-midnight-800 text-gray-700 dark:text-white rounded-xl text-sm font-bold hover:bg-gray-200 transition text-center flex items-center justify-center gap-2">
+                        <i class="fas fa-file-pdf text-red-600"></i> Month PDF
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Internal Communication Modal -->
+    <div id="internalCommModal"
+        class="fixed inset-0 bg-gray-900/60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+        onclick="if(event.target === this) this.classList.add('hidden')">
+        <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl w-full max-w-2xl transform transition-all flex flex-col max-h-[85vh] overflow-hidden border dark:border-midnight-800">
+            <div class="p-8 border-b dark:border-midnight-800 flex justify-between items-center bg-gradient-to-r from-pink-50 to-white dark:from-pink-950/20 dark:to-midnight-900">
+                <h3 class="text-2xl font-bold flex items-center text-pink-800 dark:text-pink-400">
+                    <i class="fas fa-comments mr-4"></i> Internal Communication
+                </h3>
+                <div class="flex items-center gap-4">
+                    <input type="text" placeholder="Search user..." onkeyup="filterTable(this, 'usersChatTable')"
+                        class="border dark:border-midnight-700 rounded-xl px-4 py-2 text-sm focus:ring-pink-500 bg-white dark:bg-midnight-950 dark:text-white">
+                    <button onclick="document.getElementById('internalCommModal').classList.add('hidden')"
+                        class="text-pink-800/50 hover:text-pink-800 dark:text-pink-400 text-3xl font-light">&times;</button>
+                </div>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1">
+                <table id="usersChatTable" class="min-w-full divide-y dark:divide-midnight-800">
+                    <thead>
+                        <tr class="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b dark:border-midnight-800">
+                            <th class="px-6 py-4 text-left">User</th>
+                            <th class="px-6 py-4 text-left">Role</th>
+                            <th class="px-6 py-4 text-right">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50 dark:divide-midnight-800">
+                        {% for u in all_users_list %}
+                        {% if u != request.user %}
+                        <tr class="hover:bg-pink-50/20 transition-colors group">
+                            <td class="px-6 py-4">
+                                <div class="flex items-center">
+                                    <div class="h-10 w-10 rounded-full bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center text-pink-600 dark:text-pink-400 font-bold mr-3 group-hover:scale-110 transition">
+                                        {{ u.username|make_list|first|upper }}
+                                    </div>
+                                    <div>
+                                        <div class="text-sm font-bold text-gray-900 dark:text-white">{{ u.username }}</div>
+                                        <div class="text-xs text-gray-500 dark:text-gray-400">
+                                            {% if u.userprofile.is_online %}
+                                            <span class="flex items-center"><span class="h-1.5 w-1.5 rounded-full bg-green-500 mr-1.5"></span>Online</span>
+                                            {% else %}
+                                            <span class="flex items-center"><span class="h-1.5 w-1.5 rounded-full bg-gray-300 mr-1.5"></span>Offline</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase
+                                    {% if u.userprofile.role == 'Admin' %}bg-indigo-100 text-indigo-700
+                                    {% elif u.userprofile.role == 'Branch' %}bg-teal-100 text-teal-700
+                                    {% else %}bg-gray-100 text-gray-700{% endif %}">
+                                    {{ u.userprofile.role }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-right">
+                                <a href="{% url 'chat' %}?user_id={{ u.id }}" 
+                                    class="inline-flex items-center px-4 py-2 bg-pink-600 text-white rounded-xl text-xs font-bold hover:bg-pink-700 transition shadow-lg shadow-pink-200 dark:shadow-none">
+                                    <i class="fas fa-paper-plane mr-2"></i> Message
+                                </a>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="p-6 border-t dark:border-midnight-800 bg-gray-50 dark:bg-midnight-950/50 flex justify-end">
+                <a href="{% url 'chat' %}" class="px-6 py-2 bg-gray-200 dark:bg-midnight-800 text-gray-700 dark:text-white rounded-xl font-bold hover:bg-gray-300 transition">Go to Chat Room</a>
+            </div>
+        </div>
+    </div>
+
 <!-- Add Used Material Modal (For Branch) -->
 {% if role == 'Branch' and used_material_form %}
 <div id="addUsedMaterialModal"
@@ -661,26 +878,6 @@
     </div>
 </div>
 
-<!-- Destroy Materials Modal -->
-<div id="destroyMaterialsModal"
-    class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
-    onclick="if(event.target === this) this.classList.add('hidden')">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
-        <div class="p-6 border-b flex justify-between items-center">
-            <h3 class="text-xl font-bold text-gray-900">Destroy Materials Log</h3>
-            <button onclick="document.getElementById('destroyMaterialsModal').classList.add('hidden')"
-                class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
-        </div>
-        <div class="p-6 overflow-y-auto">
-            <div class="bg-red-50 p-6 rounded-lg text-center">
-                <i class="fas fa-trash-alt text-6xl text-red-400 mb-4"></i>
-                <p class="text-gray-600">Destroy materials log feature coming soon!</p>
-                <p class="text-sm text-gray-500 mt-2">This will track materials that have been destroyed or disposed
-                    of.</p>
-            </div>
-        </div>
-    </div>
-</div>
 <!-- popModal for Used Materials -->
 <div id="popModal"
     class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
@@ -763,16 +960,82 @@
     </div>
 </div>
 
-<script>
-    function updatePopCategory(select) {
-        const selectedOption = select.options[select.selectedIndex];
-        const category = selectedOption.getAttribute('data-category');
-        document.getElementById('popCategory').value = category || 'N/A';
-    }
-</script>
+<!-- Destroy Materials Modal -->
+<div id="destroyMaterialsModal"
+    class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+    onclick="if(event.target === this) this.classList.add('hidden')">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h3 class="text-xl font-bold text-gray-900">Destroy Materials Log</h3>
+            <button onclick="document.getElementById('destroyMaterialsModal').classList.add('hidden')"
+                class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+        </div>
+        
+    </div>
 </div>
+
+
+ <!-- Materials Monitoring Modal -->
+            <div id="materialsMonitoringModal"
+                class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+                onclick="if(event.target === this) this.classList.add('hidden')">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
+                    <div class="p-6 border-b flex justify-between items-center">
+                        <h3 class="text-xl font-bold text-gray-900">Materials Monitoring - Branch Users</h3>
+                        <input type="text" placeholder="Search..."
+                            onkeyup="filterTable(this, 'materialsMonitoringTable')"
+                            class="border rounded px-2 py-1 ml-4 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <button onclick="document.getElementById('materialsMonitoringModal').classList.add('hidden')"
+                            class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+                    </div>
+                    <div class="p-6 overflow-y-auto">
+                        <table id="materialsMonitoringTable" class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                                        Materials Name</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                {% for item in materials_monitoring %}
+                                <tr>
+                                    <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ item.branch.username }}
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-900">{{ item.material.name }}</td>
+                                    <td class="px-6 py-4 text-sm text-gray-900 font-bold">{{ item.quantity }}</td>
+                                    <td class="px-6 py-4 text-sm">
+                                        <span class="px-2 py-1 rounded-full text-xs font-semibold
+                                    {% if item.status == 'Normal' %}bg-green-100 text-green-800
+                                    {% elif item.status == 'Low Stock' %}bg-yellow-100 text-yellow-800
+                                    {% else %}bg-red-100 text-red-800{% endif %}">
+                                            {{ item.status }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-500">{{ item.date|date:"Y-m-d H:i" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                                        <i class="fas fa-inbox text-4xl mb-2 text-gray-300"></i><br>
+                                        No branch materials to monitor
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
 <!--Today's Used Materials-->
-{% if user.userprofile.role != 'Branch' and user.userprofile.role != 'Storekeeper' %}
 {% if user.userprofile.role != 'Branch' and user.userprofile.role != 'Storekeeper' %}
 <div class="bg-white rounded-xl shadow-lg overflow-hidden">
     <div class="px-8 py-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-gray-200">
@@ -832,8 +1095,7 @@
     </div>
 </div>
 {% endif %}
-{% endif %}
-<!---Pending request-->
+<!---recent pending Requests-->
 {% if user.userprofile.role != 'Branch' and user.userprofile.role != 'Admin' %}
 <div class="bg-white rounded-xl shadow-lg overflow-hidden">
     <div class="px-8 py-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-gray-200">
@@ -894,155 +1156,6 @@
 </div>
 {% endif %}
 
-<!--Total usersModal-->
-<div id="usersModal"
-    class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
-    onclick="if(event.target === this) this.classList.add('hidden')">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
-        <div class="p-6 border-b flex justify-between items-center">
-            <h3 class="text-xl font-bold text-gray-900 flex items-center">
-                <i class="fas fa-users mr-2 text-indigo-600"></i>Total Users ({{ total_users }})
-            </h3>
-            <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'usersTable')"
-                class="border rounded px-2 py-1 ml-4 text-sm focus:ring-indigo-500 focus:border-indigo-500">
-            <button onclick="document.getElementById('usersModal').classList.add('hidden')"
-                class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
-        </div>
-        <div class="p-6 overflow-y-auto">
-            <table id="usersTable" class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200">
-                    {% for u in all_users_list %}
-                    <tr class="hover:bg-gray-50 transition">
-                        <td class="px-6 py-4">
-                            <div class="flex items-center gap-3">
-                                <div class="relative">
-                                    {% if u.userprofile.image %}
-                                    <img src="{{ u.userprofile.image.url }}"
-                                        class="w-10 h-10 rounded-full object-cover border-2 border-indigo-50 shadow-sm transition hover:scale-110">
-                                    {% else %}
-                                    <div
-                                        class="w-10 h-10 bg-gradient-to-br from-indigo-100 to-indigo-200 rounded-full flex items-center justify-center text-indigo-700 font-bold text-lg shadow-sm">
-                                        {{ u.username|slice:":1"|upper }}
-                                    </div>
-                                    {% endif %}
-                                    <div data-status-id="{{ u.id }}"
-                                        class="status-indicator-dot absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white {% if u.userprofile.is_online %}status-online shadow-[0_0_6px_rgba(34,197,94,0.6)]{% else %}status-offline{% endif %}">
-                                    </div>
-                                </div>
-                                <div>
-                                    <p class="font-bold text-gray-900 text-sm">{{ u.username }}</p>
-                                    <p class="text-xs text-gray-500">{{ u.email }}</p>
-                                </div>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4">
-                            <span class="px-3 py-1 rounded-full text-xs font-semibold
-                                {% if u.userprofile.role == 'Admin' %}bg-purple-100 text-purple-800
-                                {% elif u.userprofile.role == 'Storekeeper' %}bg-blue-100 text-blue-800
-                                {% elif u.userprofile.role == 'NOC' %}bg-orange-100 text-orange-800
-                                {% else %}bg-green-100 text-green-800{% endif %}">
-                                {{ u.userprofile.role }}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4">
-                            <span data-status-text-id="{{ u.id }}"
-                                class="status-text px-3 py-1 rounded-full text-xs font-bold
-                                {% if u.userprofile.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
-                                {% if u.userprofile.is_active %}Online{% else %}Offline{% endif %}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4">
-                            <form method="POST" class="inline">
-                                {% csrf_token %}
-                                <input type="hidden" name="action" value="toggle_status">
-                                <input type="hidden" name="user_id" value="{{ u.id }}">
-                                <button type="submit"
-                                    title="{% if u.is_active %}Deactivate{% else %}Activate{% endif %}"
-                                    class="inline-flex items-center px-3 py-2 {% if u.is_active %}bg-orange-50 text-orange-700 hover:bg-orange-100{% else %}bg-green-50 text-green-700 hover:bg-green-100{% endif %} rounded-xl transition font-semibold text-sm">
-                                    <i
-                                        class="fas {% if u.is_active %}fa-user-slash{% else %}fa-user-check{% endif %}"></i>
-                                </button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="4" class="px-6 py-12 text-center text-gray-500">
-                            <i class="fas fa-users text-4xl mb-3 text-gray-300"></i><br>
-                            No users found
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            <!-- Materials Monitoring Modal -->
-            <div id="materialsMonitoringModal"
-                class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
-                onclick="if(event.target === this) this.classList.add('hidden')">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
-                    <div class="p-6 border-b flex justify-between items-center">
-                        <h3 class="text-xl font-bold text-gray-900">Materials Monitoring - Branch Users</h3>
-                        <input type="text" placeholder="Search..."
-                            onkeyup="filterTable(this, 'materialsMonitoringTable')"
-                            class="border rounded px-2 py-1 ml-4 text-sm focus:ring-indigo-500 focus:border-indigo-500">
-                        <button onclick="document.getElementById('materialsMonitoringModal').classList.add('hidden')"
-                            class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
-                    </div>
-                    <div class="p-6 overflow-y-auto">
-                        <table id="materialsMonitoringTable" class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch
-                                    </th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                                        Materials Name</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity
-                                    </th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status
-                                    </th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-200">
-                                {% for item in materials_monitoring %}
-                                <tr>
-                                    <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ item.branch.username }}
-                                    </td>
-                                    <td class="px-6 py-4 text-sm text-gray-900">{{ item.material.name }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-900 font-bold">{{ item.quantity }}</td>
-                                    <td class="px-6 py-4 text-sm">
-                                        <span class="px-2 py-1 rounded-full text-xs font-semibold
-                                    {% if item.status == 'Normal' %}bg-green-100 text-green-800
-                                    {% elif item.status == 'Low Stock' %}bg-yellow-100 text-yellow-800
-                                    {% else %}bg-red-100 text-red-800{% endif %}">
-                                            {{ item.status }}
-                                        </span>
-                                    </td>
-                                    <td class="px-6 py-4 text-sm text-gray-500">{{ item.date|date:"Y-m-d H:i" }}</td>
-                                </tr>
-                                {% empty %}
-                                <tr>
-                                    <td colspan="5" class="px-6 py-8 text-center text-gray-500">
-                                        <i class="fas fa-inbox text-4xl mb-2 text-gray-300"></i><br>
-                                        No branch materials to monitor
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
             <script>
                 function filterTable(input, tableId) {
                     var filter = input.value.toUpperCase();
@@ -1089,6 +1202,11 @@
                         });
                     });
                 });
+                function updatePopCategory(select) {
+                    const selectedOption = select.options[select.selectedIndex];
+                    const category = selectedOption.getAttribute('data-category');
+                    document.getElementById('popCategory').value = category || 'N/A';
+                }
 
                 // Switch between tabs in Advance Materials Modal
                 function switchAdvanceTab(tabName) {
@@ -1121,159 +1239,5 @@
                     }
                 }
             </script>
-                <!-- Internal Communication Modal -->
-    <div id="internalCommModal"
-        class="fixed inset-0 bg-gray-900/60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
-        onclick="if(event.target === this) this.classList.add('hidden')">
-        <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl w-full max-w-2xl transform transition-all flex flex-col max-h-[85vh] overflow-hidden border dark:border-midnight-800">
-            <div class="p-8 border-b dark:border-midnight-800 flex justify-between items-center bg-gradient-to-r from-pink-50 to-white dark:from-pink-950/20 dark:to-midnight-900">
-                <h3 class="text-2xl font-bold flex items-center text-pink-800 dark:text-pink-400">
-                    <i class="fas fa-comments mr-4"></i> Internal Communication
-                </h3>
-                <div class="flex items-center gap-4">
-                    <input type="text" placeholder="Search user..." onkeyup="filterTable(this, 'usersChatTable')"
-                        class="border dark:border-midnight-700 rounded-xl px-4 py-2 text-sm focus:ring-pink-500 bg-white dark:bg-midnight-950 dark:text-white">
-                    <button onclick="document.getElementById('internalCommModal').classList.add('hidden')"
-                        class="text-pink-800/50 hover:text-pink-800 dark:text-pink-400 text-3xl font-light">&times;</button>
-                </div>
-            </div>
-            <div class="p-6 overflow-y-auto flex-1">
-                <table id="usersChatTable" class="min-w-full divide-y dark:divide-midnight-800">
-                    <thead>
-                        <tr class="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b dark:border-midnight-800">
-                            <th class="px-6 py-4 text-left">User</th>
-                            <th class="px-6 py-4 text-left">Role</th>
-                            <th class="px-6 py-4 text-right">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-50 dark:divide-midnight-800">
-                        {% for u in all_users_list %}
-                        {% if u != request.user %}
-                        <tr class="hover:bg-pink-50/20 transition-colors group">
-                            <td class="px-6 py-4">
-                                <div class="flex items-center">
-                                    <div class="h-10 w-10 rounded-full bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center text-pink-600 dark:text-pink-400 font-bold mr-3 group-hover:scale-110 transition">
-                                        {{ u.username|make_list|first|upper }}
-                                    </div>
-                                    <div>
-                                        <div class="text-sm font-bold text-gray-900 dark:text-white">{{ u.username }}</div>
-                                        <div class="text-xs text-gray-500 dark:text-gray-400">
-                                            {% if u.userprofile.is_online %}
-                                            <span class="flex items-center"><span class="h-1.5 w-1.5 rounded-full bg-green-500 mr-1.5"></span>Online</span>
-                                            {% else %}
-                                            <span class="flex items-center"><span class="h-1.5 w-1.5 rounded-full bg-gray-300 mr-1.5"></span>Offline</span>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="px-6 py-4">
-                                <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase
-                                    {% if u.userprofile.role == 'Admin' %}bg-indigo-100 text-indigo-700
-                                    {% elif u.userprofile.role == 'Branch' %}bg-teal-100 text-teal-700
-                                    {% else %}bg-gray-100 text-gray-700{% endif %}">
-                                    {{ u.userprofile.role }}
-                                </span>
-                            </td>
-                            <td class="px-6 py-4 text-right">
-                                <a href="{% url 'chat' %}?user_id={{ u.id }}" 
-                                    class="inline-flex items-center px-4 py-2 bg-pink-600 text-white rounded-xl text-xs font-bold hover:bg-pink-700 transition shadow-lg shadow-pink-200 dark:shadow-none">
-                                    <i class="fas fa-paper-plane mr-2"></i> Message
-                                </a>
-                            </td>
-                        </tr>
-                        {% endif %}
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            <div class="p-6 border-t dark:border-midnight-800 bg-gray-50 dark:bg-midnight-950/50 flex justify-end">
-                <a href="{% url 'chat' %}" class="px-6 py-2 bg-gray-200 dark:bg-midnight-800 text-gray-700 dark:text-white rounded-xl font-bold hover:bg-gray-300 transition">Go to Chat Room</a>
-            </div>
-        </div>
-    </div>
 
-    <!-- Reports Summary Modal -->
-    <div id="reportsModal"
-        class="fixed inset-0 bg-gray-900/60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
-        onclick="if(event.target === this) this.classList.add('hidden')">
-        <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl w-full max-w-2xl transform transition-all border dark:border-midnight-800">
-            <div class="p-8 border-b dark:border-midnight-800 flex justify-between items-center bg-gradient-to-r from-purple-50 to-white dark:from-purple-950/20 dark:to-midnight-900">
-                <h3 class="text-2xl font-bold flex items-center text-purple-800 dark:text-purple-400">
-                    <i class="fas fa-file-invoice mr-4"></i> Monthly Reports Summary
-                </h3>
-                <button onclick="document.getElementById('reportsModal').classList.add('hidden')"
-                    class="text-purple-800/50 hover:text-purple-800 dark:text-purple-400 text-3xl font-light">&times;</button>
-            </div>
-            <div class="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- Stat 1 -->
-                <div class="bg-indigo-50 dark:bg-indigo-950/30 p-6 rounded-2xl text-center border border-indigo-100 dark:border-indigo-900/50">
-                    <p class="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-2">Items Issued</p>
-                    <p class="text-3xl font-black text-indigo-900 dark:text-indigo-300">{{ total_qty_issued }}</p>
-                    <p class="text-[10px] text-indigo-400 mt-1">This Month</p>
-                </div>
-                <!-- Stat 2 -->
-                <div class="bg-amber-50 dark:bg-amber-950/30 p-6 rounded-2xl text-center border border-amber-100 dark:border-amber-900/50">
-                    <p class="text-xs font-bold text-amber-600 uppercase tracking-widest mb-2">Advance Req</p>
-                    <p class="text-3xl font-black text-amber-900 dark:text-amber-300">{{ advance_count }}</p>
-                    <p class="text-[10px] text-amber-500 mt-1">Pending/Processed</p>
-                </div>
-                <!-- Stat 3 -->
-                <div class="bg-teal-50 dark:bg-teal-950/30 p-6 rounded-2xl text-center border border-teal-100 dark:border-teal-900/50">
-                    <p class="text-xs font-bold text-teal-600 uppercase tracking-widest mb-2">Total Used</p>
-                    <p class="text-3xl font-black text-teal-900 dark:text-teal-300">{{ total_used_qty }}</p>
-                    <p class="text-[10px] text-teal-500 mt-1">Units Consumed</p>
-                </div>
-            </div>
-            <div class="px-8 pb-8 space-y-4">
-                <div class="flex gap-4">
-                    <a href="{% url 'reports' %}" 
-                        class="flex-1 px-6 py-4 bg-purple-600 text-white rounded-2xl font-bold hover:bg-purple-700 transition shadow-lg text-center flex items-center justify-center gap-2">
-                        <i class="fas fa-chart-pie"></i> View Detailed Analytics
-                    </a>
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <a href="{% url 'reports_export_excel' %}" 
-                        class="px-4 py-3 bg-gray-100 dark:bg-midnight-800 text-gray-700 dark:text-white rounded-xl text-sm font-bold hover:bg-gray-200 transition text-center flex items-center justify-center gap-2">
-                        <i class="fas fa-file-excel text-green-600"></i> Month Excel
-                    </a>
-                    <a href="{% url 'reports_export_pdf' %}" 
-                        class="px-4 py-3 bg-gray-100 dark:bg-midnight-800 text-gray-700 dark:text-white rounded-xl text-sm font-bold hover:bg-gray-200 transition text-center flex items-center justify-center gap-2">
-                        <i class="fas fa-file-pdf text-red-600"></i> Month PDF
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Mac/Serial Numbers Modal -->
-    <div id="macSerialModal"
-        class="fixed inset-0 bg-gray-900/60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
-        onclick="if(event.target === this) this.classList.add('hidden')">
-        <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl w-full max-w-2xl transform transition-all border dark:border-midnight-800">
-            <div class="p-8 border-b dark:border-midnight-800 flex justify-between items-center bg-indigo-50 dark:bg-indigo-950/20">
-                <h3 class="text-2xl font-bold flex items-center text-indigo-800 dark:text-indigo-400">
-                    <i class="fas fa-barcode mr-3"></i> Mac/Serial Numbers Management
-                </h3>
-                <button onclick="document.getElementById('macSerialModal').classList.add('hidden')"
-                    class="text-indigo-800/50 hover:text-indigo-800 text-3xl font-light">&times;</button>
-            </div>
-            <div class="p-8">
-                <div class="space-y-4">
-                    <a href="{% url 'noc:add_mac_serials' %}" 
-                        class="block w-full px-6 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition shadow-lg text-center">
-                        <i class="fas fa-plus mr-2"></i> Add Mac/Serial Numbers
-                    </a>
-                    <a href="{% url 'noc:list_mac_serials' %}"
-                        class="block w-full px-6 py-4 bg-indigo-500 text-white rounded-2xl font-bold hover:bg-indigo-600 transition shadow-lg text-center">
-                        <i class="fas fa-list mr-2"></i> View All Mac/Serials
-                    </a>
-                </div>
-                <button onclick="document.getElementById('macSerialModal').classList.add('hidden')"
-                    class="w-full mt-6 px-6 py-3 bg-gray-200 dark:bg-midnight-800 text-gray-700 dark:text-white rounded-2xl font-bold hover:bg-gray-300 transition">
-                    Close
-                </button>
-            </div>
-        </div>
-    </div>
 {% endblock %}

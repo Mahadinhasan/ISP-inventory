@@ -105,6 +105,9 @@
                         <th class="px-6 py-4 text-left">Remaining</th>
                         <th class="px-6 py-4 text-center">Total Price</th>
                         <th class="px-6 py-4 text-center">Updated At</th>
+                        {% if userprofile.role != 'Admin' %}
+                        <th class="px-6 py-4 text-center">Created By</th>
+                        {% endif %}
                         {% if role == 'Storekeeper' %}
                         <th class="px-9 py-4 text-right">Actions</th>
                         {% endif %}
@@ -137,15 +140,22 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 text-center">{{ material.total_price|default:'0' }}/-</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 text-center">{{ material.updated_at|date:"Y-m-d" }}</td>
+                        {% if userprofile.role != 'Admin' %}
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 text-center">{{ material.created_by|default:'Unknown' }}</td>
+                        {% endif %}
                         {% if role == 'Storekeeper' %}
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-left">
-                            <div class="flex items-center gap-2">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
+                            <div class="flex items-center justify-center gap-2">
+                                {% if material.created_by.userprofile.role != 'NOC' %}
                                 <button onclick="editMaterial('{{ material.id }}')"
                                     class="w-9 h-9 flex items-center justify-center text-indigo-600 hover:text-white bg-indigo-50 hover:bg-indigo-600 rounded-xl transition-all duration-300 shadow-sm hover:shadow-indigo-200"
                                     title="Edit Material">
                                     <i class="fas fa-edit text-sm"></i>
                                 </button>
-                                <form method="post" class="inline">
+                                {% else %}
+                                <span class="text-xs text-gray-400 italic">NOC Restricted</span>
+                                {% endif %}
+                                <!-- <form method="post" class="inline">
                                     {% csrf_token %}
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="material_id" value="{{ material.id }}">
@@ -154,7 +164,7 @@
                                         title="Delete Material">
                                         <i class="fas fa-trash-alt text-sm"></i> 
                                     </button>
-                                </form>
+                                </form> -->
                             </div>
                         </td>
                         {% endif %}

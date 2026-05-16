@@ -136,10 +136,17 @@ class Material(models.Model):
     added_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_materials')
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         stock_indicator = " (in stock)" if self.quantity > 0 else ""
         return f"{self.name}{stock_indicator}"
+
+    def soft_delete(self):
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.save()
 
     @property
     def stock_status(self):
@@ -722,3 +729,32 @@ class MaterialMacSerialImport(models.Model):
         if self.noc_user:
             return self.noc_user.get_full_name() or self.noc_user.username
         return 'N/A'
+
+# class returnMaterial(models.Model):
+#     STATUS_CHOICES = [
+#         ('Pending', 'Pending'),
+#         ('Approved', 'Approved'),
+#         ('Rejected', 'Rejected'),
+#     ]
+    
+#     material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name='material_returns')
+#     assigned_to = models.ForeignKey(User, on_delete=models.CASCADE, related_name='material_returns', help_text="Branch user returning the materials")
+#     noc_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_material_returns', help_text="NOC user who created this return")
+#     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+#     total_quantity = models.IntegerField(default=1, help_text="Total quantity for this return")
+#     notes = models.TextField(blank=True)
+#     created_at = models.DateTimeField(auto_now_add=True)
+#     approved_at = models.DateTimeField(null=True, blank=True)
+#     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_material_returns', help_text="Who approved this return")
+    
+#     class Meta:
+#         ordering = ['created_at']
+#         verbose_name = 'Material Return'
+#         verbose_name_plural = 'Material Returns'
+#         indexes = [
+#             models.Index(fields=['assigned_to', 'created_at']),
+#             models.Index(fields=['status', 'created_at']),
+#         ]
+    
+#     def __str__(self):
+#         return f"{self.material.name} - {self.assigned_to.username} - {self.status}"
