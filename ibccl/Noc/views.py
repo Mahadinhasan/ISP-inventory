@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import authenticate, logout
 from rest_framework_simplejwt.tokens import RefreshToken
-from isp_inventory.models import UserProfile, Material, MaterialRequest, UsedMaterial, InternalMessage, MacSerialNumber, MaterialMacSerialImport
+from isp_inventory.models import UserProfile, Material, MaterialRequest, UsedMaterial, InternalMessage, MacSerialNumber, MaterialMacSerialImport, RefundableMaterial, DamageMaterial
 from isp_inventory.utils import deduct_material_stock, restore_material_stock
 from django.db.models import Sum, Count, Q
 from django.db.models.functions import TruncDate
@@ -216,7 +216,8 @@ def noc_dashboard(request):
     materials_monitoring = MaterialRequest.objects.filter(
         material__category='Internet',
         material__created_by=request.user,
-        status='Approved'
+        status='Approved',
+        is_hidden_by_noc=False
     ).select_related('material', 'requester').order_by('-requested_at')
     
     all_used_materials = UsedMaterial.objects.filter(
@@ -227,7 +228,8 @@ def noc_dashboard(request):
     technician_approved_materials = MaterialRequest.objects.filter(
         status='Approved',
         material__category='Internet',
-        material__created_by=request.user
+        material__created_by=request.user,
+        is_hidden_by_noc=False
     ).select_related('material')
 
     low_stock_material_list = internet_materials.filter(
@@ -253,8 +255,18 @@ def noc_dashboard(request):
 
     recent_requests = MaterialRequest.objects.filter(
         material__category='Internet', 
-        material__created_by=request.user
+        material__created_by=request.user,
+        is_hidden_by_noc=False
     ).order_by('-requested_at')[:5]
+
+    from isp_inventory.models import RefundableMaterial, DamageMaterial
+
+    refundable_materials = RefundableMaterial.objects.all().select_related('branch_user', 'material').order_by('-added_at')
+    damaged_materials = DamageMaterial.objects.all().select_related('branch_user', 'material', 'confirmed_by').order_by('-added_at')
+    branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
+    
+    refundable_form = NocRefundableMaterialForm(noc_user=request.user)
+    damaged_form = NocDamageMaterialForm(noc_user=request.user)
 
     context = {
         'total_materials': total_materials,
@@ -277,6 +289,11 @@ def noc_dashboard(request):
         'today_used_materials': today_used_materials,
         'recent_requests': recent_requests,
         'all_materials': all_internet_materials,
+        'refundable_materials': refundable_materials,
+        'damaged_materials': damaged_materials,
+        'branch_users': branch_users,
+        'refundable_form': refundable_form,
+        'damaged_form': damaged_form,
         'role': 'NOC'
     }
     
@@ -368,6 +385,7 @@ def edit_material(request, pk):
         material.quantity = int(request.POST.get('quantity', material.quantity))
         material.rate = int(request.POST.get('rate', material.rate))
         material.min_stock_level = int(request.POST.get('min_stock_level', material.min_stock_level))
+        material.total_price = material.quantity * material.rate
         material.save()
         messages.success(request, "Material updated successfully.")
         return redirect('noc:materials')
@@ -433,8 +451,18 @@ def noc_requests(request):
                 mat_request.save()
                 messages.success(request, "Note updated successfully.")
             elif action == 'delete':
-                mat_request.delete()
-                messages.success(request, "Request permanently deleted.")
+                if mat_request.status in ['Received', 'Dispatched']:
+                    mat_request.is_hidden_by_noc = True
+                    mat_request.save()
+                    messages.success(request, "Request hidden from your view (Branch data preserved).")
+                elif mat_request.status == 'Approved':
+                    with transaction.atomic():
+                        restore_material_stock(mat_request.material, mat_request.quantity)
+                        mat_request.delete()
+                    messages.success(request, "Request deleted and stock returned.")
+                else:
+                    mat_request.delete()
+                    messages.success(request, "Request permanently deleted.")
         return redirect('noc:requests')
 
     # GET logic: searching and filtering
@@ -443,7 +471,8 @@ def noc_requests(request):
     
     requests_qs = MaterialRequest.objects.filter(
         material__category='Internet', 
-        material__created_by=request.user
+        material__created_by=request.user,
+        is_hidden_by_noc=False
     )
     
     if search_query:
@@ -669,7 +698,8 @@ def noc_reports(request):
     requests_qs = MaterialRequest.objects.filter(
         material__in=noc_materials_qs,
         requested_at__date__gte=start,
-        requested_at__date__lte=end
+        requested_at__date__lte=end,
+        is_hidden_by_noc=False
     ).select_related('material', 'requester')
 
     # ── Summary Stats ────────
@@ -1058,3 +1088,312 @@ def get_branch_materials(request):
         })
         
     return JsonResponse({'materials': data})
+
+
+# ── NOC Custom Forms for Refundable & Damaged Materials ───────────────────
+from django import forms
+from isp_inventory.models import RefundableMaterial, DamageMaterial
+
+class NocRefundableMaterialForm(forms.ModelForm):
+    branch_user = forms.ModelChoiceField(
+        queryset=User.objects.filter(userprofile__role='Branch').order_by('username'),
+        label="Branch User",
+        widget=forms.Select(attrs={
+            'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-midnight-950 dark:text-white dark:border-midnight-800',
+            'id': 'noc_id_branch_user'
+        })
+    )
+    material = forms.ModelChoiceField(
+        queryset=Material.objects.filter(category='Internet').order_by('name'),
+        label="Material Name",
+        widget=forms.Select(attrs={
+            'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-midnight-950 dark:text-white dark:border-midnight-800',
+            'id': 'noc_id_material'
+        })
+    )
+
+    class Meta:
+        model = RefundableMaterial
+        fields = ['branch_user', 'material', 'quantity', 'issue', 'status']
+        widgets = {
+            'quantity': forms.NumberInput(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-midnight-950 dark:text-white dark:border-midnight-800',
+                'min': '1',
+                'id': 'noc_id_quantity'
+            }),
+            'issue': forms.Textarea(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-midnight-950 dark:text-white dark:border-midnight-800',
+                'rows': 3,
+                'placeholder': 'Reason for refund...',
+                'id': 'noc_id_issue'
+            }),
+            'status': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-midnight-950 dark:text-white dark:border-midnight-800',
+                'id': 'noc_id_status'
+            })
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.noc_user = kwargs.pop('noc_user', None)
+        super().__init__(*args, **kwargs)
+        if self.noc_user:
+            self.fields['material'].queryset = Material.objects.filter(category='Internet', created_by=self.noc_user).order_by('name')
+
+
+class NocDamageMaterialForm(forms.ModelForm):
+    branch_user = forms.ModelChoiceField(
+        queryset=User.objects.filter(userprofile__role='Branch').order_by('username'),
+        label="Branch User",
+        widget=forms.Select(attrs={
+            'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-midnight-950 dark:text-white dark:border-midnight-800',
+            'id': 'noc_id_dm_branch_user'
+        })
+    )
+    material = forms.ModelChoiceField(
+        queryset=Material.objects.filter(category='Internet').order_by('name'),
+        label="Material Name",
+        widget=forms.Select(attrs={
+            'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-midnight-950 dark:text-white dark:border-midnight-800',
+            'id': 'noc_id_dm_material'
+        })
+    )
+
+    class Meta:
+        model = DamageMaterial
+        fields = ['branch_user', 'material', 'quantity', 'damage_reason', 'severity', 'status']
+        widgets = {
+            'quantity': forms.NumberInput(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-midnight-950 dark:text-white dark:border-midnight-800',
+                'min': '1',
+                'id': 'noc_id_dm_quantity'
+            }),
+            'damage_reason': forms.Textarea(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-midnight-950 dark:text-white dark:border-midnight-800',
+                'rows': 3,
+                'placeholder': 'Reason for damage...',
+                'id': 'noc_id_dm_reason'
+            }),
+            'severity': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-midnight-950 dark:text-white dark:border-midnight-800',
+                'id': 'noc_id_dm_severity'
+            }),
+            'status': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-midnight-950 dark:text-white dark:border-midnight-800',
+                'id': 'noc_id_dm_status'
+            })
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.noc_user = kwargs.pop('noc_user', None)
+        super().__init__(*args, **kwargs)
+        if self.noc_user:
+            self.fields['material'].queryset = Material.objects.filter(category='Internet', created_by=self.noc_user).order_by('name')
+
+
+# ── NOC Custom Views for Refundable & Damaged Materials ───────────────────
+
+@login_required
+@noc_role_required
+def noc_log_refundable(request):
+    messages.error(request, "Access denied. NOC role is not allowed to log refundable materials directly.")
+    return redirect('noc:dashboard')
+
+@login_required
+@noc_role_required
+def noc_edit_refundable(request, pk):
+    messages.error(request, "Access denied. NOC role is not allowed to edit refundable materials directly.")
+    return redirect('noc:dashboard')
+
+@login_required
+@noc_role_required
+def noc_delete_refundable(request, pk):
+    messages.error(request, "Access denied. NOC role is not allowed to delete refundable materials directly.")
+    return redirect('noc:dashboard')
+
+@login_required
+@noc_role_required
+def noc_process_refundable(request, pk):
+    rf = get_object_or_404(RefundableMaterial, pk=pk)
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        admin_note = request.POST.get('admin_note', '').strip()
+        if action == 'accept':
+            rf.status = 'Accepted'
+        elif action == 'reject':
+            rf.status = 'Rejected'
+        rf.admin_note = admin_note
+        rf.save()
+        messages.success(request, f"Refundable material request has been {rf.status.lower()}.")
+    return redirect('noc:dashboard')
+
+@login_required
+@noc_role_required
+def noc_log_damaged(request):
+    messages.error(request, "Access denied. NOC role is not allowed to log damaged materials directly.")
+    return redirect('noc:dashboard')
+
+@login_required
+@noc_role_required
+def noc_edit_damaged(request, pk):
+    messages.error(request, "Access denied. NOC role is not allowed to edit damaged materials directly.")
+    return redirect('noc:dashboard')
+
+@login_required
+@noc_role_required
+def noc_delete_damaged(request, pk):
+    messages.error(request, "Access denied. NOC role is not allowed to delete damaged materials directly.")
+    return redirect('noc:dashboard')
+
+@login_required
+@noc_role_required
+def noc_process_damaged(request, pk):
+    dm = get_object_or_404(DamageMaterial, pk=pk)
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        admin_note = request.POST.get('admin_note', '').strip()
+        if action == 'confirm':
+            dm.status = 'Confirmed'
+            dm.confirmed_by = request.user
+            dm.confirmed_at = timezone.now()
+        elif action == 'reject':
+            dm.status = 'Rejected'
+        dm.admin_note = admin_note
+        dm.save()
+        messages.success(request, f"Damaged material request has been {dm.status.lower()}.")
+    return redirect('noc:dashboard')
+
+@login_required
+@noc_role_required
+def noc_get_refundable_api(request, pk):
+    rf = get_object_or_404(RefundableMaterial, pk=pk)
+    return JsonResponse({
+        'id': rf.id,
+        'branch_user': rf.branch_user_id,
+        'material': rf.material_id,
+        'quantity': rf.quantity,
+        'issue': rf.issue,
+        'status': rf.status,
+        'admin_note': rf.admin_note
+    })
+
+@login_required
+@noc_role_required
+def noc_get_damaged_api(request, pk):
+    dm = get_object_or_404(DamageMaterial, pk=pk)
+    return JsonResponse({
+        'id': dm.id,
+        'branch_user': dm.branch_user_id,
+        'material': dm.material_id,
+        'quantity': dm.quantity,
+        'damage_reason': dm.damage_reason,
+        'severity': dm.severity,
+        'status': dm.status,
+        'admin_note': dm.admin_note
+    })
+
+@login_required
+@noc_role_required
+def noc_refundable_materials_view(request):
+    refundable_qs = RefundableMaterial.objects.filter(material__category='Internet', material__created_by=request.user).select_related('branch_user', 'material').order_by('-added_at')
+    branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
+    
+    selected_user_id = request.GET.get('user_id')
+    if selected_user_id:
+        try:
+            selected_user = User.objects.select_related('userprofile').get(id=selected_user_id, userprofile__role='Branch')
+            refundable_qs = refundable_qs.filter(branch_user=selected_user)
+        except User.DoesNotExist:
+            messages.error(request, 'Selected user not found.')
+
+    search_query = request.GET.get('search', '').strip()
+    if search_query:
+        refundable_qs = refundable_qs.filter(
+            Q(material__name__icontains=search_query) |
+            Q(branch_user__username__icontains=search_query) |
+            Q(branch_user__first_name__icontains=search_query) |
+            Q(branch_user__last_name__icontains=search_query) |
+            Q(issue__icontains=search_query)
+        ).distinct()
+
+    paginator = Paginator(refundable_qs, 20)
+    page_number = request.GET.get('page')
+    refundable_page = paginator.get_page(page_number)
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action in ['accept', 'reject']:
+            rf_id = request.POST.get('rf_id')
+            admin_note = request.POST.get('admin_note', '').strip()
+            try:
+                rf = RefundableMaterial.objects.get(pk=rf_id, material__category='Internet', material__created_by=request.user)
+                rf.status = 'Accepted' if action == 'accept' else 'Rejected'
+                rf.admin_note = admin_note
+                rf.save()
+                messages.success(request, f'Refundable Material record has been {rf.status.lower()}!')
+                return redirect('noc:refundable_materials')
+            except RefundableMaterial.DoesNotExist:
+                messages.error(request, 'Record not found.')
+                return redirect('noc:refundable_materials')
+
+    return render(request, 'noc/refundable_materials.html', {
+        'refundable_materials': refundable_page,
+        'role': 'NOC',
+        'page_obj': refundable_page,
+        'branch_users': branch_users,
+        'search_query': search_query,
+    })
+
+@login_required
+@noc_role_required
+def noc_damaged_materials_view(request):
+    damaged_qs = DamageMaterial.objects.filter(material__category='Internet', material__created_by=request.user).select_related('branch_user', 'material', 'confirmed_by').order_by('-added_at')
+    branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
+    
+    selected_user_id = request.GET.get('user_id')
+    if selected_user_id:
+        try:
+            selected_user = User.objects.select_related('userprofile').get(id=selected_user_id, userprofile__role='Branch')
+            damaged_qs = damaged_qs.filter(branch_user=selected_user)
+        except User.DoesNotExist:
+            messages.error(request, 'Selected user not found.')
+
+    search_query = request.GET.get('search', '').strip()
+    if search_query:
+        damaged_qs = damaged_qs.filter(
+            Q(material__name__icontains=search_query) |
+            Q(branch_user__username__icontains=search_query) |
+            Q(branch_user__first_name__icontains=search_query) |
+            Q(branch_user__last_name__icontains=search_query) |
+            Q(damage_reason__icontains=search_query)
+        ).distinct()
+
+    paginator = Paginator(damaged_qs, 20)
+    page_number = request.GET.get('page')
+    damaged_page = paginator.get_page(page_number)
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action in ['confirm', 'reject']:
+            dm_id = request.POST.get('dm_id')
+            admin_note = request.POST.get('admin_note', '').strip()
+            try:
+                dm = DamageMaterial.objects.get(pk=dm_id, material__category='Internet', material__created_by=request.user)
+                dm.status = 'Confirmed' if action == 'confirm' else 'Rejected'
+                dm.admin_note = admin_note
+                if action == 'confirm':
+                    dm.confirmed_by = request.user
+                    dm.confirmed_at = timezone.now()
+                dm.save()
+                messages.success(request, f'Damaged Material record has been {dm.status.lower()}!')
+                return redirect('noc:damaged_materials')
+            except DamageMaterial.DoesNotExist:
+                messages.error(request, 'Record not found.')
+                return redirect('noc:damaged_materials')
+
+    return render(request, 'noc/damaged_materials.html', {
+        'damaged_materials': damaged_page,
+        'role': 'NOC',
+        'page_obj': damaged_page,
+        'branch_users': branch_users,
+        'search_query': search_query,
+    })

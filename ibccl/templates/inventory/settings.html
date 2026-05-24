@@ -1,58 +1,105 @@
 <!-- templates/inventory/settings.html -->
 {% extends 'inventory/base.html' %}
+
 {% block title %}ISP-Inventory-Admin Settings{% endblock %}
 
 {% block content %}
 <div class="max-w-7xl mx-auto p-4 sm:p-8 bg-transparent transition-all duration-500">
+    
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- PAGE TITLE & UTILITIES                                                -->
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
     <h1 class="text-4xl font-black text-indigo-900 dark:text-white mb-8 tracking-tight">Admin Settings</h1>
 
+    <!-- Custom Scrollbar Hiding Styles -->
+    <style>
+        .scrollbar-none::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-none {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- MAIN CONTENT GRID                                                     -->
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        <!-- Sidebar -->
-        <div class="col-span-1">
-            <div class="sticky top-8 bg-white/40 dark:bg-midnight-900/40 glass-card rounded-3xl shadow-xl p-6 border border-gray-100 dark:border-midnight-800">
-                <h3 class="text-xl font-black text-indigo-900 dark:text-indigo-400 mb-6 uppercase tracking-widest text-center lg:text-left">Menu</h3>
-                <div class="space-y-4">
-                    <button onclick="showTab('users')" class="w-full text-left px-6 py-4 bg-white dark:bg-midnight-950 rounded-2xl shadow-sm border border-gray-50 dark:border-midnight-800 font-bold text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-all active:scale-95">
+        
+        <!-- ========================================== -->
+        <!-- SIDEBAR NAVIGATION MENU                    -->
+        <!-- ========================================== -->
+        <div id="settings-sidebar" class="col-span-1 block lg:block">
+            <div class="sticky top-8 bg-white/40 dark:bg-midnight-900/40 glass-card rounded-3xl shadow-xl p-4 lg:p-6 border border-gray-100 dark:border-midnight-800">
+                <h3 class="hidden lg:block text-xl font-black text-indigo-900 dark:text-indigo-400 mb-6 uppercase tracking-widest text-center lg:text-left">Menu</h3>
+                
+                <div class="flex flex-col gap-3 lg:space-y-4">
+                    <!-- User Management Tab Trigger -->
+                    <button id="btn-users" onclick="switchSettingsTab('users')" class="w-full text-left px-5 py-4 lg:px-6 lg:py-4 rounded-2xl font-bold transition-all duration-300 active:scale-95 flex items-center bg-white dark:bg-midnight-950 text-indigo-700 dark:text-indigo-400 border border-gray-100 dark:border-midnight-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30">
                         <i class="fas fa-users mr-3"></i>User Management
                     </button>
-                    <button onclick="showBackupTab()" class="w-full text-left px-6 py-4 bg-white dark:bg-midnight-950 rounded-2xl shadow-sm border border-gray-50 dark:border-midnight-800 font-bold text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-all active:scale-95">
+                    
+                    <!-- Backup & Restore Tab Trigger -->
+                    <button id="btn-backup" onclick="switchSettingsTab('backup')" class="w-full text-left px-5 py-4 lg:px-6 lg:py-4 rounded-2xl font-bold transition-all duration-300 active:scale-95 flex items-center bg-white dark:bg-midnight-950 text-indigo-700 dark:text-indigo-400 border border-gray-100 dark:border-midnight-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30">
                         <i class="fas fa-database mr-3"></i>Backup & Restore
                     </button>
-                    <button onclick="showNotificationTab()" class="w-full text-left px-6 py-4 bg-white dark:bg-midnight-950 rounded-2xl shadow-sm border border-gray-50 dark:border-midnight-800 font-bold text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-all active:scale-95">
+                    
+                    <!-- Notifications Trigger -->
+                    <button id="btn-notifications" onclick="switchSettingsTab('notifications')" class="w-full text-left px-5 py-4 lg:px-6 lg:py-4 rounded-2xl font-bold transition-all duration-300 active:scale-95 flex items-center bg-white dark:bg-midnight-950 text-indigo-700 dark:text-indigo-400 border border-gray-100 dark:border-midnight-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30">
                         <i class="fas fa-bell mr-3"></i>Notification Settings
                     </button>
-                    <button onclick="showLogTab()" class="w-full text-left px-6 py-4 bg-white dark:bg-midnight-950 rounded-2xl shadow-sm border border-gray-50 dark:border-midnight-800 font-bold text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-all active:scale-95">
+                    
+                    <!-- System Logs Trigger -->
+                    <button id="btn-logs" onclick="switchSettingsTab('logs')" class="w-full text-left px-5 py-4 lg:px-6 lg:py-4 rounded-2xl font-bold transition-all duration-300 active:scale-95 flex items-center bg-white dark:bg-midnight-950 text-indigo-700 dark:text-indigo-400 border border-gray-100 dark:border-midnight-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30">
                         <i class="fas fa-file-alt mr-3"></i>Log Settings
                     </button>
-                    <button onclick="authSettingsTab()" class="w-full text-left px-6 py-4 bg-white dark:bg-midnight-950 rounded-2xl shadow-sm border border-gray-50 dark:border-midnight-800 font-bold text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-all active:scale-95">
-                        <i class="fa-solid fa-users-gear mr-2"></i>Oauth Settings</button>
+                    
+                    <!-- OAuth Tab Trigger -->
+                    <button id="btn-oauth" onclick="switchSettingsTab('oauth')" class="w-full text-left px-5 py-4 lg:px-6 lg:py-4 rounded-2xl font-bold transition-all duration-300 active:scale-95 flex items-center bg-white dark:bg-midnight-950 text-indigo-700 dark:text-indigo-400 border border-gray-100 dark:border-midnight-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30">
+                        <i class="fa-solid fa-users-gear mr-2"></i>Oauth Settings
+                    </button>
                 </div>
             </div>
         </div>
 
-        <!-- Content -->
-        <div class="col-span-3">
-            <!-- Users Tab -->
-            <div id="usersTab" class="bg-white/40 dark:bg-midnight-900/40 glass-card rounded-3xl p-8 border border-gray-100 dark:border-midnight-800 shadow-xl">
-                <div class="flex justify-between items-center mb-8">
-                    <h2 class="text-3xl font-bold text-indigo-900 dark:text-white">User Panel</h2>
-                    <button onclick="openCreateModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-bold shadow-lg transition">
+        <!-- ========================================== -->
+        <!-- TAB PANELS CONTENT AREA                    -->
+        <!-- ========================================== -->
+        <div id="settings-content" class="col-span-3 hidden lg:block">
+            
+            <!-- Mobile Back Button -->
+            <div class="lg:hidden mb-6">
+                <button onclick="goBackToMenu()" class="inline-flex items-center gap-2 px-5 py-2.5 bg-white/85 dark:bg-midnight-950/85 glass-card text-indigo-700 dark:text-indigo-400 border border-gray-100 dark:border-midnight-800 rounded-xl font-bold transition shadow-md active:scale-95">
+                    <i class="fas fa-chevron-left text-sm"></i> Back to Settings Menu
+                </button>
+            </div>
+            
+            <!-- ── TAB 1: USERS PANEL ──────────────────────────────────────── -->
+            <div id="usersTab" class="bg-white/40 dark:bg-midnight-900/40 glass-card rounded-3xl p-4 sm:p-8 border border-gray-100 dark:border-midnight-800 shadow-xl">
+                <!-- Header Actions -->
+                <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
+                    <h2 class="text-2xl sm:text-3xl font-bold text-indigo-900 dark:text-white">User Panel</h2>
+                    <button onclick="openCreateModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3.5 sm:px-8 sm:py-4 rounded-2xl font-bold shadow-lg transition active:scale-95 flex items-center justify-center">
                         <i class="fas fa-user-plus mr-2"></i>Create User
                     </button>
                 </div>
 
+                <!-- User Directory Table -->
                 <div class="overflow-x-auto rounded-2xl border border-gray-100 dark:border-midnight-800">
                     <table class="min-w-full divide-y divide-gray-100 dark:divide-midnight-800">
                         <thead class="bg-indigo-50/50 dark:bg-midnight-950/50 text-indigo-700 dark:text-indigo-400">
                             <tr>
-                                <th class="px-6 py-4 text-left text-sm font-bold text-indigo-700 uppercase">User</th>
-                                <th class="px-6 py-4 text-left text-sm font-bold text-indigo-700 uppercase">Role</th>                                <th class="px-6 py-4 text-left text-sm font-bold text-indigo-700 uppercase">Status</th>
-                                <th class="px-6 py-4 text-center text-sm font-bold text-indigo-700 uppercase">Actions</th>
+                                <th class="px-6 py-4 text-left text-sm font-bold uppercase">User</th>
+                                <th class="px-6 py-4 text-left text-sm font-bold uppercase">Role</th>
+                                <th class="px-6 py-4 text-left text-sm font-bold uppercase">Status</th>
+                                <th class="px-6 py-4 text-center text-sm font-bold uppercase">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
                             {% for u in users %}
                             <tr class="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition">
+                                <!-- User Info Cell -->
                                 <td class="px-6 py-5">
                                     <div class="flex items-center gap-4">
                                         <div class="relative">
@@ -71,6 +118,7 @@
                                         </div>
                                     </div>
                                 </td>
+                                <!-- User Role Cell -->
                                 <td class="px-6 py-5">
                                     <span class="px-3 py-1 rounded-full text-xs font-bold
                                         {% if u.userprofile.role == 'Admin' %}bg-purple-100 text-purple-800
@@ -80,39 +128,43 @@
                                         {{ u.userprofile.role }}
                                     </span>
                                 </td>
+                                <!-- Active Status Cell -->
                                 <td class="px-6 py-5">
                                     <span class="px-3 py-1.5 rounded-full text-xs font-bold {% if u.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
                                         {% if u.is_active %}Active{% else %}Inactive{% endif %}
                                     </span>
                                 </td>
+                                <!-- Actions Cell -->
                                 <td class="px-6 py-5 text-center">
-                                    <div class="flex items-center justify-center gap-2">
-                                        <!-- Edit Button -->
+                                    <div class="flex items-center justify-center gap-1.5 sm:gap-2">
+                                        <!-- Edit Action Button -->
                                         <button onclick="openEditModal('{{ u.id }}', '{{ u.username|escapejs }}', '{{ u.email|escapejs }}', '{{ u.first_name|escapejs }}', '{{ u.last_name|escapejs }}', '{{ u.userprofile.role|escapejs }}', '{{ u.userprofile.phone|escapejs }}', '{{ u.userprofile.address|escapejs }}', '{{ u.userprofile.city|escapejs }}', '{{ u.userprofile.zip_code|escapejs }}', {{ u.is_active|yesno:'true,false' }})"
-                                            class="inline-flex items-center px-3 py-2 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition font-semibold text-sm">
-                                            <i class="fas fa-edit mr-1"></i>Edit
+                                            class="inline-flex items-center px-3 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-xl transition font-semibold text-sm" title="Edit User">
+                                            <i class="fas fa-edit"></i><span class="hidden sm:inline ml-1">Edit</span>
                                         </button>
-                                        <!-- Toggle Status -->
+                                        
+                                        <!-- Toggle Status Action -->
                                         <form method="post" class="inline">
                                             {% csrf_token %}
                                             <input type="hidden" name="action" value="toggle_status">
                                             <input type="hidden" name="user_id" value="{{ u.id }}">
                                             <button type="submit" title="{% if u.is_active %}Deactivate{% else %}Activate{% endif %}"
-                                                class="inline-flex items-center px-3 py-2 {% if u.is_active %}bg-orange-50 text-orange-700 hover:bg-orange-100{% else %}bg-green-50 text-green-700 hover:bg-green-100{% endif %} rounded-xl transition font-semibold text-sm">
+                                                class="inline-flex items-center px-3 py-2 {% if u.is_active %}bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 dark:hover:bg-orange-900/30 text-orange-700 dark:text-orange-400{% else %}bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/30 text-green-700 dark:text-green-400{% endif %} rounded-xl transition font-semibold text-sm">
                                                 <i class="fas {% if u.is_active %}fa-user-slash{% else %}fa-user-check{% endif %}"></i>
                                             </button>
                                         </form>
-                                        <!-- Delete Button -->
+                                        
+                                        <!-- Delete Action Button -->
                                         <button onclick="openDeleteModal('{{ u.id }}', '{{ u.username|escapejs }}')"
-                                            class="inline-flex items-center px-3 py-2 bg-red-50 text-red-700 rounded-xl hover:bg-red-100 transition font-semibold text-sm">
-                                            <i class="fas fa-trash-alt mr-1"></i>Delete
+                                            class="inline-flex items-center px-3 py-2 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 text-red-700 dark:text-red-400 rounded-xl transition font-semibold text-sm" title="Delete User">
+                                            <i class="fas fa-trash-alt"></i><span class="hidden sm:inline ml-1">Delete</span>
                                         </button>
                                     </div>
                                 </td>
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="5" class="px-6 py-12 text-center text-gray-400">
+                                <td colspan="4" class="px-6 py-12 text-center text-gray-400">
                                     <i class="fas fa-users text-5xl mb-3"></i><br>
                                     No users found
                                 </td>
@@ -123,8 +175,8 @@
                 </div>
             </div>
 
-            <!-- Backup Tab -->
-            <div id="backupTab" class="hidden bg-white dark:bg-midnight-900/40 glass-card rounded-3xl shadow-2xl p-8 border border-gray-100 dark:border-midnight-800">
+            <!-- ── TAB 2: BACKUP & RESTORE ─────────────────────────────────── -->
+            <div id="backupTab" class="hidden bg-white/40 dark:bg-midnight-900/40 glass-card rounded-3xl shadow-2xl p-4 sm:p-8 border border-gray-100 dark:border-midnight-800">
                 <div class="mb-8">
                     <h2 class="text-3xl font-bold text-indigo-900 dark:text-white mb-2 flex items-center">
                         <i class="fas fa-database mr-3 text-indigo-600 dark:text-indigo-400"></i>Backup & Restore
@@ -132,9 +184,10 @@
                     <p class="text-gray-600 dark:text-gray-400">Securely backup and restore your system data with role-based access control</p>
                 </div>
 
-                <!-- Backup Actions -->
+                <!-- Backup Action Cards Grid -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    <!-- Create Backup Card -->
+                    
+                    <!-- Create Backup Card Form -->
                     <form method="post" class="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 rounded-2xl shadow-md p-6 border border-purple-100 dark:border-purple-900/30">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="backup">
@@ -158,6 +211,7 @@
                             </div>
                         </div>
 
+                        <!-- System Details Panel -->
                         <div class="bg-purple-100 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-900/30 rounded-lg p-3 mb-6 text-xs text-purple-700 dark:text-purple-300">
                             <i class="fas fa-info-circle mr-2"></i>
                             <strong>Backup includes:</strong> Users, Materials, Requests, Tasks, Used Materials, Logs & all system data
@@ -188,13 +242,13 @@
                                 </select>
                             </div>
 
-                            <!-- File Upload Section -->
+                            <!-- File Upload Picker -->
                             <div id="file-upload-section">
                                 <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Select Backup File</label>
                                 <input type="file" name="backup_file" accept=".json" class="w-full px-4 py-3 border-2 border-green-200 dark:border-green-900/30 rounded-xl bg-white dark:bg-midnight-950 dark:text-white focus:border-green-500 transition">
                             </div>
 
-                            <!-- History Section (Hidden by default) -->
+                            <!-- History Restore Picker -->
                             <div id="history-section" class="hidden">
                                 <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Select Backup from History</label>
                                 <select name="backup_id" class="w-full px-4 py-3 border-2 border-green-200 dark:border-green-900/30 rounded-xl bg-white dark:bg-midnight-950 dark:text-white focus:border-green-500 transition">
@@ -208,6 +262,7 @@
                             </div>
                         </div>
 
+                        <!-- Restore Danger Details -->
                         <div class="bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 rounded-lg p-3 mb-6 text-xs text-red-700 dark:text-red-300">
                             <i class="fas fa-exclamation-triangle mr-2"></i>
                             <strong>Warning:</strong> Restoring will permanently replace all existing data. This action cannot be undone easily!
@@ -218,6 +273,7 @@
                         </button>
                     </form>
                     {% else %}
+                    <!-- Inactive Restore Card for non-admins -->
                     <div class="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900/20 dark:to-gray-900/30 rounded-2xl shadow-md p-6 border border-gray-200 dark:border-gray-900/30 flex items-center justify-center">
                         <div class="text-center">
                             <i class="fas fa-lock text-5xl text-gray-400 mb-4"></i>
@@ -228,7 +284,7 @@
                     {% endif %}
                 </div>
 
-                <!-- Backup History -->
+                <!-- Backup History List -->
                 <div class="mt-8 pt-8 border-t-2 border-gray-200 dark:border-gray-700">
                     <h3 class="text-2xl font-bold text-indigo-900 dark:text-white mb-6 flex items-center">
                         <i class="fas fa-history mr-2 text-indigo-600 dark:text-indigo-400"></i>Backup History
@@ -270,25 +326,25 @@
                                     </td>
                                     <td class="px-6 py-4 text-center space-x-2">
                                         {% if backup.status == 'active' %}
-                                        {% if user.userprofile.role == 'Admin' or backup.created_by == user %}
-                                        <form method="post" class="inline" onsubmit="return confirm('Delete this backup?');">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="action" value="delete_backup">
-                                            <input type="hidden" name="backup_id" value="{{ backup.id }}">
-                                            <button type="submit" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 text-xs font-bold transition">
-                                                <i class="fas fa-trash mr-1"></i>Delete
-                                            </button>
-                                        </form>
-                                        {% endif %}
+                                            {% if user.userprofile.role == 'Admin' or backup.created_by == user %}
+                                            <form method="post" class="inline" onsubmit="return confirm('Delete this backup?');">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="action" value="delete_backup">
+                                                <input type="hidden" name="backup_id" value="{{ backup.id }}">
+                                                <button type="submit" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 text-xs font-bold transition">
+                                                    <i class="fas fa-trash mr-1"></i>Delete
+                                                </button>
+                                            </form>
+                                            {% endif %}
                                         {% elif backup.status == 'deleted' and user.userprofile.role == 'Admin' %}
-                                        <form method="post" class="inline">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="action" value="recover_backup">
-                                            <input type="hidden" name="backup_id" value="{{ backup.id }}">
-                                            <button type="submit" class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 text-xs font-bold transition">
-                                                <i class="fas fa-undo mr-1"></i>Recover
-                                            </button>
-                                        </form>
+                                            <form method="post" class="inline">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="action" value="recover_backup">
+                                                <input type="hidden" name="backup_id" value="{{ backup.id }}">
+                                                <button type="submit" class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 text-xs font-bold transition">
+                                                    <i class="fas fa-undo mr-1"></i>Recover
+                                                </button>
+                                            </form>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -304,7 +360,7 @@
                     {% endif %}
                 </div>
 
-                <!-- Backup Info Section -->
+                <!-- Backup Information Section -->
                 <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="bg-blue-50 dark:bg-blue-900/10 rounded-xl p-4 border border-blue-200 dark:border-blue-900/30">
                         <p class="text-xs text-blue-600 dark:text-blue-400 font-bold uppercase mb-1">Role-Based Access</p>
@@ -321,8 +377,8 @@
                 </div>
             </div>
 
-            <!-- Notification Tab -->
-            <div id="notificationTab" class="hidden bg-white/40 dark:bg-midnight-900/40 glass-card rounded-3xl p-8 border border-gray-100 dark:border-midnight-800 shadow-xl">
+            <!-- ── TAB 3: NOTIFICATION SETTINGS ────────────────────────────── -->
+            <div id="notificationTab" class="hidden bg-white/40 dark:bg-midnight-900/40 glass-card rounded-3xl p-4 sm:p-8 border border-gray-100 dark:border-midnight-800 shadow-xl">
                 <div class="mb-8">
                     <h2 class="text-3xl font-bold text-green-900 dark:text-white mb-2 flex items-center">
                         <i class="fas fa-bell mr-3 text-green-600 dark:text-green-400"></i>Notification Settings
@@ -334,7 +390,7 @@
                     {% csrf_token %}
                     <input type="hidden" name="action" value="update_notifications">
                     
-                    <!-- Email & General Section -->
+                    <!-- General Settings Section -->
                     <div class="mb-8 pb-6 border-b border-gray-200 dark:border-gray-700">
                         <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
                             <i class="fas fa-envelope mr-2 text-green-600 dark:text-green-400"></i>Email & General
@@ -476,8 +532,8 @@
                 </form>
             </div>
 
-            <!-- Log Tab -->
-            <div id="logTab" class="hidden bg-white/40 dark:bg-midnight-900/40 glass-card rounded-3xl p-8 border border-gray-100 dark:border-midnight-800 shadow-xl">
+            <!-- ── TAB 4: LOG SETTINGS & ACTIVITY ──────────────────────────── -->
+            <div id="logTab" class="hidden bg-white/40 dark:bg-midnight-900/40 glass-card rounded-3xl p-4 sm:p-8 border border-gray-100 dark:border-midnight-800 shadow-xl">
                 <div class="mb-8">
                     <h2 class="text-3xl font-bold text-yellow-900 dark:text-white mb-2 flex items-center">
                         <i class="fas fa-file-alt mr-3 text-yellow-600 dark:text-yellow-400"></i>Log Settings & Activity
@@ -485,8 +541,8 @@
                     <p class="text-gray-600 dark:text-gray-400">Manage system logging and view your activity history</p>
                 </div>
                 
+                <!-- Admin Level Settings Panel -->
                 {% if user.userprofile.role == 'Admin' %}
-                <!-- Log Settings Form (Admin Only) -->
                 <form method="post" class="bg-white dark:bg-midnight-950 rounded-2xl p-6 border border-gray-200 dark:border-midnight-800 mb-8">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="update_logs">
@@ -496,7 +552,7 @@
                     </h3>
                     
                     <div class="space-y-6">
-                        <!-- Log Level -->
+                        <!-- Log Level Selection -->
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Log Level</label>
                             <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Select minimum log level to record</p>
@@ -524,7 +580,7 @@
                             </div>
                         </div>
                         
-                        <!-- Logging Options -->
+                        <!-- File & Database System Logging Flags -->
                         <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
                             <h4 class="font-bold text-gray-900 dark:text-white mb-3">Logging Options</h4>
                             <div class="space-y-3">
@@ -565,7 +621,7 @@
                 </div>
                 {% endif %}
                 
-                <!-- Activity History -->
+                <!-- Recent Activity Logs Table -->
                 <div class="bg-white dark:bg-midnight-950 rounded-2xl p-6 border border-gray-200 dark:border-midnight-800">
                     <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center">
                         <i class="fas fa-history mr-2 text-indigo-600 dark:text-indigo-400"></i>Your Activity History
@@ -613,72 +669,91 @@
                 </div>
             </div>
 
-            <!-- Oauth Settings Tab -->
-            <div id="oauthSettingsTab" class="hidden bg-gradient-to-br from-purple-50 to-pink-50 rounded-3xl shadow-2xl p-8">
-                <h2 class="text-3xl font-bold text-purple-900 mb-6">Oauth Settings</h2>
-                <div class="bg-white rounded-2xl shadow-md p-6 max-w-lg">
-                    <p class="text-gray-600 mb-4">External authentication settings like Google or Facebook login can be configured here.</p>
+            <!-- ── TAB 5: OAUTH SETTINGS ────────────────────────────────────── -->
+            <div id="oauthSettingsTab" class="hidden bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20 rounded-3xl shadow-2xl p-4 sm:p-8 border border-gray-100 dark:border-midnight-800">
+                <h2 class="text-3xl font-black text-purple-900 dark:text-purple-300 mb-6 uppercase tracking-tight flex items-center">
+                    <i class="fa-solid fa-users-gear mr-3"></i>Oauth Settings
+                </h2>
+                
+                <div class="bg-white dark:bg-midnight-950 rounded-2xl shadow-md p-6 border border-gray-100 dark:border-midnight-800 max-w-lg">
+                    <p class="text-gray-600 dark:text-gray-400 mb-4 text-sm">External authentication settings like Google or Facebook login can be configured here.</p>
+                    
                     <div class="space-y-4">
-                        <div class="flex items-center justify-between p-4 border-2 border-gray-100 rounded-xl">
+                        <!-- Google OAuth -->
+                        <div class="flex items-center justify-between p-4 border border-gray-100 dark:border-midnight-800 rounded-xl hover:bg-gray-50 dark:hover:bg-midnight-900/50 transition">
                             <div class="flex items-center gap-3">
                                 <i class="fab fa-google text-2xl text-red-500"></i>
-                                <span class="font-bold text-gray-700">Google Login</span>
+                                <span class="font-bold text-gray-700 dark:text-gray-300">Google Login</span>
                             </div>
-                            <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Coming Soon</span>
+                            <span class="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Coming Soon</span>
                         </div>
-                        <div class="flex items-center justify-between p-4 border-2 border-gray-100 rounded-xl">
+                        
+                        <!-- Facebook OAuth -->
+                        <div class="flex items-center justify-between p-4 border border-gray-100 dark:border-midnight-800 rounded-xl hover:bg-gray-50 dark:hover:bg-midnight-900/50 transition">
                             <div class="flex items-center gap-3">
                                 <i class="fab fa-facebook text-2xl text-blue-600"></i>
-                                <span class="font-bold text-gray-700">Facebook Login</span>
+                                <span class="font-bold text-gray-700 dark:text-gray-300">Facebook Login</span>
                             </div>
-                            <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Coming Soon</span>
+                            <span class="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Coming Soon</span>
                         </div>
                     </div>
                 </div>
             </div>
+            
         </div>
     </div>
 </div>
 
+<!-- ========================================================================= -->
+<!-- MODAL OVERLAYS                                                            -->
+<!-- ========================================================================= -->
+
+<!-- ── CREATE NEW USER MODAL ──────────────────────────────────────────────── -->
 <div id="createModal" class="fixed inset-0 bg-midnight-950/80 hidden flex items-center justify-center z-50 backdrop-blur-md" onclick="if(event.target===this) closeCreateModal()">
-    <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4 border border-gray-100 dark:border-midnight-800">
+    <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl p-6 sm:p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4 border border-gray-100 dark:border-midnight-800">
         <div class="flex justify-between items-center mb-6">
-            <h3 class="text-2xl font-black text-indigo-900 dark:text-white flex items-center tracking-tight">
+            <h3 class="text-xl sm:text-2xl font-black text-indigo-900 dark:text-white flex items-center tracking-tight">
                 <i class="fas fa-user-plus mr-3 text-indigo-600 dark:text-indigo-400"></i>Create New User
             </h3>
             <button onclick="closeCreateModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl transition-colors">&times;</button>
         </div>
+        
         <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
             <input type="hidden" name="action" value="create_user">
-            <div class="grid grid-cols-2 md:grid-cols-2 gap-3">
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <!-- Username -->
                 <div>
-                    <label class="block text-sm font-bold text-gray-700 dark:text-gray-400 mb-1">Username <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Username <span class="text-red-500">*</span></label>
                     <input type="text" name="username" placeholder="Enter username" required
-                        class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white">
+                        class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white placeholder-gray-400 dark:placeholder-gray-600">
                 </div>
+                
                 <!-- Email -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Email</label>
                     <input type="email" name="email" placeholder="user@example.com"
-                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+                        class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white placeholder-gray-400 dark:placeholder-gray-600">
                 </div>
+                
                 <!-- First Name -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">First Name</label>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">First Name</label>
                     <input type="text" name="first_name" placeholder="First name"
-                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+                        class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white placeholder-gray-400 dark:placeholder-gray-600">
                 </div>
+                
                 <!-- Last Name -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Last Name</label>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
                     <input type="text" name="last_name" placeholder="Last name"
-                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+                        class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white placeholder-gray-400 dark:placeholder-gray-600">
                 </div>
-                <!-- Password -->
+                
+                <!-- Password Field & Checkers -->
                 <div class="relative">
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Password <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Password <span class="text-red-500">*</span></label>
                     <div id="create-password-requirements" class="grid grid-cols-2 gap-x-2 text-[10px] mb-2 font-medium">
                         <p id="create-req-length" class="text-red-500 flex items-center transition-colors"><i class="fas fa-times-circle mr-1"></i>8+ Characters</p>
                         <p id="create-req-upper" class="text-red-500 flex items-center transition-colors"><i class="fas fa-times-circle mr-1"></i>1 Uppercase</p>
@@ -687,58 +762,66 @@
                     </div>
                     <div class="relative">
                         <input id="create-password-input" name="password" type="password" required
-                               class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 pr-12 transition"
+                               class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 pr-12 transition dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
                                placeholder="Enter password">
                         <button type="button" onclick="togglePassword('create-password-input', 'create-toggle-icon')" class="absolute inset-y-0 right-0 flex items-center pr-4">
                             <i id="create-toggle-icon" class="fas fa-eye text-gray-400 hover:text-indigo-600 transition-colors"></i>
                         </button>
                     </div>
                 </div>
-                <!-- Role -->
+                
+                <!-- Role Selection -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Role</label>
-                    <select name="role" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Role</label>
+                    <select name="role" class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white">
                         <option value="Branch">Branch</option>
                         <option value="Storekeeper">Storekeeper</option>
                         <option value="Admin">Admin</option>
                         <option value="NOC">NOC</option>
                     </select>
                 </div>
+                
                 <!-- Phone -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Phone</label>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Phone</label>
                     <input type="text" name="phone" placeholder="Phone number"
-                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+                        class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white placeholder-gray-400 dark:placeholder-gray-600">
                 </div>
+                
                 <!-- City -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">City</label>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">City</label>
                     <input type="text" name="city" placeholder="City"
-                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+                        class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white placeholder-gray-400 dark:placeholder-gray-600">
                 </div>
+                
                 <!-- Address -->
-                <div class="md:col-span-1">
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Address</label>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Address</label>
                     <input type="text" name="address" placeholder="Full address"
-                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+                        class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white placeholder-gray-400 dark:placeholder-gray-600">
                 </div>
+                
                 <!-- Zip Code -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Zip Code</label>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Zip Code</label>
                     <input type="text" name="zip_code" placeholder="Zip code"
-                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+                        class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white placeholder-gray-400 dark:placeholder-gray-600">
                 </div>
-                <!--add image-->
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Image</label>
-                    <input type="file" name="image" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+                
+                <!-- File Upload Image -->
+                <div class="sm:col-span-2">
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Image</label>
+                    <input type="file" name="image" class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white">
                 </div>
             </div>
+            
+            <!-- Submit Options -->
             <div class="mt-8 flex justify-end gap-4">
-                <button type="button" onclick="closeCreateModal()" class="px-8 py-3.5 border-2 border-gray-100 dark:border-midnight-800 rounded-xl hover:bg-gray-50 dark:hover:bg-midnight-800 font-bold text-gray-500 dark:text-gray-400 transition-all">
+                <button type="button" onclick="closeCreateModal()" class="px-6 py-3 border border-gray-200 dark:border-midnight-800 rounded-xl hover:bg-gray-50 dark:hover:bg-midnight-800 font-bold text-gray-500 dark:text-gray-400 transition-all">
                     Cancel
                 </button>
-                <button type="submit" class="px-8 py-3.5 bg-indigo-600 dark:bg-indigo-500 text-white rounded-xl font-bold hover:shadow-xl active:scale-95 transition-all">
+                <button type="submit" class="px-6 py-3 bg-indigo-600 dark:bg-indigo-500 text-white rounded-xl font-bold hover:shadow-xl active:scale-95 transition-all">
                     <i class="fas fa-user-plus mr-2"></i>Create User
                 </button>
             </div>
@@ -746,49 +829,53 @@
     </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!-- EDIT USER MODAL                                                       -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- ── EDIT EXISTING USER MODAL ───────────────────────────────────────────── -->
 <div id="editModal" class="fixed inset-0 bg-midnight-950/80 hidden flex items-center justify-center z-50 backdrop-blur-md" onclick="if(event.target===this) closeEditModal()">
-    <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto m-2 border border-blue-100 dark:border-midnight-800">
-        <div class="flex justify-between items-center mb-2">
-            <h3 class="text-2xl font-bold text-blue-900 flex items-center">
-                <i class="fas fa-user-edit mr-3 text-blue-600"></i>Edit User
+    <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl p-6 sm:p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto m-2 border border-gray-100 dark:border-midnight-800">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-xl sm:text-2xl font-black text-indigo-900 dark:text-white flex items-center tracking-tight">
+                <i class="fas fa-user-edit mr-3 text-indigo-600 dark:text-indigo-400"></i>Edit User
             </h3>
-            <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl transition-colors">&times;</button>
         </div>
+        
         <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
             <input type="hidden" name="action" value="edit_user">
             <input type="hidden" name="user_id" id="edit_user_id">
-            <div class="grid grid-cols-2 md:grid-cols-2 gap-3">
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <!-- Username -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Username <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Username <span class="text-red-500">*</span></label>
                     <input type="text" name="username" id="edit_username" required
-                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                        class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white placeholder-gray-400 dark:placeholder-gray-600">
                 </div>
+                
                 <!-- Email -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Email</label>
                     <input type="email" name="email" id="edit_email"
-                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                        class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white placeholder-gray-400 dark:placeholder-gray-600">
                 </div>
+                
                 <!-- First Name -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">First Name</label>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">First Name</label>
                     <input type="text" name="first_name" id="edit_first_name"
-                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                        class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white placeholder-gray-400 dark:placeholder-gray-600">
                 </div>
+                
                 <!-- Last Name -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Last Name</label>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
                     <input type="text" name="last_name" id="edit_last_name"
-                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                        class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white placeholder-gray-400 dark:placeholder-gray-600">
                 </div>
-                <!-- New Password (optional) -->
+                
+                <!-- Optional Password Fields -->
                 <div class="relative">
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">New Password <span class="text-gray-400 text-xs">(leave blank to keep)</span></label>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">New Password <span class="text-gray-400 dark:text-gray-500 text-xs">(leave blank to keep)</span></label>
                     <div id="edit-password-requirements" class="grid grid-cols-2 gap-x-2 text-[10px] mb-2 font-medium">
                         <p id="edit-req-length" class="text-red-500 flex items-center transition-colors"><i class="fas fa-times-circle mr-1"></i>8+ Characters</p>
                         <p id="edit-req-upper" class="text-red-500 flex items-center transition-colors"><i class="fas fa-times-circle mr-1"></i>1 Uppercase</p>
@@ -797,66 +884,75 @@
                     </div>
                     <div class="relative">
                         <input id="edit-password-input" name="password" type="password"
-                               class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 pr-12 transition"
+                               class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 pr-12 transition dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
                                placeholder="Enter new password">
                         <button type="button" onclick="togglePassword('edit-password-input', 'edit-toggle-icon')" class="absolute inset-y-0 right-0 flex items-center pr-4">
-                            <i id="edit-toggle-icon" class="fas fa-eye text-gray-400 hover:text-blue-600 transition-colors"></i>
+                            <i id="edit-toggle-icon" class="fas fa-eye text-gray-400 hover:text-indigo-600 transition-colors"></i>
                         </button>
                     </div>
                 </div>
-                <!-- Role -->
+                
+                <!-- Role Selection -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Role</label>
-                    <select name="role" id="edit_role" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Role</label>
+                    <select name="role" id="edit_role" class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white">
                         <option value="Admin">Admin</option>
                         <option value="Storekeeper">Storekeeper</option>
                         <option value="Branch">Branch</option>
                         <option value="NOC">NOC</option>
                     </select>
                 </div>
+                
                 <!-- Phone -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Phone</label>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Phone</label>
                     <input type="text" name="phone" id="edit_phone"
-                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                        class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white placeholder-gray-400 dark:placeholder-gray-600">
                 </div>
+                
                 <!-- City -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">City</label>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">City</label>
                     <input type="text" name="city" id="edit_city"
-                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                        class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white placeholder-gray-400 dark:placeholder-gray-600">
                 </div>
+                
                 <!-- Address -->
-                <div class="md:col-span-1">
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Address</label>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Address</label>
                     <input type="text" name="address" id="edit_address"
-                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                        class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white placeholder-gray-400 dark:placeholder-gray-600">
                 </div>
+                
                 <!-- Zip Code -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Zip Code</label>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Zip Code</label>
                     <input type="text" name="zip_code" id="edit_zip_code"
-                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                        class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white placeholder-gray-400 dark:placeholder-gray-600">
                 </div>
-                <!--add image-->
+                
+                <!-- Image Picker -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Image</label>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Image</label>
                     <input type="file" name="image" id="edit_image"
-                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition">
+                        class="w-full px-4 py-3 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition dark:text-white">
                 </div>
-                <!-- Active Status -->
+                
+                <!-- Account Active Checkbox Flag -->
                 <div class="flex items-end">
-                    <label class="flex items-center gap-3 cursor-pointer bg-gray-50 px-4 py-3 rounded-xl w-full">
+                    <label class="flex items-center gap-3 cursor-pointer bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 px-4 py-3 rounded-xl w-full">
                         <input type="checkbox" name="is_active" id="edit_is_active" class="form-checkbox h-5 w-5 text-green-600 rounded">
-                        <span class="text-sm font-semibold text-gray-700">Account Active</span>
+                        <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">Account Active</span>
                     </label>
                 </div>
             </div>
+            
+            <!-- Submit Options -->
             <div class="mt-8 flex justify-end gap-4">
-                <button type="button" onclick="closeEditModal()" class="px-6 py-3 border-2 border-gray-200 rounded-xl hover:bg-gray-50 font-bold text-gray-600 transition">
+                <button type="button" onclick="closeEditModal()" class="px-6 py-3 border border-gray-200 dark:border-midnight-800 rounded-xl hover:bg-gray-50 dark:hover:bg-midnight-800 font-bold text-gray-600 dark:text-gray-400 transition">
                     Cancel
                 </button>
-                <button type="submit" class="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-xl font-bold hover:shadow-xl transition">
+                <button type="submit" class="px-6 py-3 bg-indigo-600 dark:bg-indigo-500 text-white rounded-xl font-bold hover:shadow-xl active:scale-95 transition">
                     <i class="fas fa-save mr-2"></i>Save Changes
                 </button>
             </div>
@@ -864,28 +960,28 @@
     </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!-- DELETE CONFIRMATION MODAL                                             -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<div id="deleteModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50" onclick="if(event.target===this) closeDeleteModal()">
-    <div class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md m-4">
+<!-- ── DELETE CONFIRMATION MODAL ──────────────────────────────────────────── -->
+<div id="deleteModal" class="fixed inset-0 bg-midnight-950/80 hidden flex items-center justify-center z-50 backdrop-blur-md" onclick="if(event.target===this) closeDeleteModal()">
+    <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl p-8 w-full max-w-md m-4 border border-gray-100 dark:border-midnight-800">
         <div class="text-center mb-6">
-            <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i class="fas fa-exclamation-triangle text-3xl text-red-600"></i>
+            <div class="w-16 h-16 bg-red-100 dark:bg-red-950/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-exclamation-triangle text-3xl text-red-600 dark:text-red-500 animate-pulse"></i>
             </div>
-            <h3 class="text-2xl font-bold text-gray-900">Delete User</h3>
-            <p class="text-gray-500 mt-2">Are you sure you want to delete user <strong id="delete_username_display" class="text-red-600"></strong>?</p>
-            <p class="text-sm text-red-500 mt-2"><i class="fas fa-warning mr-1"></i>This action cannot be undone. All data associated with this user will be permanently removed.</p>
+            <h3 class="text-2xl font-bold text-gray-900 dark:text-white">Delete User</h3>
+            <p class="text-gray-500 dark:text-gray-400 mt-2">Are you sure you want to delete user <strong id="delete_username_display" class="text-red-600 dark:text-red-400"></strong>?</p>
+            <p class="text-sm text-red-500 dark:text-red-400 mt-2"><i class="fas fa-warning mr-1"></i>This action cannot be undone. All data associated with this user will be permanently removed.</p>
         </div>
+        
         <form method="post">
             {% csrf_token %}
             <input type="hidden" name="action" value="delete">
             <input type="hidden" name="user_id" id="delete_user_id">
+            
             <div class="flex justify-center gap-4">
-                <button type="button" onclick="closeDeleteModal()" class="px-6 py-3 border-2 border-gray-200 rounded-xl hover:bg-gray-50 font-bold text-gray-600 transition">
+                <button type="button" onclick="closeDeleteModal()" class="px-6 py-3 border border-gray-200 dark:border-midnight-800 rounded-xl hover:bg-gray-50 dark:hover:bg-midnight-800 font-bold text-gray-600 dark:text-gray-400 transition">
                     Cancel
                 </button>
-                <button type="submit" class="px-6 py-3 bg-gradient-to-r from-red-600 to-red-800 text-white rounded-xl font-bold hover:shadow-xl transition">
+                <button type="submit" class="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold hover:shadow-xl active:scale-95 transition">
                     <i class="fas fa-trash-alt mr-2"></i>Yes, Delete
                 </button>
             </div>
@@ -893,8 +989,11 @@
     </div>
 </div>
 
+<!-- ========================================================================= -->
+<!-- JAVASCRIPT SYSTEM ENGINE CONTROLLERS                                      -->
+<!-- ========================================================================= -->
 <script>
-// ── Create Modal ──────────────────────────────────────────────────────────
+// ── Create Modal Actions ───────────────────────────────────────────────────
 function openCreateModal() {
     document.getElementById('createModal').classList.remove('hidden');
 }
@@ -902,7 +1001,7 @@ function closeCreateModal() {
     document.getElementById('createModal').classList.add('hidden');
 }
 
-// ── Edit Modal ────────────────────────────────────────────────────────────
+// ── Edit Modal Actions ─────────────────────────────────────────────────────
 function openEditModal(id, username, email, firstName, lastName, role, phone, address, city, zipCode, isActive) {
     document.getElementById('edit_user_id').value = id;
     document.getElementById('edit_username').value = username;
@@ -921,7 +1020,7 @@ function closeEditModal() {
     document.getElementById('editModal').classList.add('hidden');
 }
 
-// ── Delete Modal ──────────────────────────────────────────────────────────
+// ── Delete Modal Actions ───────────────────────────────────────────────────
 function openDeleteModal(id, username) {
     document.getElementById('delete_user_id').value = id;
     document.getElementById('delete_username_display').textContent = username;
@@ -931,27 +1030,82 @@ function closeDeleteModal() {
     document.getElementById('deleteModal').classList.add('hidden');
 }
 
-// ── Tab Switching ─────────────────────────────────────────────────────────
-function hideAllTabs() {
-    document.getElementById('usersTab').classList.add('hidden');
-    document.getElementById('backupTab').classList.add('hidden');
-    document.getElementById('notificationTab').classList.add('hidden');
-    document.getElementById('logTab').classList.add('hidden');
-    document.getElementById('oauthSettingsTab').classList.add('hidden');
-}
+// ── Tab Switching Actions ──────────────────────────────────────────────────
+function switchSettingsTab(tab, isInitialLoad = false) {
+    const tabs = {
+        'users': { tabEl: 'usersTab', btnEl: 'btn-users' },
+        'backup': { tabEl: 'backupTab', btnEl: 'btn-backup' },
+        'notifications': { tabEl: 'notificationTab', btnEl: 'btn-notifications' },
+        'logs': { tabEl: 'logTab', btnEl: 'btn-logs' },
+        'oauth': { tabEl: 'oauthSettingsTab', btnEl: 'btn-oauth' }
+    };
 
-function showTab(tab) {
-    hideAllTabs();
-    if (tab === 'users') {
-        document.getElementById('usersTab').classList.remove('hidden');
+    const sidebar = document.getElementById('settings-sidebar');
+    const content = document.getElementById('settings-content');
+    
+    // On mobile view (window width < 1024px)
+    if (window.innerWidth < 1024) {
+        if (isInitialLoad) {
+            // Initially, show only the menu
+            if (sidebar) {
+                sidebar.classList.remove('hidden');
+                sidebar.classList.add('block');
+            }
+            if (content) {
+                content.classList.add('hidden');
+                content.classList.remove('block');
+            }
+        } else {
+            // When a feature clicked, show content and hide menu list
+            if (sidebar) {
+                sidebar.classList.add('hidden');
+                sidebar.classList.remove('block');
+            }
+            if (content) {
+                content.classList.remove('hidden');
+                content.classList.add('block');
+            }
+        }
+    }
+
+    for (const [key, config] of Object.entries(tabs)) {
+        const tabEl = document.getElementById(config.tabEl);
+        const btnEl = document.getElementById(config.btnEl);
+        
+        if (tabEl) {
+            if (key === tab) {
+                tabEl.classList.remove('hidden');
+            } else {
+                tabEl.classList.add('hidden');
+            }
+        }
+        
+        if (btnEl) {
+            if (key === tab) {
+                btnEl.className = "w-full text-left px-5 py-4 lg:px-6 lg:py-4 rounded-2xl font-bold transition-all duration-300 active:scale-95 flex items-center bg-indigo-600 text-white shadow-lg border border-transparent";
+            } else {
+                btnEl.className = "w-full text-left px-5 py-4 lg:px-6 lg:py-4 rounded-2xl font-bold transition-all duration-300 active:scale-95 flex items-center bg-white dark:bg-midnight-950 text-indigo-700 dark:text-indigo-400 border border-gray-100 dark:border-midnight-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30";
+            }
+        }
     }
 }
 
-function showBackupTab() {
-    hideAllTabs();
-    document.getElementById('backupTab').classList.remove('hidden');
+// ── Mobile Back to Menu Action ─────────────────────────────────────────────
+function goBackToMenu() {
+    const sidebar = document.getElementById('settings-sidebar');
+    const content = document.getElementById('settings-content');
+    
+    if (sidebar) {
+        sidebar.classList.remove('hidden');
+        sidebar.classList.add('block');
+    }
+    if (content) {
+        content.classList.add('hidden');
+        content.classList.remove('block');
+    }
 }
 
+// ── Toggle Restore Input Method ────────────────────────────────────────────
 function toggleRestoreInput(restoreType) {
     const fileSection = document.getElementById('file-upload-section');
     const historySection = document.getElementById('history-section');
@@ -965,21 +1119,7 @@ function toggleRestoreInput(restoreType) {
     }
 }
 
-function showNotificationTab() {
-    hideAllTabs();
-    document.getElementById('notificationTab').classList.remove('hidden');
-}
-
-function showLogTab() {
-    hideAllTabs();
-    document.getElementById('logTab').classList.remove('hidden');
-}
-
-function authSettingsTab() {
-    hideAllTabs();
-    document.getElementById('oauthSettingsTab').classList.remove('hidden');
-}
-
+// ── Toggle Password Visibility ─────────────────────────────────────────────
 function togglePassword(inputId, iconId) {
     const passwordInput = document.getElementById(inputId);
     const toggleIcon = document.getElementById(iconId);
@@ -995,8 +1135,11 @@ function togglePassword(inputId, iconId) {
     }
 }
 
-// ── Real-time Password Validation ──
+// ── Real-time Password Strength Checkers ───────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize default active tab styling
+    switchSettingsTab('users', true);
+
     const createPass = document.getElementById('create-password-input');
     const editPass = document.getElementById('edit-password-input');
 

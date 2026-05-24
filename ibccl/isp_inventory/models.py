@@ -326,6 +326,9 @@ class MaterialRequest(models.Model):
     # Archive System Fields
     is_archived = models.BooleanField(default=False, help_text="Auto-archived for previous months")
     archived_at = models.DateTimeField(null=True, blank=True, help_text="When the request was archived")
+    # Soft delete fields to preserve branch stock when admin/noc deletes
+    is_hidden_by_admin = models.BooleanField(default=False)
+    is_hidden_by_noc = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.requester} - {self.material.name}"
@@ -377,7 +380,6 @@ class MaterialRequest(models.Model):
         if self.received_by.strip():
             self.received_at = timezone.now()
         super().save(*args, **kwargs)
-
 
 class SystemSetting(models.Model):
     key = models.CharField(max_length=100, unique=True)
@@ -729,6 +731,101 @@ class MaterialMacSerialImport(models.Model):
         if self.noc_user:
             return self.noc_user.get_full_name() or self.noc_user.username
         return 'N/A'
+
+
+class RefundableMaterial(models.Model):
+    """Track refundable materials for branch users"""
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Accepted', 'Accepted'),
+        ('Rejected', 'Rejected'),
+    ]
+    
+    # References
+    branch_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='refundable_materials')
+    material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name='refundable_instances')
+    
+    # Material Details
+    quantity = models.IntegerField(default=1)
+    issue = models.TextField(blank=True, verbose_name='Reason for Refund')
+    
+    # Status & Tracking
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    admin_note = models.TextField(blank=True, verbose_name='Admin Notes')
+    added_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-added_at']
+        verbose_name = 'Refundable Material'
+        verbose_name_plural = 'Refundable Materials'
+        indexes = [
+            models.Index(fields=['branch_user', '-added_at']),
+            models.Index(fields=['material', '-added_at']),
+            models.Index(fields=['status']),
+        ]
+    
+    def __str__(self):
+        return f"{self.branch_user.username} - {self.material.name} (Refund) - {self.status}"
+    
+    @property
+    def material_name(self):
+        """Return material name"""
+        return self.material.name if self.material else 'N/A'
+    
+    @property
+    def branch_user_name(self):
+        """Return branch user's full name"""
+        return self.branch_user.get_full_name() or self.branch_user.username
+
+
+class DamageMaterial(models.Model):
+    """Track damaged materials for branch users"""
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Confirmed', 'Confirmed'),
+        ('Rejected', 'Rejected'),
+    ]
+    
+    # References
+    branch_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='damaged_materials')
+    material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name='damaged_instances')
+    
+    # Damage Details
+    quantity = models.IntegerField(default=1)
+    damage_reason = models.TextField(blank=True, verbose_name='Reason for Damage')
+    severity = models.CharField(max_length=20, choices=[('Minor', 'Minor'), ('Moderate', 'Moderate'), ('Severe', 'Severe')], default='Moderate')
+    
+    # Status & Tracking
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    admin_note = models.TextField(blank=True, verbose_name='Admin Notes')
+    added_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    confirmed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='confirmed_damages')
+    
+    class Meta:
+        ordering = ['-added_at']
+        verbose_name = 'Damage Material'
+        verbose_name_plural = 'Damage Materials'
+        indexes = [
+            models.Index(fields=['branch_user', '-added_at']),
+            models.Index(fields=['material', '-added_at']),
+            models.Index(fields=['status']),
+        ]
+    
+    def __str__(self):
+        return f"{self.branch_user.username} - {self.material.name} (Damage: {self.severity}) - {self.status}"
+    
+    @property
+    def material_name(self):
+        """Return material name"""
+        return self.material.name if self.material else 'N/A'
+    
+    @property
+    def branch_user_name(self):
+        """Return branch user's full name"""
+        return self.branch_user.get_full_name() or self.branch_user.username
 
 # class returnMaterial(models.Model):
 #     STATUS_CHOICES = [

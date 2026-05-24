@@ -192,8 +192,11 @@
 
 <!-- Modals -->
 
-<!--Total usersModal-->
-<div id="usersModal"
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 📦 MODAL: TOTAL USERS MODAL -->
+<!-- 📝 Description: Allows Admins to view all users, roles, online status, and toggle status. -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="usersModal" 
     class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
     onclick="if(event.target === this) this.classList.add('hidden')">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
@@ -286,10 +289,14 @@
 </div>
 
 <!-- Materials Modal -->
-<div id="materialsModal"
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 📦 MODAL: MATERIALS OVERVIEW MODAL -->
+<!-- 📝 Description: Displays Technician's approved materials or general inventory stock overview. -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="materialsModal" 
     class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
     onclick="if(event.target === this) this.classList.add('hidden')">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
+    <div id="materialsModalContent" class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4 transform transition-all duration-300">
         <div class="p-6 border-b flex justify-between items-center">
             <h3 class="text-xl font-bold text-gray-900">
                 {% if user.userprofile.role == 'Branch' %}
@@ -298,10 +305,16 @@
                 Materials Overview
                 {% endif %}
             </h3>
-            <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'materialsTable')"
-                class="border rounded px-2 py-1 ml-4 text-sm focus:ring-indigo-500 focus:border-indigo-500">
-            <button onclick="document.getElementById('materialsModal').classList.add('hidden')"
-                class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            <div class="flex items-center gap-3 ml-auto">
+                <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'materialsTable')"
+                    class="border rounded px-2 py-1 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                <button onclick="toggleModalSize('materialsModalContent', 'btnToggleMaterialsSize')" id="btnToggleMaterialsSize"
+                    class="text-gray-500 hover:text-gray-700 transition-colors" title="Toggle Size">
+                    <i class="fas fa-expand-alt text-lg"></i>
+                </button>
+                <button onclick="document.getElementById('materialsModal').classList.add('hidden')"
+                    class="text-gray-500 hover:text-gray-700 text-2xl font-bold">&times;</button>
+            </div>
         </div>
         <div class="p-6 overflow-y-auto">
             <table id="materialsTable" class="min-w-full divide-y divide-gray-200">
@@ -313,8 +326,9 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock Status
                         </th>
-                        {% if user.userprofile.role == 'Branch' %}
+                         {% if user.userprofile.role == 'Branch' %}
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">MAC/Serial</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                         {% endif %}
                     </tr>
                 </thead>
@@ -338,7 +352,16 @@
                                 {% if req.available_quantity > 0 %}Normal{% else %}Out of Stock{% endif %}
                             </span>
                         </td>
-                        <td class="px-6 py-4 text-sm text-gray-500 font-mono">{{ req.serials_display|default:"N/A" }}
+                        <td class="px-6 py-4 text-sm text-gray-500 font-mono">{{ req.serials_display|default:"N/A" }}</td>
+                        <td class="px-6 py-4 text-sm">
+                            {% if req.available_quantity > 0 %}
+                            <button onclick="reportDamageAuto('{{ req.material.id }}', '{{ req.material.name }}')"
+                                    class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 dark:bg-midnight-800 dark:hover:bg-midnight-700 dark:text-red-300 text-xs font-bold rounded-lg border border-red-100 dark:border-midnight-800 transition flex items-center gap-1">
+                                <i class="fas fa-hammer"></i> Damage
+                            </button>
+                            {% else %}
+                            <span class="text-xs text-gray-400 italic">No Stock</span>
+                            {% endif %}
                         </td>
                     </tr>
                     {% empty %}
@@ -373,18 +396,28 @@
 </div>
 
 <!-- Advance Materials Modal -->
-<div id="advanceMaterialsModal"
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 📦 MODAL: ADVANCE MATERIALS MODAL -->
+<!-- 📝 Description: Lists advance requests and their real-time statuses. -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="advanceMaterialsModal" 
     class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
     onclick="if(event.target === this) this.classList.add('hidden')">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
+    <div id="advanceMaterialsModalContent" class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4 transform transition-all duration-300">
         <div class="p-6 border-b flex justify-between items-center">
             <h3 class="text-xl font-bold text-gray-900 flex items-center">
                 <i class="fas fa-star mr-2 text-indigo-600"></i>Advance Request Materials
             </h3>
-            <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'advanceMaterialsTable')"
-                class="border rounded px-2 py-1 ml-4 text-sm focus:ring-indigo-500 focus:border-indigo-500">
-            <button onclick="document.getElementById('advanceMaterialsModal').classList.add('hidden')"
-                class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            <div class="flex items-center gap-3 ml-auto">
+                <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'advanceMaterialsTable')"
+                    class="border rounded px-2 py-1 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                <button onclick="toggleModalSize('advanceMaterialsModalContent', 'btnToggleAdvanceSize')" id="btnToggleAdvanceSize"
+                    class="text-gray-500 hover:text-gray-700 transition-colors" title="Toggle Size">
+                    <i class="fas fa-expand-alt text-lg"></i>
+                </button>
+                <button onclick="document.getElementById('advanceMaterialsModal').classList.add('hidden')"
+                    class="text-gray-500 hover:text-gray-700 text-2xl font-bold">&times;</button>
+            </div>
         </div>
         <div class="p-6 overflow-y-auto">
             <table id="advanceMaterialsTable" class="min-w-full divide-y divide-gray-200">
@@ -448,18 +481,28 @@
 </div>
 
 <!-- Pending Requests Modal -->
-<div id="requestsModal"
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 📦 MODAL: PENDING REQUESTS MODAL -->
+<!-- 📝 Description: Allows Admins/Technicians to view pending approvals and perform actions. -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="requestsModal" 
     class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
     onclick="if(event.target === this) this.classList.add('hidden')">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
+    <div id="requestsModalContent" class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4 transform transition-all duration-300">
         <div class="p-6 border-b flex justify-between items-center">
             <h3 class="text-xl font-bold text-gray-900">
                 <i class="fas fa-clock mr-2 text-yellow-600"></i>Pending Requests
             </h3>
-            <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'requestsTable')"
-                class="border rounded px-2 py-1 ml-4 text-sm focus:ring-indigo-500 focus:border-indigo-500">
-            <button onclick="document.getElementById('requestsModal').classList.add('hidden')"
-                class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            <div class="flex items-center gap-3 ml-auto">
+                <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'requestsTable')"
+                    class="border rounded px-2 py-1 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                <button onclick="toggleModalSize('requestsModalContent', 'btnToggleRequestsSize')" id="btnToggleRequestsSize"
+                    class="text-gray-500 hover:text-gray-700 transition-colors" title="Toggle Size">
+                    <i class="fas fa-expand-alt text-lg"></i>
+                </button>
+                <button onclick="document.getElementById('requestsModal').classList.add('hidden')"
+                    class="text-gray-500 hover:text-gray-700 text-2xl font-bold">&times;</button>
+            </div>
         </div>
         <div class="p-6 overflow-y-auto">
             <table id="requestsTable" class="min-w-full divide-y divide-gray-200">
@@ -579,16 +622,26 @@
     </div> -->
 
 <!-- Used Materials Modal -->
-<div id="usedMaterialsModal"
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 📦 MODAL: USED MATERIALS MODAL -->
+<!-- 📝 Description: Shows comprehensive log of materials used by branches. -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="usedMaterialsModal" 
     class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
     onclick="if(event.target === this) this.classList.add('hidden')">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
+    <div id="usedMaterialsModalContent" class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4 transform transition-all duration-300">
         <div class="p-6 border-b flex justify-between items-center">
             <h3 class="text-xl font-bold text-gray-900">Used Materials</h3>
-            <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'usedMaterialsTable')"
-                class="border rounded px-2 py-1 ml-4 text-sm focus:ring-indigo-500 focus:border-indigo-500">
-            <button onclick="document.getElementById('usedMaterialsModal').classList.add('hidden')"
-                class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            <div class="flex items-center gap-3 ml-auto">
+                <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'usedMaterialsTable')"
+                    class="border rounded px-2 py-1 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                <button onclick="toggleModalSize('usedMaterialsModalContent', 'btnToggleUsedSize')" id="btnToggleUsedSize"
+                    class="text-gray-500 hover:text-gray-700 transition-colors" title="Toggle Size">
+                    <i class="fas fa-expand-alt text-lg"></i>
+                </button>
+                <button onclick="document.getElementById('usedMaterialsModal').classList.add('hidden')"
+                    class="text-gray-500 hover:text-gray-700 text-2xl font-bold">&times;</button>
+            </div>
         </div>
         <div class="p-6 overflow-y-auto">
             <table id="usedMaterialsTable" class="min-w-full divide-y divide-gray-200">
@@ -638,17 +691,27 @@
     </div>
 </div>
 
-  <!-- Reports Summary Modal -->
-    <div id="reportsModal"
+<!-- Reports Summary Modal -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 📦 MODAL: MONTHLY REPORTS SUMMARY MODAL -->
+<!-- 📝 Description: Presents statistical graphics, Excel/PDF download summaries. -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="reportsModal" 
         class="fixed inset-0 bg-gray-900/60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
         onclick="if(event.target === this) this.classList.add('hidden')">
-        <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl w-full max-w-2xl transform transition-all border dark:border-midnight-800">
+        <div id="reportsModalContent" class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl w-full max-w-2xl transform transition-all border dark:border-midnight-800 duration-300">
             <div class="p-8 border-b dark:border-midnight-800 flex justify-between items-center bg-gradient-to-r from-purple-50 to-white dark:from-purple-950/20 dark:to-midnight-900">
                 <h3 class="text-2xl font-bold flex items-center text-purple-800 dark:text-purple-400">
                     <i class="fas fa-file-invoice mr-4"></i> Monthly Reports Summary
                 </h3>
-                <button onclick="document.getElementById('reportsModal').classList.add('hidden')"
-                    class="text-purple-800/50 hover:text-purple-800 dark:text-purple-400 text-3xl font-light">&times;</button>
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleModalSize('reportsModalContent', 'btnToggleReportsSize')" id="btnToggleReportsSize"
+                        class="text-purple-800/50 hover:text-purple-800 dark:text-purple-400 transition-colors" title="Toggle Size">
+                        <i class="fas fa-expand-alt text-lg"></i>
+                    </button>
+                    <button onclick="document.getElementById('reportsModal').classList.add('hidden')"
+                        class="text-purple-800/50 hover:text-purple-800 dark:text-purple-400 text-3xl font-light">&times;</button>
+                </div>
             </div>
             <div class="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
                 <!-- Stat 1 -->
@@ -692,7 +755,11 @@
     </div>
 
     <!-- Internal Communication Modal -->
-    <div id="internalCommModal"
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 📦 MODAL: INTERNAL COMMUNICATION CHAT MODAL -->
+<!-- 📝 Description: Provides shortcuts to message active online users directly. -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="internalCommModal" 
         class="fixed inset-0 bg-gray-900/60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
         onclick="if(event.target === this) this.classList.add('hidden')">
         <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl w-full max-w-2xl transform transition-all flex flex-col max-h-[85vh] overflow-hidden border dark:border-midnight-800">
@@ -764,17 +831,27 @@
     </div>
 
 <!-- Add Used Material Modal (For Branch) -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 📦 MODAL: ADD USED MATERIAL MODAL (TECHNICIAN) -->
+<!-- 📝 Description: Form for branch users to submit used material entries. -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
 {% if role == 'Branch' and used_material_form %}
-<div id="addUsedMaterialModal"
+<div id="addUsedMaterialModal" 
     class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
     onclick="if(event.target === this) this.classList.add('hidden')">
-    <div class="bg-white rounded-xl shadow-2xl p-8 w-full max-w-2xl transform transition-all scale-100">
+    <div id="addUsedMaterialModalContent" class="bg-white rounded-xl shadow-2xl p-8 w-full max-w-2xl transform transition-all scale-100 duration-300">
         <div class="flex justify-between items-center mb-6">
             <h3 class="text-2xl font-bold flex items-center text-gray-800">
                 <i class="fas fa-plus-circle mr-2 text-indigo-600"></i> Add Used Material
             </h3>
-            <button onclick="document.getElementById('addUsedMaterialModal').classList.add('hidden')"
-                class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            <div class="flex items-center gap-3">
+                <button onclick="toggleModalSize('addUsedMaterialModalContent', 'btnToggleAddUsedSize')" id="btnToggleAddUsedSize"
+                    class="text-gray-500 hover:text-gray-700 transition-colors" title="Toggle Size" type="button">
+                    <i class="fas fa-expand-alt text-lg"></i>
+                </button>
+                <button onclick="document.getElementById('addUsedMaterialModal').classList.add('hidden')"
+                    class="text-gray-500 hover:text-gray-700 text-2xl font-bold" type="button">&times;</button>
+            </div>
         </div>
         <form method="post" action="{% url 'used_materials' %}">
             {% csrf_token %}
@@ -819,18 +896,28 @@
 {% endif %}
 
 <!-- Low Stock Materials Modal -->
-<div id="lowStockModal"
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 📦 MODAL: LOW STOCK ALERTS MODAL -->
+<!-- 📝 Description: Highlights items running critically low in stock. -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="lowStockModal" 
     class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
     onclick="if(event.target === this) this.classList.add('hidden')">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
+    <div id="lowStockModalContent" class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4 transform transition-all duration-300">
         <div class="p-6 border-b flex justify-between items-center">
             <h3 class="text-xl font-bold text-gray-900">
                 <i class="fas fa-exclamation-triangle mr-2 text-red-600"></i>Low Stock Materials
             </h3>
-            <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'lowStockTable')"
-                class="border rounded px-2 py-1 ml-4 text-sm focus:ring-indigo-500 focus:border-indigo-500">
-            <button onclick="document.getElementById('lowStockModal').classList.add('hidden')"
-                class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            <div class="flex items-center gap-3 ml-auto">
+                <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'lowStockTable')"
+                    class="border rounded px-2 py-1 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                <button onclick="toggleModalSize('lowStockModalContent', 'btnToggleLowStockSize')" id="btnToggleLowStockSize"
+                    class="text-gray-500 hover:text-gray-700 transition-colors" title="Toggle Size">
+                    <i class="fas fa-expand-alt text-lg"></i>
+                </button>
+                <button onclick="document.getElementById('lowStockModal').classList.add('hidden')"
+                    class="text-gray-500 hover:text-gray-700 text-2xl font-bold">&times;</button>
+            </div>
         </div>
         <div class="p-6 overflow-y-auto">
             <table id="lowStockTable" class="min-w-full divide-y divide-gray-200">
@@ -878,18 +965,27 @@
     </div>
 </div>
 
-<!-- popModal for Used Materials -->
-<div id="popModal"
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 📦 MODAL: AREA USAGE (POP) MODAL -->
+<!-- 📝 Description: Technician entry modal for area/PoP server material usage. -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="popModal" 
     class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
     onclick="if(event.target === this) this.classList.add('hidden')">
-    <div
-        class="bg-white dark:bg-midnight-900 rounded-xl shadow-2xl p-8 w-full max-w-2xl transform transition-all scale-100">
+    <div id="popModalContent"
+        class="bg-white dark:bg-midnight-900 rounded-xl shadow-2xl p-8 w-full max-w-2xl transform transition-all scale-100 duration-300">
         <div class="flex justify-between items-center mb-6 border-b pb-4 border-gray-100 dark:border-midnight-800">
             <h3 class="text-2xl font-bold flex items-center text-gray-800 dark:text-white">
                 <i class="fas fa-tools mr-3 text-teal-500"></i> Add Used Material
             </h3>
-            <button onclick="document.getElementById('popModal').classList.add('hidden')"
-                class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white text-2xl transition">&times;</button>
+            <div class="flex items-center gap-3">
+                <button onclick="toggleModalSize('popModalContent', 'btnTogglePopSize')" id="btnTogglePopSize"
+                    class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white transition" title="Toggle Size" type="button">
+                    <i class="fas fa-expand-alt text-lg"></i>
+                </button>
+                <button onclick="document.getElementById('popModal').classList.add('hidden')"
+                    class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white text-2xl transition" type="button">&times;</button>
+            </div>
         </div>
         <form method="post" action="{% url 'used_materials' %}">
             {% csrf_token %}
@@ -961,32 +1057,431 @@
 </div>
 
 <!-- Destroy Materials Modal -->
-<div id="destroyMaterialsModal"
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 📦 MODAL: DESTROY & REFUND LOGS MODAL -->
+<!-- 📝 Description: Tabbed drawer containing Refundable and Damaged logs. -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="destroyMaterialsModal" 
     class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
     onclick="if(event.target === this) this.classList.add('hidden')">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
-        <div class="p-6 border-b flex justify-between items-center">
-            <h3 class="text-xl font-bold text-gray-900">Destroy Materials Log</h3>
-            <button onclick="document.getElementById('destroyMaterialsModal').classList.add('hidden')"
-                class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+    <div id="destroyModalContent" class="bg-white dark:bg-midnight-950 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col m-4 border border-gray-100 dark:border-midnight-800 overflow-hidden transform transition-all duration-300" onclick="event.stopPropagation()">
+        <!-- Header -->
+        <div class="p-6 border-b flex justify-between items-center bg-gradient-to-r from-red-500/10 to-indigo-500/10 dark:from-midnight-900/60 dark:to-midnight-900/40">
+            <h3 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <i class="fas fa-dumpster text-red-500 animate-pulse"></i> Destroy & Refund Materials Log
+            </h3>
+            <div class="flex items-center gap-3">
+                <button onclick="toggleDestroyModalSize()" id="btnToggleDestroySize" 
+                    class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white transition-colors" title="Toggle Size">
+                    <i class="fas fa-expand-alt text-lg"></i>
+                </button>
+                <button onclick="document.getElementById('destroyMaterialsModal').classList.add('hidden')"
+                    class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white text-2xl font-bold">&times;</button>
+            </div>
         </div>
         
+        <!-- Tab Buttons -->
+        <div class="flex border-b border-gray-200 dark:border-midnight-800 bg-gray-50 dark:bg-midnight-950/20">
+            <button onclick="switchDestroyTab('refundableTab')" id="btnRefundableTab" 
+                    class="flex-1 py-3.5 text-center text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400 transition-all flex items-center justify-center gap-2">
+                <i class="fas fa-box-open"></i>Refundable Materials
+            </button>
+            <button onclick="switchDestroyTab('damagedTab')" id="btnDamagedTab" 
+                    class="flex-1 py-3.5 text-center text-sm font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-all flex items-center justify-center gap-2">
+                <i class="fas fa-hammer"></i>Damaged Log
+            </button>
+        </div>
+
+        <div class="p-6 overflow-y-auto flex-1 dark:bg-midnight-900/40">
+            
+            <!-- REFUNDABLE MATERIALS TAB CONTENT -->
+            <div id="refundableTab" class="space-y-4">
+                <div class="flex justify-between items-center mb-2">
+                    <div>
+                        <h4 class="text-md font-bold text-gray-900 dark:text-white">Logged Refundable Items</h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Marked or returned stock items awaiting review.</p>
+                    </div>
+                    {% if user.userprofile.role == 'Branch' %}
+                    <button onclick="openTabAddModal('refundable')" class="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:shadow-indigo-500/20 text-white rounded-lg text-xs font-bold transition hover:shadow-lg flex items-center gap-1.5">
+                        <i class="fas fa-plus"></i> Log Refundable
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="overflow-x-auto border border-gray-100 dark:border-midnight-800 rounded-xl">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-midnight-800">
+                        <thead class="bg-gray-50 dark:bg-midnight-950/50">
+                            <tr>
+                                {% if role != 'Branch' %}
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Branch</th>
+                                {% endif %}
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Material Name</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Quantity</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Reason</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Remarks</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
+                            {% for item in refundable_materials %}
+                            <tr class="hover:bg-indigo-50/20 dark:hover:bg-indigo-900/10 transition text-sm">
+                                {% if role != 'Branch' %}
+                                <td class="px-4 py-3 whitespace-nowrap text-gray-900 dark:text-white font-medium">{{ item.branch_user.username }}</td>
+                                {% endif %}
+                                <td class="px-4 py-3 whitespace-nowrap text-gray-900 dark:text-white font-medium">{{ item.material.name }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap text-gray-900 dark:text-white font-bold">{{ item.quantity }}</td>
+                                <td class="px-4 py-3 text-gray-500 dark:text-gray-400 max-w-xs truncate" title="{{ item.issue }}">{{ item.issue|default:"-" }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold
+                                        {% if item.status == 'Pending' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200
+                                        {% elif item.status == 'Accepted' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200
+                                        {% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200{% endif %}">
+                                        {{ item.status }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-gray-500 dark:text-gray-400 max-w-xs truncate" title="{{ item.admin_note }}">{{ item.admin_note|default:"-" }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <div class="flex gap-2">
+                                        {% if role == 'Branch' %}
+                                            {% if item.status == 'Pending' %}
+                                            <button onclick="openTabEditModal('refundable', '{{ item.id }}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 font-semibold" title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button onclick="confirmTabDelete('refundable', '{{ item.id }}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 font-semibold" title="Delete">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                            {% else %}
+                                            <span class="text-xs text-gray-400 italic">Processed</span>
+                                            {% endif %}
+                                        {% elif role == 'Admin' or role == 'Storekeeper' %}
+                                            <button onclick="openTabApprovalModal('refundable', '{{ item.id }}', '{{ item.material.name }}', '{{ item.quantity }}', '{{ item.branch_user.username }}', '{{ item.issue }}', '{{ item.status }}', '{{ item.admin_note }}')" 
+                                                    class="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-midnight-800 dark:hover:bg-midnight-700 dark:text-indigo-300 text-xs font-bold rounded border border-indigo-100 dark:border-midnight-800 transition">
+                                                <i class="fas fa-check-double mr-1"></i>Review
+                                            </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="px-4 py-12 text-center text-gray-500 dark:text-gray-400">
+                                    <i class="fas fa-inbox text-4xl mb-3 text-gray-300 dark:text-midnight-800"></i><br>
+                                    No refundable materials found.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <div class="mt-4 text-right">
+                        <a href="{% url 'refundable_materials' %}" class="text-indigo-600 hover:text-indigo-900 font-medium">Go to
+                            Refundable Materials Page &rarr;</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DAMAGED MATERIALS TAB CONTENT -->
+            <div id="damagedTab" class="space-y-4 hidden">
+                <div class="flex justify-between items-center mb-2">
+                    <div>
+                        <h4 class="text-md font-bold text-gray-900 dark:text-white">Reported Damaged Items</h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Items reported as damaged directly or manually.</p>
+                    </div>
+                    {# Reporting is done from the in-stock materials view; removed direct input here #}
+                </div>
+                <div class="overflow-x-auto border border-gray-100 dark:border-midnight-800 rounded-xl">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-midnight-800">
+                        <thead class="bg-gray-50 dark:bg-midnight-950/50">
+                            <tr>
+                                {% if role != 'Branch' %}
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Branch</th>
+                                {% endif %}
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Material Name</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Quantity</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Mac/Serial</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Reason</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Date</th>
+                                {% if role == 'Admin' or role == 'Storekeeper' %}
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Actions</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
+                            {% for item in damaged_materials %}
+                            <tr class="hover:bg-red-50/10 dark:hover:bg-red-950/5 transition text-sm">
+                                {% if role != 'Branch' %}
+                                <td class="px-4 py-3 whitespace-nowrap text-gray-900 dark:text-white font-medium">{{ item.branch_user.username }}</td>
+                                {% endif %}
+                                <td class="px-4 py-3 whitespace-nowrap text-gray-900 dark:text-white font-medium">{{ item.material.name }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap text-gray-900 dark:text-white font-bold">{{ item.quantity }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <span class="px-2.5 py-0.5 rounded text-xs font-semibold
+                                        {% if item.severity == 'Minor' %}bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200
+                                        {% elif item.severity == 'Moderate' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200
+                                        {% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200{% endif %}">
+                                        {{ item.mac_serial|default:"N/A" }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-gray-500 dark:text-gray-400 max-w-xs truncate" title="{{ item.damage_reason }}">{{ item.damage_reason|default:"-" }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold
+                                        {% if item.status == 'Pending' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200
+                                        {% elif item.status == 'Confirmed' %}bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200
+                                        {% else %}bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200{% endif %}">
+                                        {{ item.status }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 whitespace-nowrap text-gray-500 dark:text-gray-400">{{ item.added_at|date:"Y-m-d" }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <div class="flex gap-2">
+                                        {% if role == 'Admin' or role == 'Storekeeper' %}
+                                            <button onclick="openTabApprovalModal('damaged', '{{ item.id }}', '{{ item.material.name }}', '{{ item.quantity }}', '{{ item.branch_user.username }}', '{{ item.damage_reason }}', '{{ item.status }}', '{{ item.admin_note }}', '{{ item.severity }}')" 
+                                                    class="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 dark:bg-midnight-800 dark:hover:bg-midnight-700 dark:text-red-300 text-xs font-bold rounded border border-red-100 dark:border-midnight-800 transition">
+                                                <i class="fas fa-check-double mr-1"></i>Review
+                                            </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="px-4 py-12 text-center text-gray-500 dark:text-gray-400">
+                                    <i class="fas fa-hammer text-4xl mb-3 text-gray-300 dark:text-midnight-800"></i><br>
+                                    No damaged materials logged.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <div class="mt-4 text-right">
+                        <a href="{% url 'damaged_materials' %}" class="text-indigo-600 hover:text-indigo-900 font-medium">Go to
+                            Damaged Materials Page &rarr;</a>
+                    </div>
+                </div>
+            </div>
+
+        </div>
     </div>
 </div>
 
+<!-- ============================================== -->
+<!-- INNER POPUP MODALS FOR SUBMITTING FORMS -->
+<!-- ============================================== -->
 
+<!-- Refundable Add/Edit Form Modal -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 📦 MODAL: REFUNDABLE MATERIAL FORM MODAL -->
+<!-- 📝 Description: Form modal to log refundable items. -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="refundableFormModal"  class="hidden fixed inset-0 bg-black/75 flex items-center justify-center z-[60] backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-midnight-950 rounded-2xl shadow-2xl max-w-md w-full border border-gray-100 dark:border-midnight-800 overflow-hidden transform transition-all" onclick="event.stopPropagation()">
+        <div class="px-6 py-4 border-b border-gray-100 dark:border-midnight-800 flex justify-between items-center bg-gray-50 dark:bg-midnight-900/60">
+            <h4 id="refundableFormTitle" class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <i class="fas fa-box-open text-indigo-600 dark:text-indigo-400"></i> Log Refundable Material
+            </h4>
+            <button onclick="closeTabFormModal('refundable')" class="text-gray-400 hover:text-gray-600 dark:hover:text-white text-2xl font-bold">&times;</button>
+        </div>
+        <form method="POST" action="{% url 'refundable_materials' %}" class="p-6 space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" id="refundableFormAction" value="create">
+            <input type="hidden" name="rf_id" id="refundableFormId" value="">
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Material Selection</label>
+                    {{ refundable_form.material_selection }}
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Quantity to Refund</label>
+                    {{ refundable_form.quantity }}
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Reason / Issue</label>
+                    {{ refundable_form.issue }}
+                </div>
+                
+                <div class="hidden">
+                    {{ refundable_form.status }}
+                </div>
+            </div>
+
+            <div class="flex gap-2 pt-4 border-t border-gray-100 dark:border-midnight-800 mt-6">
+                <button type="button" onclick="closeTabFormModal('refundable')" class="flex-1 px-4 py-2 border border-gray-300 dark:border-midnight-800 text-gray-700 dark:text-gray-300 rounded-lg font-semibold hover:bg-gray-100 dark:hover:bg-midnight-800 transition text-sm">
+                    Cancel
+                </button>
+                <button type="submit" class="flex-1 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transition">
+                    Save Record
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Damaged Add/Edit Form Modal -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 📦 MODAL: REPORT DAMAGED MATERIAL FORM MODAL -->
+<!-- 📝 Description: Form modal to log damaged items. -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="damagedFormModal"  class="hidden fixed inset-0 bg-black/75 flex items-center justify-center z-[60] backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-midnight-950 rounded-2xl shadow-2xl max-w-md w-full border border-gray-100 dark:border-midnight-800 overflow-hidden transform transition-all" onclick="event.stopPropagation()">
+        <div class="px-6 py-4 border-b border-gray-100 dark:border-midnight-800 flex justify-between items-center bg-gray-50 dark:bg-midnight-900/60">
+            <h4 id="damagedFormTitle" class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <i class="fas fa-hammer text-red-600 dark:text-red-400"></i> Report Damaged Material
+            </h4>
+            <button onclick="closeTabFormModal('damaged')" class="text-gray-400 hover:text-gray-600 dark:hover:text-white text-2xl font-bold">&times;</button>
+        </div>
+        <form method="POST" action="{% url 'damaged_materials' %}" class="p-6 space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" id="damagedFormAction" value="create">
+            <input type="hidden" name="dm_id" id="damagedFormId" value="">
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Material Selection</label>
+                    {{ damaged_form.material_selection }}
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Quantity Damaged</label>
+                    {{ damaged_form.quantity }}
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Mac/Serial</label>
+                    {{ damaged_form.mac_serial }}
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Reason / Incident Description</label>
+                    {{ damaged_form.damage_reason }}
+                </div>
+                
+                <div class="hidden">
+                    {{ damaged_form.status }}
+                </div>
+            </div>
+
+            <div class="flex gap-2 pt-4 border-t border-gray-100 dark:border-midnight-800 mt-6">
+                <button type="button" onclick="closeTabFormModal('damaged')" class="flex-1 px-4 py-2 border border-gray-300 dark:border-midnight-800 text-gray-700 dark:text-gray-300 rounded-lg font-semibold hover:bg-gray-100 dark:hover:bg-midnight-800 transition text-sm">
+                    Cancel
+                </button>
+                <button type="submit" class="flex-1 px-4 py-2 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-lg font-semibold hover:shadow-lg transition">
+                    Submit Report
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Tab Delete Confirmation Modal -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 📦 MODAL: DELETE LOG CONFIRMATION MODAL -->
+<!-- 📝 Description: Standardized delete prompt for logs. -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="tabDeleteModal"  class="hidden fixed inset-0 bg-black/75 flex items-center justify-center z-[60] backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-midnight-950 rounded-2xl shadow-2xl max-w-sm w-full border border-gray-200 dark:border-midnight-800 overflow-hidden transform transition-all" onclick="event.stopPropagation()">
+        <div class="p-6 text-center">
+            <div class="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-exclamation-triangle text-2xl text-red-600"></i>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Delete Log Entry?</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">This action cannot be undone. You're about to delete this record permanently.</p>
+            
+            <form id="tabDeleteForm" method="POST" action="" class="inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="" id="tabDeleteIdField" value="">
+                
+                <div class="flex gap-2">
+                    <button type="button" onclick="closeTabDeleteModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-midnight-800 text-gray-700 dark:text-gray-300 rounded-lg font-semibold hover:bg-gray-100 dark:hover:bg-midnight-800 transition">
+                        Cancel
+                    </button>
+                    <button type="submit" class="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition">
+                        Delete
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Tab Admin Process Modal -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 📦 MODAL: ADMIN PROCESS APPROVAL MODAL -->
+<!-- 📝 Description: Decision form for Admins to Accept/Reject log submissions. -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="tabApprovalModal"  class="hidden fixed inset-0 bg-black/75 flex items-center justify-center z-[60] backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-midnight-950 rounded-2xl shadow-2xl max-w-md w-full border border-gray-200 dark:border-midnight-800 overflow-hidden transform transition-all" onclick="event.stopPropagation()">
+        <div class="px-5 py-4 border-b border-gray-200 dark:border-midnight-800 flex items-center gap-3 bg-gradient-to-r from-red-50 to-rose-50 dark:from-midnight-900/40 dark:to-midnight-900/20">
+            <div class="h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <i class="fas fa-check-double text-lg text-red-600"></i>
+            </div>
+            <div>
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white" id="tabApprovalTitle">Review Record</h3>
+                <p id="tabApprovalSub" class="text-xs text-gray-600 dark:text-gray-400">-</p>
+            </div>
+        </div>
+
+        <div class="p-5 space-y-4">
+            <div class="bg-red-50/50 dark:bg-red-900/10 p-3 rounded-lg border border-red-200 dark:border-red-800/30 text-sm">
+                <p class="text-gray-900 dark:text-white"><span class="font-bold">Branch User:</span> <span id="tabApprovalBranch">-</span></p>
+                <p class="text-gray-900 dark:text-white mt-1"><span class="font-bold">Reason/Description:</span> <span id="tabApprovalReason">-</span></p>
+                <p id="tabApprovalSeverityContainer" class="text-gray-900 dark:text-white mt-1 hidden"><span class="font-bold">Severity:</span> <span id="tabApprovalSeverity" class="px-2 py-0.5 rounded text-xs font-semibold">-</span></p>
+                <p class="text-gray-900 dark:text-white mt-1"><span class="font-bold">Current Status:</span> <span id="tabApprovalStatus" class="px-2 py-0.5 rounded text-xs font-semibold">-</span></p>
+            </div>
+
+            <form id="tabApprovalForm" method="POST" action="" class="space-y-4">
+                {% csrf_token %}
+                <input type="hidden" name="" id="tabApprovalIdField" value="">
+                <input type="hidden" name="action" id="tabApprovalAction" value="accept">
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Admin Notes / Remarks</label>
+                    <textarea name="admin_note" id="tabApprovalNotes" rows="3" placeholder="Add optional remarks..."
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-midnight-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-midnight-950 dark:text-white text-sm"></textarea>
+                </div>
+
+                <div class="flex gap-2 pt-4 border-t border-gray-200 dark:border-midnight-800">
+                    <button type="button" onclick="closeTabApprovalModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-midnight-800 text-gray-700 dark:text-gray-300 rounded-lg font-semibold hover:bg-gray-100 dark:hover:bg-midnight-800 transition text-sm">
+                        Cancel
+                    </button>
+                    <button type="submit" onclick="setTabApprovalAction('reject')" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition text-sm">
+                        Reject
+                    </button>
+                    <button type="submit" onclick="setTabApprovalAction('confirm')" id="tabApprovalConfirmBtn" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition text-sm">
+                        Confirm
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% if role == 'Admin' %}
  <!-- Materials Monitoring Modal -->
-            <div id="materialsMonitoringModal"
+            <!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 📦 MODAL: MATERIALS MONITORING MODAL (ADMIN) -->
+<!-- 📝 Description: Admin monitoring dashboard for branch stocks. -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="materialsMonitoringModal" 
                 class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
                 onclick="if(event.target === this) this.classList.add('hidden')">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
+                <div id="materialsMonitoringModalContent" class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4 transform transition-all duration-300">
                     <div class="p-6 border-b flex justify-between items-center">
                         <h3 class="text-xl font-bold text-gray-900">Materials Monitoring - Branch Users</h3>
-                        <input type="text" placeholder="Search..."
-                            onkeyup="filterTable(this, 'materialsMonitoringTable')"
-                            class="border rounded px-2 py-1 ml-4 text-sm focus:ring-indigo-500 focus:border-indigo-500">
-                        <button onclick="document.getElementById('materialsMonitoringModal').classList.add('hidden')"
-                            class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+                        <div class="flex items-center gap-3 ml-auto">
+                            <input type="text" placeholder="Search..."
+                                onkeyup="filterTable(this, 'materialsMonitoringTable')"
+                                class="border rounded px-2 py-1 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <button onclick="toggleModalSize('materialsMonitoringModalContent', 'btnToggleMonitoringSize')" id="btnToggleMonitoringSize"
+                                class="text-gray-500 hover:text-gray-700 transition-colors" title="Toggle Size">
+                                <i class="fas fa-expand-alt text-lg"></i>
+                            </button>
+                            <button onclick="document.getElementById('materialsMonitoringModal').classList.add('hidden')"
+                                class="text-gray-500 hover:text-gray-700 text-2xl font-bold">&times;</button>
+                        </div>
                     </div>
                     <div class="p-6 overflow-y-auto">
                         <table id="materialsMonitoringTable" class="min-w-full divide-y divide-gray-200">
@@ -1019,7 +1514,7 @@
                                             {{ item.status }}
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 text-sm text-gray-500">{{ item.date|date:"Y-m-d H:i" }}</td>
+                                    <td class="px-6 py-4 text-sm text-gray-500">{{ item.date|date:"Y-m-d" }}</td>
                                 </tr>
                                 {% empty %}
                                 <tr>
@@ -1034,6 +1529,7 @@
                     </div>
                 </div>
             </div>
+{% endif %}
 
 <!--Today's Used Materials-->
 {% if user.userprofile.role != 'Branch' and user.userprofile.role != 'Storekeeper' %}
@@ -1157,87 +1653,366 @@
 {% endif %}
 
             <script>
-                function filterTable(input, tableId) {
-                    var filter = input.value.toUpperCase();
-                    var table = document.getElementById(tableId);
-                    var tr = table.getElementsByTagName("tr");
 
-                    for (var i = 1; i < tr.length; i++) { // Start from 1 to skip header
-                        var visible = false;
-                        var tds = tr[i].getElementsByTagName("td");
-                        for (var j = 0; j < tds.length; j++) {
-                            if (tds[j] && tds[j].innerText.toUpperCase().indexOf(filter) > -1) {
-                                visible = true;
-                                break;
-                            }
-                        }
-                        tr[i].style.display = visible ? "" : "none";
+    function filterTable(input, tableId) {
+        var filter = input.value.toUpperCase();
+        var table = document.getElementById(tableId);
+        var tr = table.getElementsByTagName("tr");
+
+        for (var i = 1; i < tr.length; i++) { // Start from 1 to skip header
+            var visible = false;
+            var tds = tr[i].getElementsByTagName("td");
+            for (var j = 0; j < tds.length; j++) {
+                if (tds[j] && tds[j].innerText.toUpperCase().indexOf(filter) > -1) {
+                    visible = true;
+                    break;
+                }
+            }
+            tr[i].style.display = visible ? "" : "none";
+        }
+    }
+    //show total users in dashboard with name and role in dashboard
+    function showTotalUsers() {
+        fetch('/api/total-users/')
+            .then(response => response.json())
+            .then(data => {
+                const totalUsersElement = document.getElementById('totalUsers');
+                totalUsersElement.innerHTML = `<i class="fas fa-users text-3xl text-indigo-600"></i><span class="ml-2 text-lg font-medium text-gray-900">${data.total_users} Users</span>`;
+            })
+            .catch(error => console.error('Error fetching total users:', error));
+    }
+    // Style form fields in the Add Used Material modal
+    document.addEventListener('DOMContentLoaded', () => {
+        const formFields = document.querySelectorAll('#addUsedMaterialModal select, #addUsedMaterialModal input[type="number"], #addUsedMaterialModal input[type="text"], #addUsedMaterialModal textarea');
+        formFields.forEach(field => {
+            field.classList.add('mt-1', 'block', 'w-full', 'pl-3', 'pr-3', 'py-2', 'text-base', 'border-gray-300', 'focus:outline-none', 'focus:ring-indigo-500', 'focus:border-indigo-500', 'sm:text-sm', 'rounded-md', 'border', 'shadow-sm');
+        });
+
+        //used for redirecting to other pages when click on cards
+        function used_materials_redirect() {
+            window.location.href = "{% url 'used_materials' %}";
+        }
+        // Handle data-redirect cards
+        document.querySelectorAll('[data-redirect]').forEach(card => {
+            card.addEventListener('click', function () {
+                window.location.href = this.getAttribute('data-redirect');
+            });
+        });
+    });
+    function updatePopCategory(select) {
+        const selectedOption = select.options[select.selectedIndex];
+        const category = selectedOption.getAttribute('data-category');
+        document.getElementById('popCategory').value = category || 'N/A';
+    }
+
+    // Switch between tabs in Advance Materials Modal
+    function switchAdvanceTab(tabName) {
+        // Hide all tabs
+        const tabs = document.querySelectorAll('.tab-content');
+        tabs.forEach(tab => tab.classList.add('hidden'));
+
+        // Show selected tab
+        const selectedTab = document.getElementById(tabName);
+        if (selectedTab) {
+            selectedTab.classList.remove('hidden');
+        }
+
+        // Update button styles
+        const advanceBtn = document.getElementById('advanceTabBtn');
+        const pendingBtn = document.getElementById('pendingTabBtn');
+
+        if (advanceBtn && pendingBtn) {
+            if (tabName === 'advanceTab') {
+                advanceBtn.classList.remove('bg-gray-200', 'text-gray-700');
+                advanceBtn.classList.add('bg-indigo-600', 'text-white');
+                pendingBtn.classList.remove('bg-indigo-600', 'text-white');
+                pendingBtn.classList.add('bg-gray-200', 'text-gray-700');
+            } else {
+                advanceBtn.classList.remove('bg-indigo-600', 'text-white');
+                advanceBtn.classList.add('bg-gray-200', 'text-gray-700');
+                pendingBtn.classList.remove('bg-gray-200', 'text-gray-700');
+                pendingBtn.classList.add('bg-indigo-600', 'text-white');
+            }
+        }
+    }
+
+    function reportDamageAuto(materialId, materialName) {
+        const quantity = prompt(`How many units of "${materialName}" are damaged?`, "1");
+        if (quantity === null) return; // User cancelled
+
+        const qtyInt = parseInt(quantity);
+        if (isNaN(qtyInt) || qtyInt <= 0) {
+            alert("Please enter a valid positive number.");
+            return;
+        }
+
+        const reason = prompt("Enter reason for damage (optional):", "");
+        if (reason === null) return; // User cancelled
+
+        // Perform AJAX POST request with CSRF cookie fallback and better error handling
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
                     }
                 }
-                //show total users in dashboard with name and role in dashboard
-                function showTotalUsers() {
-                    fetch('/api/total-users/')
-                        .then(response => response.json())
-                        .then(data => {
-                            const totalUsersElement = document.getElementById('totalUsers');
-                            totalUsersElement.innerHTML = `<i class="fas fa-users text-3xl text-indigo-600"></i><span class="ml-2 text-lg font-medium text-gray-900">${data.total_users} Users</span>`;
-                        })
-                        .catch(error => console.error('Error fetching total users:', error));
-                }
-                // Style form fields in the Add Used Material modal
-                document.addEventListener('DOMContentLoaded', () => {
-                    const formFields = document.querySelectorAll('#addUsedMaterialModal select, #addUsedMaterialModal input[type="number"], #addUsedMaterialModal input[type="text"], #addUsedMaterialModal textarea');
-                    formFields.forEach(field => {
-                        field.classList.add('mt-1', 'block', 'w-full', 'pl-3', 'pr-3', 'py-2', 'text-base', 'border-gray-300', 'focus:outline-none', 'focus:ring-indigo-500', 'focus:border-indigo-500', 'sm:text-sm', 'rounded-md', 'border', 'shadow-sm');
-                    });
+            }
+            return cookieValue;
+        }
 
-                    //used for redirecting to other pages when click on cards
-                    function used_materials_redirect() {
-                        window.location.href = "{% url 'used_materials' %}";
-                    }
-                    // Handle data-redirect cards
-                    document.querySelectorAll('[data-redirect]').forEach(card => {
-                        card.addEventListener('click', function () {
-                            window.location.href = this.getAttribute('data-redirect');
-                        });
-                    });
+        const csrftokenInput = document.querySelector('[name=csrfmiddlewaretoken]');
+        const csrftoken = csrftokenInput ? csrftokenInput.value : getCookie('csrftoken');
+
+        let fetchUrl = '/damaged-materials/report-auto/';
+        const tabId = sessionStorage.getItem('tab_id');
+        if (tabId) {
+            fetchUrl += '?tab_id=' + tabId;
+        }
+
+        fetch(fetchUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken || '',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            // Ensure cookies (session) are sent so @login_required recognizes the user
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                material_id: materialId,
+                quantity: qtyInt,
+                damage_reason: reason,
+                severity: 'Moderate'
+            })
+        })
+        .then(response => {
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                // Likely an HTML login/500 page; capture a short snippet for debugging
+                return response.text().then(text => {
+                    const snippet = text ? text.substring(0, 300) : 'No response body';
+                    throw new Error('Expected JSON response but received HTML. Response snippet: ' + snippet);
                 });
-                function updatePopCategory(select) {
-                    const selectedOption = select.options[select.selectedIndex];
-                    const category = selectedOption.getAttribute('data-category');
-                    document.getElementById('popCategory').value = category || 'N/A';
-                }
+            }
 
-                // Switch between tabs in Advance Materials Modal
-                function switchAdvanceTab(tabName) {
-                    // Hide all tabs
-                    const tabs = document.querySelectorAll('.tab-content');
-                    tabs.forEach(tab => tab.classList.add('hidden'));
+            if (!response.ok) {
+                return response.json().then(errData => {
+                    throw new Error(errData && errData.error ? errData.error : ('HTTP ' + response.status));
+                }).catch(() => {
+                    throw new Error('Server error: ' + response.status);
+                });
+            }
 
-                    // Show selected tab
-                    const selectedTab = document.getElementById(tabName);
-                    if (selectedTab) {
-                        selectedTab.classList.remove('hidden');
-                    }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert("Error: " + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(err => {
+            console.error('Damage report error:', err);
+            alert("An unexpected error occurred while reporting damage: " + (err.message || err));
+        });
+    }
 
-                    // Update button styles
-                    const advanceBtn = document.getElementById('advanceTabBtn');
-                    const pendingBtn = document.getElementById('pendingTabBtn');
+    // Switch between tabs in Destroy Materials Modal
+    function switchDestroyTab(tabName) {
+        const refundableTab = document.getElementById('refundableTab');
+        const damagedTab = document.getElementById('damagedTab');
+        const btnRefundable = document.getElementById('btnRefundableTab');
+        const btnDamaged = document.getElementById('btnDamagedTab');
 
-                    if (advanceBtn && pendingBtn) {
-                        if (tabName === 'advanceTab') {
-                            advanceBtn.classList.remove('bg-gray-200', 'text-gray-700');
-                            advanceBtn.classList.add('bg-indigo-600', 'text-white');
-                            pendingBtn.classList.remove('bg-indigo-600', 'text-white');
-                            pendingBtn.classList.add('bg-gray-200', 'text-gray-700');
-                        } else {
-                            advanceBtn.classList.remove('bg-indigo-600', 'text-white');
-                            advanceBtn.classList.add('bg-gray-200', 'text-gray-700');
-                            pendingBtn.classList.remove('bg-gray-200', 'text-gray-700');
-                            pendingBtn.classList.add('bg-indigo-600', 'text-white');
-                        }
-                    }
-                }
-            </script>
+        if (tabName === 'refundableTab') {
+            refundableTab.classList.remove('hidden');
+            damagedTab.classList.add('hidden');
+
+            btnRefundable.classList.add('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400');
+            btnRefundable.classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+
+            btnDamaged.classList.remove('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400');
+            btnDamaged.classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+        } else {
+            refundableTab.classList.add('hidden');
+            damagedTab.classList.remove('hidden');
+
+            btnDamaged.classList.add('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400');
+            btnDamaged.classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+
+            btnRefundable.classList.remove('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400');
+            btnRefundable.classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+        }
+    }
+
+    // Open Modal for adding Refundable / Damaged materials
+    function openTabAddModal(type) {
+        if (type === 'refundable') {
+            document.getElementById('refundableFormTitle').innerHTML = '<i class="fas fa-box-open text-indigo-600 dark:text-indigo-400"></i> Log Refundable Material';
+            document.getElementById('refundableFormAction').value = 'create';
+            document.getElementById('refundableFormId').value = '';
+            document.getElementById('refundableFormModal').querySelector('form').reset();
+            document.getElementById('refundableFormModal').classList.remove('hidden');
+        } else {
+            document.getElementById('damagedFormTitle').innerHTML = '<i class="fas fa-hammer text-red-600 dark:text-red-400"></i> Report Damaged Material';
+            document.getElementById('damagedFormAction').value = 'create';
+            document.getElementById('damagedFormId').value = '';
+            document.getElementById('damagedFormModal').querySelector('form').reset();
+            document.getElementById('damagedFormModal').classList.remove('hidden');
+        }
+    }
+
+    // Close Modal for adding Refundable / Damaged materials
+    function closeTabFormModal(type) {
+        if (type === 'refundable') {
+            document.getElementById('refundableFormModal').classList.add('hidden');
+        } else {
+            document.getElementById('damagedFormModal').classList.add('hidden');
+        }
+    }
+
+    // Open Modal for editing Refundable / Damaged materials via AJAX API
+    function openTabEditModal(type, id) {
+        if (type === 'refundable') {
+            fetch(`/api/refundable-materials/${id}/`)
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('refundableFormTitle').innerHTML = '<i class="fas fa-edit text-indigo-600 dark:text-indigo-400"></i> Edit Refundable Log';
+                    document.getElementById('refundableFormAction').value = 'edit';
+                    document.getElementById('refundableFormId').value = id;
+
+                    const form = document.getElementById('refundableFormModal').querySelector('form');
+                    form.querySelector('[name=material_selection]').value = data.material_id;
+                    form.querySelector('[name=quantity]').value = data.quantity;
+                    form.querySelector('[name=issue]').value = data.issue;
+
+                    document.getElementById('refundableFormModal').classList.remove('hidden');
+                })
+                .catch(err => alert("Error loading details."));
+        } else {
+            fetch(`/api/damaged-materials/${id}/`)
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('damagedFormTitle').innerHTML = '<i class="fas fa-edit text-red-600 dark:text-red-400"></i> Edit Damaged Log';
+                    document.getElementById('damagedFormAction').value = 'edit';
+                    document.getElementById('damagedFormId').value = id;
+
+                    const form = document.getElementById('damagedFormModal').querySelector('form');
+                    form.querySelector('[name=material_selection]').value = data.material_id;
+                    form.querySelector('[name=quantity]').value = data.quantity;
+                    form.querySelector('[name=severity]').value = data.severity;
+                    form.querySelector('[name=damage_reason]').value = data.damage_reason;
+
+                    document.getElementById('damagedFormModal').classList.remove('hidden');
+                })
+                .catch(err => alert("Error loading details."));
+        }
+    }
+
+    // Open Delete Confirmation Modal for logs
+    function confirmTabDelete(type, id) {
+        const form = document.getElementById('tabDeleteForm');
+        const idField = document.getElementById('tabDeleteIdField');
+        if (type === 'refundable') {
+            form.action = "{% url 'refundable_materials' %}";
+            idField.name = 'rf_id';
+        } else {
+            form.action = "{% url 'damaged_materials' %}";
+            idField.name = 'dm_id';
+        }
+        idField.value = id;
+        document.getElementById('tabDeleteModal').classList.remove('hidden');
+    }
+
+    function closeTabDeleteModal() {
+        document.getElementById('tabDeleteModal').classList.add('hidden');
+    }
+
+    // Admin Process Approval Modal
+    function openTabApprovalModal(type, id, matName, qty, branchUser, reason, status, adminNote, severity) {
+        const form = document.getElementById('tabApprovalForm');
+        const idField = document.getElementById('tabApprovalIdField');
+        const confirmBtn = document.getElementById('tabApprovalConfirmBtn');
+
+        if (type === 'refundable') {
+            form.action = "{% url 'refundable_materials' %}";
+            idField.name = "rf_id";
+            document.getElementById('tabApprovalTitle').textContent = "Review Refund Request";
+            confirmBtn.textContent = "Accept & Refund";
+            document.getElementById('tabApprovalSeverityContainer').classList.add('hidden');
+        } else {
+            form.action = "{% url 'damaged_materials' %}";
+            idField.name = "dm_id";
+            document.getElementById('tabApprovalTitle').textContent = "Review Damage Report";
+            confirmBtn.textContent = "Confirm Damage";
+            document.getElementById('tabApprovalSeverityContainer').classList.remove('hidden');
+            document.getElementById('tabApprovalSeverity').textContent = severity || 'Moderate';
+        }
+
+        idField.value = id;
+        document.getElementById('tabApprovalSub').textContent = `${matName} • ${qty} items`;
+        document.getElementById('tabApprovalBranch').textContent = branchUser;
+        document.getElementById('tabApprovalReason').textContent = reason || 'No reason provided';
+        document.getElementById('tabApprovalNotes').value = adminNote || '';
+
+        const statusSpan = document.getElementById('tabApprovalStatus');
+        statusSpan.textContent = status;
+        statusSpan.className = 'px-2 py-0.5 rounded text-xs font-semibold ';
+        if (status === 'Pending') {
+            statusSpan.className += 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200';
+        } else if (status === 'Accepted' || status === 'Confirmed') {
+            statusSpan.className += 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200';
+        } else {
+            statusSpan.className += 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200';
+        }
+
+        document.getElementById('tabApprovalModal').classList.remove('hidden');
+    }
+
+    function closeTabApprovalModal() {
+        document.getElementById('tabApprovalModal').classList.add('hidden');
+    }
+
+    function setTabApprovalAction(actionType) {
+        document.getElementById('tabApprovalAction').value = actionType;
+    }                // Toggle Destroy Materials Modal screen size (normal vs full/large width)
+    function toggleDestroyModalSize() {
+        toggleModalSize('destroyModalContent', 'btnToggleDestroySize');
+    }
+
+    // Generic maximize/minimize modal toggle for all dashboard modals
+    function toggleModalSize(modalContentId, btnId) {
+        const modalContent = document.getElementById(modalContentId);
+        const btn = document.getElementById(btnId);
+        if (!modalContent || !btn) return;
+        const toggleIcon = btn.querySelector('i');
+
+        if (modalContent.classList.contains('maximized-modal')) {
+            // Restore standard sizes and layouts
+            modalContent.classList.remove('maximized-modal', 'max-w-[96%]', 'max-h-[94vh]', 'h-[94vh]', 'w-[96%]');
+            const originalClasses = modalContent.getAttribute('data-original-classes');
+            if (originalClasses) {
+                modalContent.className = originalClasses;
+            }
+            if (toggleIcon) toggleIcon.className = 'fas fa-expand-alt text-lg';
+        } else {
+            // Store original classes to revert accurately
+            modalContent.setAttribute('data-original-classes', modalContent.className);
+            // Clean standard sizing/max-width classes
+            modalContent.classList.remove('max-w-md', 'max-w-lg', 'max-w-xl', 'max-w-2xl', 'max-w-3xl', 'max-w-4xl', 'max-w-5xl', 'max-w-6xl', 'max-w-7xl', 'max-h-[80vh]', 'max-h-[85vh]');
+            // Add full-size maximize layouts
+            modalContent.classList.add('maximized-modal', 'max-w-[96%]', 'max-h-[94vh]', 'h-[94vh]', 'w-[96%]');
+            if (toggleIcon) toggleIcon.className = 'fas fa-compress-alt text-lg';
+        }
+    }
+
+</script>
 
 {% endblock %}

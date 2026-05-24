@@ -28,4 +28,18 @@ urlpatterns = [
     path('mac-serials/delete/<int:pk>/', views.delete_mac_serial, name='delete_mac_serial'),
     # API
     path('api/branch-materials/', views.get_branch_materials, name='get_branch_materials'),
+    # Refundable Materials management
+    path('refundable/log/', views.noc_log_refundable, name='log_refundable'),
+    path('refundable/edit/<int:pk>/', views.noc_edit_refundable, name='edit_refundable'),
+    path('refundable/delete/<int:pk>/', views.noc_delete_refundable, name='delete_refundable'),
+    path('refundable/process/<int:pk>/', views.noc_process_refundable, name='process_refundable'),
+    path('api/refundable/<int:pk>/', views.noc_get_refundable_api, name='get_refundable_api'),
+    # Damaged Materials management
+    path('damaged/log/', views.noc_log_damaged, name='log_damaged'),
+    path('damaged/edit/<int:pk>/', views.noc_edit_damaged, name='edit_damaged'),
+    path('damaged/delete/<int:pk>/', views.noc_delete_damaged, name='delete_damaged'),
+    path('damaged/process/<int:pk>/', views.noc_process_damaged, name='process_damaged'),
+    path('api/damaged/<int:pk>/', views.noc_get_damaged_api, name='get_damaged_api'),
+    path('refundable-materials/', views.noc_refundable_materials_view, name='refundable_materials'),
+    path('damaged-materials/', views.noc_damaged_materials_view, name='damaged_materials'),
 ]

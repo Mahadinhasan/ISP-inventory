@@ -253,8 +253,8 @@
 
                 <!-- Right Side Buttons -->
                 <div class="flex items-center space-x-4">
-                    <!-- Notification Bell Dropdown -->
-                    <div class="relative">
+                    <!-- Notification Bell Dropdown (Desktop Only) -->
+                    <div class="relative hidden md:block">
                         <button type="button" id="notification-bell" onclick="toggleNotificationMenu()"
                             class="p-2 text-gray-500 hover:text-indigo-600 focus:outline-none transition-colors duration-200 relative">
                             <i class="fas fa-bell text-xl"></i>
@@ -395,33 +395,155 @@
             </div>
         </div>
 
-        <!-- Mobile Menu -->
-        <div class="hidden md:hidden" id="mobile-menu">
-            <div class="pt-2 pb-3 space-y-1">
-                <a href="{% url 'noc:dashboard' %}"
-                    class="block pl-3 pr-4 py-2 border-l-4 border-indigo-500 text-base font-medium text-indigo-700 bg-indigo-50">
-                    <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
-                </a>
-                <a href="{% url 'noc:materials' %}"
-                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 transition">
-                    <i class="fas fa-boxes mr-2"></i>Materials
-                </a>
-                <a href="{% url 'noc:requests' %}"
-                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 transition">
-                    <i class="fas fa-paper-plane mr-2"></i>Requests
-                </a>
-                <a href="{% url 'noc:reports' %}"
-                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 transition">
-                    <i class="fas fa-file-chart-line mr-2"></i>Reports
-                </a>
-                <a href="{% url 'chat' %}"
-                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 transition">
-                    <i class="fas fa-envelope mr-2"></i>Messages
-                </a>
-                <a href="{% url 'noc:profile' %}"
-                    class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 transition">
-                    <i class="fas fa-user mr-2"></i>Profile
-                </a>
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <!-- 📱 MOBILE MENU DRAWER                                              -->
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <div id="mobile-menu"
+             class="hidden md:hidden fixed inset-0 z-[70] flex"
+             onclick="if(event.target===this) document.getElementById('mobile-menu').classList.add('hidden')">
+
+            <!-- Overlay -->
+            <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm z-0" onclick="document.getElementById('mobile-menu').classList.add('hidden')"></div>
+
+            <!-- Drawer Panel -->
+            <div class="relative flex flex-col w-80 max-w-[85vw] h-full bg-white dark:bg-gray-900 shadow-2xl overflow-y-auto z-10"
+                 onclick="event.stopPropagation()">
+
+                <!-- Header: Logo + Close -->
+                <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800 bg-gradient-to-r from-indigo-600 to-purple-600">
+                    <div class="flex items-center gap-3">
+                        <div class="h-9 w-9 bg-white/20 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-network-wired text-white text-lg"></i>
+                        </div>
+                        <span class="text-lg font-bold text-white">ISP Inventory</span>
+                    </div>
+                    <button onclick="document.getElementById('mobile-menu').classList.add('hidden')"
+                            class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <!-- User Profile Card -->
+                <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-800 bg-indigo-50 dark:bg-gray-800/60">
+                    <div class="flex items-center gap-3">
+                        <div class="relative flex-shrink-0">
+                            {% if user.userprofile.image %}
+                                <img src="{{ user.userprofile.image.url }}"
+                                     alt="Profile"
+                                     class="w-12 h-12 rounded-full border-2 border-indigo-300 object-cover shadow">
+                            {% else %}
+                                <img src="https://ui-avatars.com/api/?name={{ user.username }}&background=6366f1&color=fff&bold=true"
+                                     alt="Profile"
+                                     class="w-12 h-12 rounded-full border-2 border-indigo-300 shadow">
+                            {% endif %}
+                            <div data-status-id="{{ user.id }}"
+                                 class="status-indicator-dot absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white
+                                        {% if user.userprofile.is_online %}status-online{% else %}status-offline{% endif %}">
+                            </div>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-sm font-bold text-gray-900 dark:text-white truncate">{{ user.username }}</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ user.email }}</p>
+                            <span data-status-text-id="{{ user.id }}"
+                                  class="status-text inline-block mt-0.5 px-2 py-0.5 text-[10px] font-bold rounded-full
+                                         {% if user.userprofile.is_online %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                {% if user.userprofile.is_online %}Online{% else %}Offline{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navigation Links -->
+                <nav class="flex-1 px-3 py-4 space-y-1">
+                    <p class="px-3 mb-2 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Navigation</p>
+
+                    <a href="{% url 'noc:dashboard' %}"
+                       class="mobile-nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-700 dark:hover:text-indigo-300 transition-all group">
+                        <span class="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform">
+                            <i class="fas fa-tachometer-alt text-sm"></i>
+                        </span>
+                        Dashboard
+                    </a>
+
+                    <a href="{% url 'noc:materials' %}"
+                       class="mobile-nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-700 dark:hover:text-indigo-300 transition-all group">
+                        <span class="w-8 h-8 flex items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400 group-hover:scale-110 transition-transform">
+                            <i class="fas fa-boxes text-sm"></i>
+                        </span>
+                        Materials
+                    </a>
+
+                    <a href="{% url 'noc:requests' %}"
+                       class="mobile-nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-700 dark:hover:text-indigo-300 transition-all group">
+                        <span class="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform">
+                            <i class="fas fa-paper-plane text-sm"></i>
+                        </span>
+                        Requests
+                    </a>
+
+                    <a href="{% url 'noc:reports' %}"
+                       class="mobile-nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-700 dark:hover:text-indigo-300 transition-all group">
+                        <span class="w-8 h-8 flex items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform">
+                            <i class="fas fa-file-chart-line text-sm"></i>
+                        </span>
+                        Reports
+                    </a>
+
+                    <a href="{% url 'chat' %}"
+                       class="mobile-nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-700 dark:hover:text-indigo-300 transition-all group">
+                        <span class="w-8 h-8 flex items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400 group-hover:scale-110 transition-transform">
+                            <i class="fas fa-envelope text-sm"></i>
+                        </span>
+                        Messages
+                    </a>
+
+                    <a href="{% url 'noc:profile' %}"
+                       class="mobile-nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-700 dark:hover:text-indigo-300 transition-all group">
+                        <span class="w-8 h-8 flex items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 group-hover:scale-110 transition-transform">
+                            <i class="fas fa-user-circle text-sm"></i>
+                        </span>
+                        My Profile
+                    </a>
+                </nav>
+
+                <!-- Appearance Section -->
+                <div class="px-3 py-4 border-t border-gray-100 dark:border-gray-800">
+                    <p class="px-3 mb-2 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Appearance</p>
+                    <div class="grid grid-cols-3 gap-2 px-1">
+                        <label class="flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 border-transparent hover:border-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer transition group">
+                            <input type="radio" name="appearance-mobile" value="light" class="sr-only appearance-theme-radio" data-theme="light">
+                            <span class="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                                <i class="fas fa-sun text-yellow-500 text-sm"></i>
+                            </span>
+                            <span class="text-[10px] font-semibold text-gray-600 dark:text-gray-400">Light</span>
+                        </label>
+                        <label class="flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 border-transparent hover:border-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer transition group">
+                            <input type="radio" name="appearance-mobile" value="dark" class="sr-only appearance-theme-radio" data-theme="dark">
+                            <span class="w-8 h-8 rounded-lg bg-gray-800 border border-gray-700 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                                <i class="fas fa-moon text-indigo-300 text-sm"></i>
+                            </span>
+                            <span class="text-[10px] font-semibold text-gray-600 dark:text-gray-400">Dark</span>
+                        </label>
+                        <label class="flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 border-transparent hover:border-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer transition group">
+                            <input type="radio" name="appearance-mobile" value="auto" class="sr-only appearance-theme-radio" data-theme="auto">
+                            <span class="w-8 h-8 rounded-lg bg-gradient-to-br from-white to-gray-800 border border-gray-300 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                                <i class="fas fa-circle-half-stroke text-gray-400 text-sm"></i>
+                            </span>
+                            <span class="text-[10px] font-semibold text-gray-600 dark:text-gray-400">Auto</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Logout -->
+                <div class="px-3 pb-6 border-t border-gray-100 dark:border-gray-800 pt-3">
+                    <a href="{% url 'noc:logout' %}"
+                       class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-all group">
+                        <span class="w-8 h-8 flex items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 group-hover:scale-110 transition-transform">
+                            <i class="fas fa-sign-out-alt text-sm"></i>
+                        </span>
+                        Logout
+                    </a>
+                </div>
             </div>
         </div>
     </nav>
@@ -505,25 +627,72 @@
             }
         }
 
+        function toggleNotificationMenuMobile() {
+            const drawer = document.getElementById('notification-drawer-mobile');
+            if (drawer) {
+                drawer.classList.toggle('hidden');
+                
+                if (!drawer.classList.contains('hidden')) {
+                    const countBadgeMobile = document.getElementById('notification-count-mobile');
+                    if (countBadgeMobile) {
+                        countBadgeMobile.classList.remove('scale-100');
+                        countBadgeMobile.classList.add('scale-0');
+                        setTimeout(() => {
+                            countBadgeMobile.textContent = '0';
+                        }, 200);
+                    }
+                    
+                    const countBadge = document.getElementById('notification-count');
+                    if (countBadge) {
+                        countBadge.classList.remove('scale-100');
+                        countBadge.classList.add('scale-0');
+                        setTimeout(() => {
+                            countBadge.textContent = '0';
+                        }, 200);
+                    }
+                    
+                    window.unseenCount = 0;
+                }
+            }
+        }
+
         // Clear all notifications dummy function
         function clearNotifications() {
             const list = document.getElementById('notification-list');
-            const empty = document.getElementById('empty-notifications');
-            if (empty) return; // Already empty
+            if (list) {
+                list.innerHTML = `
+                    <div id="empty-notifications" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400 flex flex-col items-center fade-in">
+                        <i class="fas fa-bell-slash text-3xl mb-3 text-gray-300 dark:text-gray-600"></i>
+                        <p>No new notifications</p>
+                    </div>
+                `;
+            }
 
-            list.innerHTML = `
-                <div id="empty-notifications" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400 flex flex-col items-center fade-in">
-                    <i class="fas fa-bell-slash text-3xl mb-3 text-gray-300 dark:text-gray-600"></i>
-                    <p>No new notifications</p>
-                </div>
-            `;
+            const listMobile = document.getElementById('notification-list-mobile');
+            if (listMobile) {
+                listMobile.innerHTML = `
+                    <div id="empty-notifications-mobile" class="py-12 text-center text-gray-400 flex flex-col items-center">
+                        <i class="fas fa-bell-slash text-4xl mb-3 text-gray-300"></i>
+                        <p class="font-medium">No new notifications</p>
+                    </div>
+                `;
+            }
 
             window.unseenCount = 0;
             window.notifItemCount = 0;
             const countEl = document.getElementById('notification-count');
-            countEl.classList.remove('scale-100');
-            countEl.classList.add('scale-0');
-            countEl.textContent = '0';
+            if (countEl) {
+                countEl.classList.remove('scale-100');
+                countEl.classList.add('scale-0');
+                countEl.textContent = '0';
+            }
+
+            const countBadgeMobile = document.getElementById('notification-count-mobile');
+            if (countBadgeMobile) {
+                countBadgeMobile.classList.remove('scale-100');
+                countBadgeMobile.classList.add('scale-0');
+                countBadgeMobile.textContent = '0';
+            }
         }
 
         // Close dropdowns when clicking outside
@@ -1008,6 +1177,16 @@
                     else if (payload.category === 'message') icon = '<i class="fas fa-envelope text-green-500"></i>';
                     else if (payload.category === 'stock') icon = '<i class="fas fa-exclamation-triangle text-orange-500"></i>';
 
+                    const redirect = () => {
+                        if (payload.category === 'request') {
+                            window.location.href = "{% if user.userprofile.role == 'NOC' %}{% url 'noc:requests' %}{% else %}{% url 'requests' %}{% endif %}";
+                        } else if (payload.category === 'message') {
+                            window.location.href = "{% url 'chat' %}";
+                        } else {
+                            window.location.href = "{% if user.userprofile.role == 'NOC' %}{% url 'noc:dashboard' %}{% else %}{% url 'dashboard' %}{% endif %}";
+                        }
+                    };
+
                     item.innerHTML = `
                         <div class="flex items-start">
                             <div class="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center mr-3 flex-shrink-0">${icon}</div>
@@ -1018,32 +1197,64 @@
                         </div>
                     `;
                     
-                    item.onclick = () => {
-                        if (payload.category === 'request') {
-                            window.location.href = "{% if user.userprofile.role == 'NOC' %}{% url 'noc:requests' %}{% else %}{% url 'requests' %}{% endif %}";
-                        } else if (payload.category === 'message') {
-                            window.location.href = "{% url 'chat' %}";
-                        } else {
-                            window.location.href = "{% if user.userprofile.role == 'NOC' %}{% url 'noc:dashboard' %}{% else %}{% url 'dashboard' %}{% endif %}";
-                        }
-                    };
+                    item.onclick = redirect;
 
-                    list.insertBefore(item, list.firstChild);
-                    
-                    // Limit to 10 notifications
-                    const items = list.querySelectorAll('.fade-in');
-                    if (items.length > 10) {
-                        for (let i = 10; i < items.length; i++) {
-                            items[i].remove();
+                    if (list) {
+                        list.insertBefore(item, list.firstChild);
+                        
+                        // Limit to 10 notifications
+                        const items = list.querySelectorAll('.fade-in');
+                        if (items.length > 10) {
+                            for (let i = 10; i < items.length; i++) {
+                                items[i].remove();
+                            }
+                        }
+                    }
+
+                    // Mobile Drawer List update
+                    const listMobile = document.getElementById('notification-list-mobile');
+                    const emptyMobile = document.getElementById('empty-notifications-mobile');
+                    if (emptyMobile) emptyMobile.remove();
+
+                    if (listMobile) {
+                        const itemMobile = document.createElement('div');
+                        itemMobile.className = 'p-4 bg-gray-50 dark:bg-midnight-950/50 rounded-2xl border border-gray-100 dark:border-midnight-800 hover:bg-indigo-50 dark:hover:bg-indigo-950 cursor-pointer fade-in flex items-start';
+                        itemMobile.innerHTML = `
+                            <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center mr-3 flex-shrink-0">${icon}</div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-bold text-gray-900 dark:text-white">${payload.title || 'New Notification'}</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">${payload.message}</p>
+                            </div>
+                        `;
+                        itemMobile.onclick = redirect;
+                        listMobile.insertBefore(itemMobile, listMobile.firstChild);
+
+                        const itemsMobile = listMobile.querySelectorAll('.fade-in');
+                        if (itemsMobile.length > 10) {
+                            for (let i = 10; i < itemsMobile.length; i++) {
+                                itemsMobile[i].remove();
+                            }
                         }
                     }
                     
-                    if (document.getElementById('notification-dropdown').classList.contains('hidden')) {
+                    // Increment and show badge counts
+                    const notifDropdown = document.getElementById('notification-dropdown');
+                    const drawerMobile = document.getElementById('notification-drawer-mobile');
+                    const isDropdownHidden = notifDropdown ? notifDropdown.classList.contains('hidden') : true;
+                    const isDrawerHidden = drawerMobile ? drawerMobile.classList.contains('hidden') : true;
+                    
+                    if (isDropdownHidden && isDrawerHidden) {
                         window.unseenCount++;
                         if (countBadge) {
                             countBadge.textContent = window.unseenCount > 9 ? '9+' : window.unseenCount;
                             countBadge.classList.remove('scale-0');
                             countBadge.classList.add('scale-100');
+                        }
+                        const countBadgeMobile = document.getElementById('notification-count-mobile');
+                        if (countBadgeMobile) {
+                            countBadgeMobile.textContent = window.unseenCount > 9 ? '9+' : window.unseenCount;
+                            countBadgeMobile.classList.remove('scale-0');
+                            countBadgeMobile.classList.add('scale-100');
                         }
                     }
                 }
@@ -1055,6 +1266,39 @@
             })();
         });
     </script>
+
+    <!-- 📱 Mobile Floating Notification Bell & Bottom Drawer -->
+    {% if user.is_authenticated %}
+    <div class="md:hidden fixed bottom-6 right-6 z-50">
+        <button type="button" onclick="toggleNotificationMenuMobile()" class="w-14 h-14 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-2xl active:scale-95 transition-all duration-300 relative">
+            <i class="fas fa-bell text-2xl"></i>
+            <span id="notification-count-mobile" class="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold rounded-full bg-red-500 text-white shadow-md transform scale-0 transition-transform duration-200">
+                0
+            </span>
+        </button>
+    </div>
+
+    <!-- Mobile Drawer Sheet Overlay -->
+    <div id="notification-drawer-mobile" class="hidden fixed inset-0 bg-midnight-950/80 backdrop-blur-md z-50 flex items-end justify-center" onclick="if(event.target===this) toggleNotificationMenuMobile()">
+        <div class="bg-white dark:bg-midnight-900 rounded-t-[2.5rem] shadow-2xl w-full p-6 max-h-[85vh] overflow-y-auto border-t border-gray-100 dark:border-midnight-800 animate-slide-up flex flex-col">
+            <div class="flex justify-between items-center mb-6 pb-2 border-b border-gray-100 dark:border-midnight-800">
+                <h3 class="text-lg font-black text-gray-900 dark:text-white flex items-center gap-2">
+                    <i class="fas fa-bell text-indigo-600 dark:text-indigo-400"></i> Notifications
+                </h3>
+                <div class="flex items-center gap-3">
+                    <button onclick="clearNotifications()" class="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950 px-3 py-1.5 rounded-xl transition">Clear All</button>
+                    <button onclick="toggleNotificationMenuMobile()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl font-bold p-1">&times;</button>
+                </div>
+            </div>
+            <div id="notification-list-mobile" class="space-y-4 max-h-[60vh] overflow-y-auto pr-1 flex flex-col">
+                <div id="empty-notifications-mobile" class="py-12 text-center text-gray-400 flex flex-col items-center">
+                    <i class="fas fa-bell-slash text-4xl mb-3 text-gray-300"></i>
+                    <p class="font-medium">No new notifications</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </body>
 
 </html>

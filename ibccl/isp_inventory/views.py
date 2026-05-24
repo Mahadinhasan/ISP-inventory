@@ -5,8 +5,8 @@ from django.contrib import messages
 from django.contrib.auth.models import User, Group
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
-from .forms import RegisterForm, MaterialForm, RequestForm, SystemSettingForm, NotificationSettingForm, UsedMaterialForm, LogSettingsForm
-from .models import Material, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial, MaterialMonthlyCount, InternalMessage, ActivityLog, LogSettings, MacSerialNumber
+from .forms import RegisterForm, MaterialForm, RequestForm, SystemSettingForm, NotificationSettingForm, UsedMaterialForm, LogSettingsForm, RefundableMaterialForm, DamageMaterialForm
+from .models import Material, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial, MaterialMonthlyCount, InternalMessage, ActivityLog, LogSettings, MacSerialNumber, RefundableMaterial, DamageMaterial
 from .utils import ensure_userprofile
 from django.db.models import Sum, Q, F, Case, When, IntegerField, Count
 from django.db import transaction
@@ -14,6 +14,8 @@ from django.utils import timezone
 from datetime import datetime
 from django.http import HttpResponse, JsonResponse
 from django.core.management import call_command
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 import json
@@ -180,8 +182,6 @@ def token_refresh_view(request):
         return JsonResponse({'error': 'No refresh token'}, status=401)
 
     try:
-        from rest_framework_simplejwt.tokens import RefreshToken
-        from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
         refresh = RefreshToken(refresh_token)
         response = JsonResponse({'status': 'ok'})
         
@@ -297,15 +297,30 @@ def dashboard(request):
             Q(material__created_by__userprofile__role='NOC')
         ).select_related('material').order_by('requested_at') # Order by oldest first for FIFO consumption
 
-        # For each material, get the total used amount (Accepted status) for the current month
+        # For each material, get the total used/refundable/damaged amount for the current month
         used_totals = {}
         used_qs = UsedMaterial.objects.filter(
             technician=request.user,
             status='Accepted'
         ).values('material_id').annotate(total=Sum('quantity'))
-        
         for u in used_qs:
-            used_totals[u['material_id']] = u['total']
+            used_totals[u['material_id']] = u['total'] or 0
+
+        # Include RefundableMaterial (Pending/Accepted) totals for this branch
+        ref_qs = RefundableMaterial.objects.filter(
+            branch_user=request.user,
+            status__in=['Pending', 'Accepted']
+        ).values('material_id').annotate(total=Sum('quantity'))
+        for r in ref_qs:
+            used_totals[r['material_id']] = used_totals.get(r['material_id'], 0) + (r['total'] or 0)
+
+        # Include DamageMaterial (Pending/Confirmed) totals for this branch
+        dam_qs = DamageMaterial.objects.filter(
+            branch_user=request.user,
+            status__in=['Pending', 'Confirmed']
+        ).values('material_id').annotate(total=Sum('quantity'))
+        for d in dam_qs:
+            used_totals[d['material_id']] = used_totals.get(d['material_id'], 0) + (d['total'] or 0)
 
         # Get all active serials for this user to display in the modal
         all_user_serials = MacSerialNumber.objects.filter(
@@ -476,9 +491,24 @@ def dashboard(request):
                 added_at__month=now.month,
                 is_archived=False
             ).values('material_id').annotate(total=Sum('quantity'))
-            
             for u in used_qs:
-                used_totals[u['material_id']] = u['total']
+                used_totals[u['material_id']] = u['total'] or 0
+
+            # Include refundable totals for this branch
+            ref_qs = RefundableMaterial.objects.filter(
+                branch_user=branch_user,
+                status__in=['Pending', 'Accepted']
+            ).values('material_id').annotate(total=Sum('quantity'))
+            for r in ref_qs:
+                used_totals[r['material_id']] = used_totals.get(r['material_id'], 0) + (r['total'] or 0)
+
+            # Include damaged totals for this branch
+            dam_qs = DamageMaterial.objects.filter(
+                branch_user=branch_user,
+                status__in=['Pending', 'Confirmed']
+            ).values('material_id').annotate(total=Sum('quantity'))
+            for d in dam_qs:
+                used_totals[d['material_id']] = used_totals.get(d['material_id'], 0) + (d['total'] or 0)
             
             for req in approved_qs:
                 mat_id = req.material.id
@@ -489,7 +519,7 @@ def dashboard(request):
                     available_for_this_req -= amount_to_deduct
                     used_totals[mat_id] -= amount_to_deduct
                 
-                if available_for_this_req > 0:
+                if available_for_this_req > 0 and req.material.status == 'Normal':
                     materials_monitoring.append({
                         'branch': branch_user,
                         'material': req.material,
@@ -531,6 +561,19 @@ def dashboard(request):
         total_price_agg1 = Material.objects.aggregate(total=Sum('total_price'))['total']
         total_price1 = total_price_agg1 if total_price_agg1 is not None else 0
 
+    # Query Refundable and Damaged materials for the Destroy Materials Modal
+    if role in ['Admin', 'Storekeeper']:
+        refundable_materials = RefundableMaterial.objects.all().select_related('branch_user', 'material').order_by('-added_at')[:10]
+        damaged_materials = DamageMaterial.objects.all().select_related('branch_user', 'material', 'confirmed_by').order_by('-added_at')[:10]
+        branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
+    else:
+        refundable_materials = RefundableMaterial.objects.filter(branch_user=request.user).select_related('material').order_by('-added_at')[:10]
+        damaged_materials = DamageMaterial.objects.filter(branch_user=request.user).select_related('material').order_by('-added_at')[:10]
+        branch_users = None
+
+    refundable_form = RefundableMaterialForm(user=request.user)
+    damaged_form = DamageMaterialForm(user=request.user)
+
     return render(request, 'inventory/dashboard.html', {
         'total_materials': total_materials,
         # 'active_tasks': active_tasks,
@@ -557,6 +600,11 @@ def dashboard(request):
         'advance_count': advance_count,
         'total_used_qty': total_used_qty,
         'total_price1': total_price1,
+        'refundable_materials': refundable_materials,
+        'damaged_materials': damaged_materials,
+        'refundable_form': refundable_form,
+        'damaged_form': damaged_form,
+        'branch_users': branch_users,
     })
 
 
@@ -604,9 +652,24 @@ def materials_monitoring_view(request):
             added_at__month=now.month,
             is_archived=False
         ).values('material_id').annotate(total=Sum('quantity'))
-
         for u in used_qs:
-            used_totals[u['material_id']] = u['total']
+            used_totals[u['material_id']] = u['total'] or 0
+
+        # Include refundable totals for this branch
+        ref_qs = RefundableMaterial.objects.filter(
+            branch_user=branch_user,
+            status__in=['Pending', 'Accepted']
+        ).values('material_id').annotate(total=Sum('quantity'))
+        for r in ref_qs:
+            used_totals[r['material_id']] = used_totals.get(r['material_id'], 0) + (r['total'] or 0)
+
+        # Include damaged totals for this branch
+        dam_qs = DamageMaterial.objects.filter(
+            branch_user=branch_user,
+            status__in=['Pending', 'Confirmed']
+        ).values('material_id').annotate(total=Sum('quantity'))
+        for d in dam_qs:
+            used_totals[d['material_id']] = used_totals.get(d['material_id'], 0) + (d['total'] or 0)
         
         for req in approved_qs:
             mat_id = req.material.id
@@ -617,7 +680,7 @@ def materials_monitoring_view(request):
                 available_for_this_req -= amount_to_deduct
                 used_totals[mat_id] -= amount_to_deduct
             
-            if available_for_this_req > 0:
+            if available_for_this_req > 0 and req.material.status == 'Normal':
                 materials_monitoring.append({
                     'branch': {
                         'id': branch_user.id,
@@ -1030,7 +1093,8 @@ def requests_view(request):
         base_requests = MaterialRequest.objects.filter(
             requested_at__year=now.year,
             requested_at__month=now.month,
-            is_archived=False
+            is_archived=False,
+            is_hidden_by_admin=False
         ).order_by('-requested_at')
     
 
@@ -1208,7 +1272,11 @@ def requests_view(request):
             if action == 'delete':
                 try:
                     req = MaterialRequest.objects.get(pk=req_id)
-                    if req.status == 'Approved':
+                    if req.status == 'Received':
+                        req.is_hidden_by_admin = True
+                        req.save()
+                        messages.success(request, "Request hidden from your view successfully (Branch data preserved).")
+                    elif req.status == 'Approved':
                         # Return stock before deleting
                         try:
                             with transaction.atomic():
@@ -3337,6 +3405,452 @@ def chat_history_api(request, user_id):
             'full_name': target_user.get_full_name() or target_user.username
         }
     })
+
+@login_required
+def refundable_materials_view(request):
+    profile = ensure_userprofile(request.user)
+    role = profile.role if profile else 'Branch'
+
+    # Get refundable materials list
+    if role in ['Admin', 'Storekeeper']:
+        refundable_qs = RefundableMaterial.objects.all().select_related('branch_user', 'material').order_by('-added_at')
+        branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
+        
+        # Handle user dropdown filter
+        selected_user_id = request.GET.get('user_id')
+        if selected_user_id:
+            try:
+                selected_user = User.objects.select_related('userprofile').get(id=selected_user_id, userprofile__role='Branch')
+                refundable_qs = refundable_qs.filter(branch_user=selected_user)
+            except User.DoesNotExist:
+                messages.error(request, "Selected user not found.")
+    elif role == 'NOC':
+        refundable_qs = RefundableMaterial.objects.filter(material__category='Internet', material__created_by=request.user).select_related('branch_user', 'material').order_by('-added_at')
+        branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
+        
+        # Handle user dropdown filter
+        selected_user_id = request.GET.get('user_id')
+        if selected_user_id:
+            try:
+                selected_user = User.objects.select_related('userprofile').get(id=selected_user_id, userprofile__role='Branch')
+                refundable_qs = refundable_qs.filter(branch_user=selected_user)
+            except User.DoesNotExist:
+                messages.error(request, "Selected user not found.")
+    else:
+        # Branch user
+        refundable_qs = RefundableMaterial.objects.filter(branch_user=request.user).select_related('material').order_by('-added_at')
+        branch_users = None
+
+    # Search functionality
+    search_query = request.GET.get('search', '').strip()
+    if search_query:
+        if role in ['Admin', 'Storekeeper', 'NOC']:
+            refundable_qs = refundable_qs.filter(
+                Q(material__name__icontains=search_query) |
+                Q(branch_user__username__icontains=search_query) |
+                Q(branch_user__first_name__icontains=search_query) |
+                Q(branch_user__last_name__icontains=search_query) |
+                Q(issue__icontains=search_query)
+            ).distinct()
+        else:
+            refundable_qs = refundable_qs.filter(
+                Q(material__name__icontains=search_query) |
+                Q(issue__icontains=search_query)
+            ).distinct()
+
+    # Pagination
+    paginator = Paginator(refundable_qs, 20)
+    page_number = request.GET.get('page')
+    refundable_page = paginator.get_page(page_number)
+
+    # Forms
+    form = RefundableMaterialForm(user=request.user)
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'create':
+            if role != 'Branch':
+                messages.error(request, "Only Branch users can add Refundable Materials.")
+                return redirect('refundable_materials')
+            
+            form = RefundableMaterialForm(request.POST, user=request.user)
+            if form.is_valid():
+                rf = form.save(commit=False)
+                rf.branch_user = request.user
+                rf.status = 'Pending'
+                rf.save()
+                messages.success(request, "Refundable Material logged successfully!")
+                return redirect('refundable_materials')
+            else:
+                for field, errors in form.errors.items():
+                    if errors:
+                        messages.error(request, f"{field}: {errors[0]}")
+                        break
+                return redirect('refundable_materials')
+                
+        elif action == 'edit':
+            if role != 'Branch':
+                messages.error(request, "Only Branch users can edit Refundable Materials.")
+                return redirect('refundable_materials')
+                
+            rf_id = request.POST.get('rf_id')
+            try:
+                rf = RefundableMaterial.objects.get(pk=rf_id, branch_user=request.user)
+                form = RefundableMaterialForm(request.POST, instance=rf, user=request.user)
+                if form.is_valid():
+                    form.save()
+                    messages.success(request, "Refundable Material updated successfully!")
+                    return redirect('refundable_materials')
+                else:
+                    for field, errors in form.errors.items():
+                        if errors:
+                            messages.error(request, f"{field}: {errors[0]}")
+                            break
+                    return redirect('refundable_materials')
+            except RefundableMaterial.DoesNotExist:
+                messages.error(request, "Record not found or access denied.")
+                return redirect('refundable_materials')
+                
+        elif action == 'delete':
+            if role != 'Branch':
+                messages.error(request, "Only Branch users can delete Refundable Materials.")
+                return redirect('refundable_materials')
+                
+            rf_id = request.POST.get('rf_id')
+            try:
+                rf = RefundableMaterial.objects.get(pk=rf_id, branch_user=request.user)
+                if rf.status == 'Pending':
+                    rf.delete()
+                    messages.success(request, "Refundable Material record deleted.")
+                else:
+                    messages.error(request, "You cannot delete a record that has already been processed.")
+                return redirect('refundable_materials')
+            except RefundableMaterial.DoesNotExist:
+                messages.error(request, "Record not found or access denied.")
+                return redirect('refundable_materials')
+
+        # Admin/Storekeeper actions: accept/reject
+        elif action in ['accept', 'reject']:
+            if role not in ['Admin', 'Storekeeper', 'NOC']:
+                messages.error(request, "Permission denied.")
+                return redirect('refundable_materials')
+                
+            rf_id = request.POST.get('rf_id')
+            admin_note = request.POST.get('admin_note', '').strip()
+            try:
+                if role == 'NOC':
+                    rf = RefundableMaterial.objects.get(pk=rf_id, material__category='Internet', material__created_by=request.user)
+                else:
+                    rf = RefundableMaterial.objects.get(pk=rf_id)
+                rf.status = 'Accepted' if action == 'accept' else 'Rejected'
+                rf.admin_note = admin_note
+                rf.save()
+                
+                messages.success(request, f"Refundable Material record has been {rf.status.lower()}!")
+                return redirect('refundable_materials')
+            except RefundableMaterial.DoesNotExist:
+                messages.error(request, "Record not found.")
+                return redirect('refundable_materials')
+
+    template_name = 'noc/refundable_materials.html' if role == 'NOC' else 'inventory/refundable_materials.html'
+    return render(request, template_name, {
+        'refundable_materials': refundable_page,
+        'form': form,
+        'role': role,
+        'page_obj': refundable_page,
+        'branch_users': branch_users,
+        'search_query': search_query,
+    })
+
+@login_required
+def get_refundable_material_api(request, pk):
+    """API endpoint to get refundable material data for editing via AJAX"""
+    profile = ensure_userprofile(request.user)
+    role = profile.role if profile else 'Branch'
+
+    try:
+        if role in ['Admin', 'Storekeeper']:
+            rf = RefundableMaterial.objects.get(pk=pk)
+        elif role == 'NOC':
+            rf = RefundableMaterial.objects.get(pk=pk, material__category='Internet', material__created_by=request.user)
+        else:
+            rf = RefundableMaterial.objects.get(pk=pk, branch_user=request.user)
+    except RefundableMaterial.DoesNotExist:
+        return JsonResponse({'error': 'Record not found or access denied'}, status=404)
+
+    selection = f"m:{rf.material.id}"
+    
+    data = {
+        'id': rf.id,
+        'material_selection': selection,
+        'quantity': rf.quantity,
+        'issue': rf.issue or '',
+        'status': rf.status,
+        'admin_note': rf.admin_note or '',
+    }
+    return JsonResponse(data)
+
+@login_required
+def damaged_materials_view(request):
+    profile = ensure_userprofile(request.user)
+    role = profile.role if profile else 'Branch'
+
+    # Get damaged materials list
+    if role in ['Admin', 'Storekeeper']:
+        damaged_qs = DamageMaterial.objects.all().select_related('branch_user', 'material', 'confirmed_by').order_by('-added_at')
+        branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
+        
+        # Handle user dropdown filter
+        selected_user_id = request.GET.get('user_id')
+        if selected_user_id:
+            try:
+                selected_user = User.objects.select_related('userprofile').get(id=selected_user_id, userprofile__role='Branch')
+                damaged_qs = damaged_qs.filter(branch_user=selected_user)
+            except User.DoesNotExist:
+                messages.error(request, "Selected user not found.")
+    elif role == 'NOC':
+        damaged_qs = DamageMaterial.objects.filter(material__category='Internet', material__created_by=request.user).select_related('branch_user', 'material', 'confirmed_by').order_by('-added_at')
+        branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
+        
+        # Handle user dropdown filter
+        selected_user_id = request.GET.get('user_id')
+        if selected_user_id:
+            try:
+                selected_user = User.objects.select_related('userprofile').get(id=selected_user_id, userprofile__role='Branch')
+                damaged_qs = damaged_qs.filter(branch_user=selected_user)
+            except User.DoesNotExist:
+                messages.error(request, "Selected user not found.")
+    else:
+        # Branch user
+        damaged_qs = DamageMaterial.objects.filter(branch_user=request.user).select_related('material').order_by('-added_at')
+        branch_users = None
+
+    # Search functionality
+    search_query = request.GET.get('search', '').strip()
+    if search_query:
+        if role in ['Admin', 'Storekeeper', 'NOC']:
+            damaged_qs = damaged_qs.filter(
+                Q(material__name__icontains=search_query) |
+                Q(branch_user__username__icontains=search_query) |
+                Q(branch_user__first_name__icontains=search_query) |
+                Q(branch_user__last_name__icontains=search_query) |
+                Q(damage_reason__icontains=search_query)
+            ).distinct()
+        else:
+            damaged_qs = damaged_qs.filter(
+                Q(material__name__icontains=search_query) |
+                Q(damage_reason__icontains=search_query)
+            ).distinct()
+
+    # Pagination
+    paginator = Paginator(damaged_qs, 20)
+    page_number = request.GET.get('page')
+    damaged_page = paginator.get_page(page_number)
+
+    # Forms
+    form = DamageMaterialForm(user=request.user)
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'create':
+            if role != 'Branch':
+                messages.error(request, "Only Branch users can report Damaged Materials.")
+                return redirect('damaged_materials')
+            
+            form = DamageMaterialForm(request.POST, user=request.user)
+            if form.is_valid():
+                dm = form.save(commit=False)
+                dm.branch_user = request.user
+                dm.status = 'Pending'
+                dm.save()
+                messages.success(request, "Damaged Material logged successfully!")
+                return redirect('damaged_materials')
+            else:
+                for field, errors in form.errors.items():
+                    if errors:
+                        messages.error(request, f"{field}: {errors[0]}")
+                        break
+                return redirect('damaged_materials')
+                
+        elif action == 'edit':
+            if role != 'Branch':
+                messages.error(request, "Only Branch users can edit Damaged Materials.")
+                return redirect('damaged_materials')
+                
+            dm_id = request.POST.get('dm_id')
+            try:
+                dm = DamageMaterial.objects.get(pk=dm_id, branch_user=request.user)
+                form = DamageMaterialForm(request.POST, instance=dm, user=request.user)
+                if form.is_valid():
+                    form.save()
+                    messages.success(request, "Damaged Material updated successfully!")
+                    return redirect('damaged_materials')
+                else:
+                    for field, errors in form.errors.items():
+                        if errors:
+                            messages.error(request, f"{field}: {errors[0]}")
+                            break
+                    return redirect('damaged_materials')
+            except DamageMaterial.DoesNotExist:
+                messages.error(request, "Record not found or access denied.")
+                return redirect('damaged_materials')
+                
+        elif action == 'delete':
+            if role != 'Branch':
+                messages.error(request, "Only Branch users can delete Damaged Materials.")
+                return redirect('damaged_materials')
+                
+            dm_id = request.POST.get('dm_id')
+            try:
+                dm = DamageMaterial.objects.get(pk=dm_id, branch_user=request.user)
+                if dm.status == 'Pending':
+                    dm.delete()
+                    messages.success(request, "Damaged Material record deleted.")
+                else:
+                    messages.error(request, "You cannot delete a record that has already been processed.")
+                return redirect('damaged_materials')
+            except DamageMaterial.DoesNotExist:
+                messages.error(request, "Record not found or access denied.")
+                return redirect('damaged_materials')
+
+        # Admin/Storekeeper actions: confirm/reject
+        elif action in ['confirm', 'reject']:
+            if role not in ['Admin', 'Storekeeper', 'NOC']:
+                messages.error(request, "Permission denied.")
+                return redirect('damaged_materials')
+                
+            dm_id = request.POST.get('dm_id')
+            admin_note = request.POST.get('admin_note', '').strip()
+            try:
+                if role == 'NOC':
+                    dm = DamageMaterial.objects.get(pk=dm_id, material__category='Internet', material__created_by=request.user)
+                else:
+                    dm = DamageMaterial.objects.get(pk=dm_id)
+                dm.status = 'Confirmed' if action == 'confirm' else 'Rejected'
+                dm.admin_note = admin_note
+                dm.confirmed_by = request.user
+                dm.confirmed_at = timezone.now()
+                dm.save()
+                
+                messages.success(request, f"Damaged Material record has been {dm.status.lower()}!")
+                return redirect('damaged_materials')
+            except DamageMaterial.DoesNotExist:
+                messages.error(request, "Record not found.")
+                return redirect('damaged_materials')
+
+    template_name = 'noc/damaged_materials.html' if role == 'NOC' else 'inventory/damaged_materials.html'
+    return render(request, template_name, {
+        'damaged_materials': damaged_page,
+        'form': form,
+        'role': role,
+        'page_obj': damaged_page,
+        'branch_users': branch_users,
+        'search_query': search_query,
+    })
+
+@login_required
+def report_damage_auto(request):
+    profile = ensure_userprofile(request.user)
+    role = profile.role if profile else 'Branch'
+
+    if role != 'Branch':
+        return JsonResponse({'success': False, 'error': 'Only Branch users can report damaged materials.'}, status=403)
+
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+
+    try:
+        data = json.loads(request.body) if request.body else request.POST
+    except Exception:
+        data = request.POST
+
+    material_id = data.get('material_id')
+    quantity = int(data.get('quantity', 1))
+    damage_reason = data.get('damage_reason', 'Reported directly from in-stock approved materials list.').strip()
+    severity = data.get('severity', 'Moderate')
+
+    if not material_id:
+        return JsonResponse({'success': False, 'error': 'Material ID is required.'}, status=400)
+
+    try:
+        material = Material.objects.get(id=material_id)
+    except Material.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Material not found.'}, status=404)
+
+    # Validate that they actually have enough in-stock quantity to mark as damaged!
+    from django.db.models import Sum
+    total_approved = MaterialRequest.objects.filter(
+        requester=request.user,
+        material=material,
+        status='Received'
+    ).aggregate(total=Sum('quantity'))['total'] or 0
+    
+    refundable_qty = RefundableMaterial.objects.filter(
+        branch_user=request.user,
+        material=material,
+        status__in=['Pending', 'Accepted']
+    ).aggregate(total=Sum('quantity'))['total'] or 0
+    
+    damaged_qty = DamageMaterial.objects.filter(
+        branch_user=request.user,
+        material=material,
+        status__in=['Pending', 'Confirmed']
+    ).aggregate(total=Sum('quantity'))['total'] or 0
+
+    used_qty = refundable_qty + damaged_qty
+    available = total_approved - used_qty
+
+    if quantity > available:
+        return JsonResponse({
+            'success': False, 
+            'error': f'Insufficient available stock. Available: {available}, requested: {quantity}.'
+        }, status=400)
+
+    # Create the DamageMaterial record!
+    dm = DamageMaterial.objects.create(
+        branch_user=request.user,
+        material=material,
+        quantity=quantity,
+        damage_reason=damage_reason,
+        severity=severity,
+        status='Pending'
+    )
+
+    return JsonResponse({
+        'success': True,
+        'message': f'Successfully reported {quantity} {material.name} as damaged.'
+    })
+
+@login_required
+def get_damaged_material_api(request, pk):
+    """API endpoint to get damaged material data for editing via AJAX"""
+    profile = ensure_userprofile(request.user)
+    role = profile.role if profile else 'Branch'
+
+    try:
+        if role in ['Admin', 'Storekeeper']:
+            dm = DamageMaterial.objects.get(pk=pk)
+        elif role == 'NOC':
+            dm = DamageMaterial.objects.get(pk=pk, material__category='Internet', material__created_by=request.user)
+        else:
+            dm = DamageMaterial.objects.get(pk=pk, branch_user=request.user)
+    except DamageMaterial.DoesNotExist:
+        return JsonResponse({'error': 'Record not found or access denied'}, status=404)
+
+    selection = f"m:{dm.material.id}"
+    
+    data = {
+        'id': dm.id,
+        'material_selection': selection,
+        'quantity': dm.quantity,
+        'damage_reason': dm.damage_reason or '',
+        'severity': dm.severity,
+        'status': dm.status,
+        'admin_note': dm.admin_note or '',
+    }
+    return JsonResponse(data)
 
 # Custom 404 handler
 def custom_404_view(request, exception=None):

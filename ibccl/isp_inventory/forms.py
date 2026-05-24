@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
-from .models import Material, MaterialRequest, SystemSetting, NotificationSetting, UsedMaterial, BackupRestore, ActivityLog, LogSettings, MacSerialNumber, MaterialMacSerialImport, UserProfile
+from .models import Material, MaterialRequest, SystemSetting, NotificationSetting, UsedMaterial, BackupRestore, ActivityLog, LogSettings, MacSerialNumber, MaterialMacSerialImport, UserProfile, RefundableMaterial, DamageMaterial
 from .utils import ensure_userprofile
 
 class RegisterForm(UserCreationForm):
@@ -485,3 +485,355 @@ class MacSerialNumberForm(forms.ModelForm):
                 'value': '1'
             }),
         }
+
+
+# ── Refundable Materials Form ──────────────────────────────────────────────────
+
+class RefundableMaterialForm(forms.ModelForm):
+    """Form for Branch users to mark materials as refundable.
+    Only Branch users can add/edit refundable materials from their approved stock.
+    """
+    
+    material_selection = forms.ChoiceField(
+        label="Material Name",
+        required=True,
+        widget=forms.Select(attrs={
+            'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition',
+            'id': 'id_refundable_material_selection'
+        }),
+        help_text="Select from your approved in-stock materials"
+    )
+
+    class Meta:
+        model = RefundableMaterial
+        fields = ['material_selection', 'quantity', 'issue', 'status']
+        labels = {
+            'material_selection': 'Material Name',
+            'quantity': 'Quantity to Refund',
+            'issue': 'Reason for Refund',
+            'status': 'Status',
+        }
+        widgets = {
+            'quantity': forms.NumberInput(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                'min': '1',
+                'placeholder': 'Enter quantity'
+            }),
+            'issue': forms.Textarea(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                'rows': 3,
+                'placeholder': 'Describe reason for refund (defective, unused, excess, etc.)'
+            }),
+            'status': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        
+        # Store user for validation
+        self.user = user
+        
+        # Branch users can only use Pending/Accepted status
+        # Admin can see/manage all statuses
+        if user:
+            try:
+                profile = ensure_userprofile(user)
+                if profile and profile.role == 'Branch':
+                    # Branch users can only set status to Pending
+                    self.fields['status'].widget = forms.HiddenInput()
+                    self.fields['status'].initial = 'Pending'
+            except Exception:
+                pass
+        
+        # Populate material choices
+        if user:
+            choices = [('', 'Select Material from Stock')]
+            try:
+                profile = ensure_userprofile(user)
+                if profile and profile.role == 'Branch':
+                    # Add approved materials for this branch
+                    approved_requests = MaterialRequest.objects.filter(
+                        requester=user,
+                        status='Received'
+                    ).select_related('material')
+
+                    # Only include materials with available (approved - refundable - damaged) > 0
+                    from django.db.models import Sum
+                    mats_added = set()
+                    for req in approved_requests:
+                        mat = req.material
+                        if mat.id in mats_added:
+                            continue
+
+                        total_approved = MaterialRequest.objects.filter(
+                            requester=user,
+                            material=mat,
+                            status='Received'
+                        ).aggregate(total=Sum('quantity'))['total'] or 0
+
+                        refundable_qty = RefundableMaterial.objects.filter(
+                            branch_user=user,
+                            material=mat,
+                            status__in=['Pending', 'Accepted']
+                        ).aggregate(total=Sum('quantity'))['total'] or 0
+
+                        damaged_qty = DamageMaterial.objects.filter(
+                            branch_user=user,
+                            material=mat,
+                            status__in=['Pending', 'Confirmed']
+                        ).aggregate(total=Sum('quantity'))['total'] or 0
+
+                        available = total_approved - (refundable_qty + damaged_qty)
+
+                        if available > 0:
+                            choices.append((f"m:{mat.id}", f"{mat.name} (Available: {available})"))
+                            mats_added.add(mat.id)
+                else:
+                    # Admin/Storekeeper can see all materials
+                    all_mats = Material.objects.all().order_by('name')
+                    for m in all_mats:
+                        choices.append((f"m:{m.id}", m.name))
+                
+                self.fields['material_selection'].choices = choices
+            except Exception:
+                self.fields['material_selection'].choices = [('', 'No materials available')]
+        else:
+            self.fields['material_selection'].choices = [('', 'Select User first')]
+
+    def clean(self):
+        cleaned_data = super().clean()
+        material_selection = cleaned_data.get('material_selection')
+        quantity = cleaned_data.get('quantity')
+        
+        if not self.user or not material_selection or not quantity:
+            return cleaned_data
+        
+        # Extract material ID from selection
+        if material_selection.startswith('m:'):
+            material_id = int(material_selection.split(':')[1])
+            try:
+                material = Material.objects.get(id=material_id)
+                cleaned_data['material'] = material
+                
+                # Validate Branch user has sufficient approved quantity
+                profile = ensure_userprofile(self.user)
+                if profile and profile.role == 'Branch':
+                    from django.db.models import Sum
+                    total_approved = MaterialRequest.objects.filter(
+                        requester=self.user,
+                        material=material,
+                        status='Received'
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
+                    
+                    # Calculate total refundable/damaged for this material
+                    refundable_qty = RefundableMaterial.objects.filter(
+                        branch_user=self.user,
+                        material=material,
+                        status__in=['Pending', 'Accepted']
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
+                    
+                    damaged_qty = DamageMaterial.objects.filter(
+                        branch_user=self.user,
+                        material=material,
+                        status__in=['Pending', 'Confirmed']
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
+                    
+                    # Exclude current instance if editing
+                    if self.instance and self.instance.pk:
+                        refundable_qty -= self.instance.quantity
+                    
+                    used_qty = refundable_qty + damaged_qty
+                    available = total_approved - used_qty
+                    
+                    if quantity > available:
+                        raise forms.ValidationError(
+                            f"Insufficient available stock for {material.name}. "
+                            f"Total Approved: {total_approved}, Already Refundable/Damaged: {used_qty}, "
+                            f"Available: {available}. You tried to mark as refundable: {quantity}."
+                        )
+            except Material.DoesNotExist:
+                raise forms.ValidationError("Invalid material selected.")
+            except forms.ValidationError:
+                raise
+            except Exception as e:
+                pass
+        
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if self.user:
+            instance.branch_user = self.user
+        # Extract material from cleaned_data if available
+        if hasattr(self, 'cleaned_data') and 'material' in self.cleaned_data:
+            instance.material = self.cleaned_data['material']
+        if commit:
+            instance.save()
+        return instance
+
+
+# ── Damaged Materials Form ──────────────────────────────────────────────────
+
+class DamageMaterialForm(forms.ModelForm):
+    """Form for Branch users to report damaged materials.
+    Only Branch users can mark materials as damaged from their approved stock.
+    """
+    
+    material_selection = forms.ChoiceField(
+        label="Material Name",
+        required=True,
+        widget=forms.Select(attrs={
+            'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition',
+            'id': 'id_damaged_material_selection'
+        }),
+        help_text="Select from your approved in-stock materials"
+    )
+
+    class Meta:
+        model = DamageMaterial
+        fields = ['material_selection', 'quantity', 'damage_reason', 'severity', 'status']
+        labels = {
+            'material_selection': 'Material Name',
+            'quantity': 'Quantity Damaged',
+            'damage_reason': 'Reason for Damage',
+            'severity': 'Damage Severity',
+            'status': 'Status',
+        }
+        widgets = {
+            'quantity': forms.NumberInput(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                'min': '1',
+                'placeholder': 'Enter quantity'
+            }),
+            'damage_reason': forms.Textarea(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                'rows': 3,
+                'placeholder': 'Describe how/when the damage occurred'
+            }),
+            'severity': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
+            }),
+            'status': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        
+        # Store user for validation
+        self.user = user
+        
+        # Branch users can only use Pending status (Admin confirms/rejects)
+        if user:
+            try:
+                profile = ensure_userprofile(user)
+                if profile and profile.role == 'Branch':
+                    self.fields['status'].widget = forms.HiddenInput()
+                    self.fields['status'].initial = 'Pending'
+            except Exception:
+                pass
+        
+        # Populate material choices
+        if user:
+            choices = [('', 'Select Material from Stock')]
+            try:
+                profile = ensure_userprofile(user)
+                if profile and profile.role == 'Branch':
+                    # Add approved materials for this branch
+                    approved_requests = MaterialRequest.objects.filter(
+                        requester=user, 
+                        status='Received'
+                    ).select_related('material')
+                    
+                    mats_added = set()
+                    for req in approved_requests:
+                        if req.material.id not in mats_added:
+                            choices.append((f"m:{req.material.id}", f"{req.material.name}"))
+                            mats_added.add(req.material.id)
+                else:
+                    # Admin/Storekeeper can see all materials
+                    all_mats = Material.objects.all().order_by('name')
+                    for m in all_mats:
+                        choices.append((f"m:{m.id}", m.name))
+                
+                self.fields['material_selection'].choices = choices
+            except Exception:
+                self.fields['material_selection'].choices = [('', 'No materials available')]
+        else:
+            self.fields['material_selection'].choices = [('', 'Select User first')]
+
+    def clean(self):
+        cleaned_data = super().clean()
+        material_selection = cleaned_data.get('material_selection')
+        quantity = cleaned_data.get('quantity')
+        
+        if not self.user or not material_selection or not quantity:
+            return cleaned_data
+        
+        # Extract material ID from selection
+        if material_selection.startswith('m:'):
+            material_id = int(material_selection.split(':')[1])
+            try:
+                material = Material.objects.get(id=material_id)
+                cleaned_data['material'] = material
+                
+                # Validate Branch user has sufficient approved quantity
+                profile = ensure_userprofile(self.user)
+                if profile and profile.role == 'Branch':
+                    from django.db.models import Sum
+                    total_approved = MaterialRequest.objects.filter(
+                        requester=self.user,
+                        material=material,
+                        status='Received'
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
+                    
+                    # Calculate total refundable/damaged for this material
+                    refundable_qty = RefundableMaterial.objects.filter(
+                        branch_user=self.user,
+                        material=material,
+                        status__in=['Pending', 'Accepted']
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
+                    
+                    damaged_qty = DamageMaterial.objects.filter(
+                        branch_user=self.user,
+                        material=material,
+                        status__in=['Pending', 'Confirmed']
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
+                    
+                    # Exclude current instance if editing
+                    if self.instance and self.instance.pk:
+                        damaged_qty -= self.instance.quantity
+                    
+                    used_qty = refundable_qty + damaged_qty
+                    available = total_approved - used_qty
+                    
+                    if quantity > available:
+                        raise forms.ValidationError(
+                            f"Insufficient available stock for {material.name}. "
+                            f"Total Approved: {total_approved}, Already Refundable/Damaged: {used_qty}, "
+                            f"Available: {available}. You tried to mark as damaged: {quantity}."
+                        )
+            except Material.DoesNotExist:
+                raise forms.ValidationError("Invalid material selected.")
+            except forms.ValidationError:
+                raise
+            except Exception as e:
+                pass
+        
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if self.user:
+            instance.branch_user = self.user
+        # Extract material from cleaned_data if available
+        if hasattr(self, 'cleaned_data') and 'material' in self.cleaned_data:
+            instance.material = self.cleaned_data['material']
+        if commit:
+            instance.save()
+        return instance

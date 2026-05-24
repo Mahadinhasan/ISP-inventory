@@ -1,0 +1,512 @@
+{% extends 'inventory/base.html' %}
+
+{% block title %}ISP Inventory-Damaged Materials{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+            <h1 class="text-3xl font-bold bg-gradient-to-r from-red-600 via-pink-600 to-rose-600 bg-clip-text text-transparent dark:from-red-400 dark:via-pink-400 dark:to-rose-400">Damaged Materials Log</h1>
+        </div>
+    </div>
+
+    <!-- Filter & Search Row -->
+    <div class="flex flex-col md:flex-row justify-end items-start md:items-center gap-3 mb-4">
+        <form method="get" id="inventory-filter-form" class="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+            {% if request.GET.tab_id %}
+            <input type="hidden" name="tab_id" value="{{ request.GET.tab_id }}">
+            {% endif %}
+            
+            {% if role == 'Admin' or role == 'Storekeeper' %}
+            <select name="user_id" onchange="submitInventoryFilterForm()"
+                class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-white text-sm font-medium min-w-[160px] w-full sm:w-auto">
+                <option value="">All Users</option>
+                {% for branch_user in branch_users %}
+                <option value="{{ branch_user.id }}" {% if request.GET.user_id == branch_user.id|stringformat:"d" %}selected{% endif %}>
+                    {{ branch_user.username }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+            <div class="flex items-center w-full sm:w-auto">
+                <input type="text" name="search" placeholder="Search..." value="{{ request.GET.search }}"
+                    class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-l-2xl px-6 py-3 focus:outline-none focus:border-red-500 transition-all flex-1 sm:w-64 dark:text-white">
+                <button type="submit"
+                    class="bg-gray-100 dark:bg-midnight-800 text-gray-500 dark:text-gray-400 px-5 py-3 rounded-r-2xl border-2 border-l-0 border-gray-100 dark:border-midnight-800 hover:bg-gray-200 dark:hover:bg-midnight-700 transition-all">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Materials List -->
+    <div class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-midnight-800 mx-4">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-midnight-800">
+                <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
+                    <tr>
+                        {% if user.userprofile.role != 'Branch' %}
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Branch</th>
+                        {% endif %}
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Material Name</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Quantity</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Severity</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Reason / How it Damaged</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Status</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Date</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Confirmed By</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
+                    {% for item in damaged_materials %}
+                    <tr class="hover:bg-red-50/10 dark:hover:bg-red-950/5 transition duration-300">
+                        {% if user.userprofile.role != 'Branch' %}
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ item.branch_user_name }}</td>
+                        {% endif %}
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ item.material_name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-semibold">{{ item.quantity }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <span class="px-2.5 py-0.5 rounded text-xs font-semibold
+                                {% if item.severity == 'Minor' %}bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200
+                                {% elif item.severity == 'Moderate' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200
+                                {% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200{% endif %}">
+                                {{ item.severity }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate" title="{{ item.damage_reason }}">{{ item.damage_reason|default:"-" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <span class="px-3 py-1 rounded-full text-xs font-semibold
+                                {% if item.status == 'Pending' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200
+                                {% elif item.status == 'Confirmed' %}bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200
+                                {% else %}bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200{% endif %}">
+                                {{ item.status }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ item.added_at|date:"Y-m-d H:i" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ item.confirmed_by.username|default:"-" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <div class="flex gap-2">
+                                {% if role == 'Branch' %}
+                                    {% if item.status == 'Pending' %}
+                                    <button onclick="openEditModal('{{ item.id }}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 font-semibold" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button onclick="confirmDelete('{{ item.id }}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 font-semibold" title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    {% else %}
+                                    <span class="text-xs text-gray-400 italic">Confirmed</span>
+                                    {% endif %}
+                                {% elif role == 'Admin' or role == 'Storekeeper' %}
+                                    <button onclick="openApprovalModal('{{ item.id }}', '{{ item.material_name }}', '{{ item.quantity }}', '{{ item.branch_user_name }}', '{{ item.damage_reason }}', '{{ item.severity }}', '{{ item.status }}', '{{ item.admin_note }}')" 
+                                            class="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 dark:bg-midnight-800 dark:hover:bg-midnight-700 dark:text-red-300 text-xs font-bold rounded-lg border border-red-100 dark:border-midnight-800 transition">
+                                        <i class="fas fa-check-double mr-1"></i>Review
+                                    </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                            <div class="flex flex-col items-center justify-center">
+                                <i class="fas fa-hammer text-5xl text-gray-300 dark:text-gray-700 mb-4 animate-bounce"></i>
+                                <p class="text-lg font-bold">No Damaged Materials logged</p>
+                                <p class="text-sm mt-1 text-gray-400">Any reported damaged items will show up here.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+<!-- Pagination Controls -->
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="flex justify-end mt-6">
+    <nav class="inline-flex -space-x-px" aria-label="Pagination">
+        {% if page_obj.has_previous %}
+        <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}page={{ page_obj.previous_page_number }}"
+            class="px-3 py-2 ml-0 leading-tight text-gray-500 bg-white border border-gray-300 rounded-l-lg hover:bg-gray-100 hover:text-gray-700 transition">
+            <span class="sr-only">Previous</span>
+            <i class="fas fa-chevron-left"></i>
+        </a>
+        {% else %}
+        <span
+            class="px-3 py-2 ml-0 leading-tight text-gray-300 bg-gray-100 border border-gray-300 rounded-l-lg cursor-not-allowed">
+            <span class="sr-only">Previous</span>
+            <i class="fas fa-chevron-left"></i>
+        </span>
+        {% endif %}
+
+        {% for num in page_obj.paginator.page_range %}
+        {% if page_obj.number == num %}
+        <span
+            class="px-3 py-2 leading-tight text-white bg-indigo-600 border border-indigo-600">{{ num }}</span>
+        {% else %}
+        <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}page={{ num }}"
+            class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 hover:bg-gray-100 hover:text-gray-700 transition">
+            {{ num }}
+        </a>
+        {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+        <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}page={{ page_obj.next_page_number }}"
+            class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 rounded-r-lg hover:bg-gray-100 hover:text-gray-700 transition">
+            <span class="sr-only">Next</span>
+            <i class="fas fa-chevron-right"></i>
+        </a>
+        {% else %}
+        <span
+            class="px-3 py-2 leading-tight text-gray-300 bg-gray-100 border border-gray-300 rounded-r-lg cursor-not-allowed">
+            <span class="sr-only">Next</span>
+            <i class="fas fa-chevron-right"></i>
+        </span>
+        {% endif %}
+    </nav>
+</div>
+{% endif %}
+
+<!-- Add/Edit Modal (Branch Only) -->
+{% if role == 'Branch' %}
+<div id="addEditModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4 animate-fade-in">
+    <div class="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl shadow-2xl max-w-xl w-full border border-gray-100 dark:border-slate-700 overflow-hidden transform transition-all duration-300">
+        <div class="px-6 py-5 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gradient-to-r from-red-50/50 to-rose-50/50 dark:from-slate-800 dark:to-slate-800">
+            <h3 id="modalTitle" class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <i class="fas fa-hammer text-red-600 dark:text-red-400"></i>Report Damaged Material
+            </h3>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white transition">&times;</button>
+        </div>
+        
+        <form id="damagedForm" method="POST" action="{% url 'damaged_materials' %}" class="p-6 space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" id="formAction" value="create">
+            <input type="hidden" name="dm_id" id="dm_id" value="">
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Material Selection</label>
+                    {{ form.material_selection }}
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Quantity Damaged</label>
+                    {{ form.quantity }}
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Severity</label>
+                    {{ form.severity }}
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Reason for Damage</label>
+                    {{ form.damage_reason }}
+                </div>
+                
+                <div class="hidden">
+                    {{ form.status }}
+                </div>
+            </div>
+
+            <div class="flex gap-2 pt-5 border-t border-gray-100 dark:border-slate-700 mt-6">
+                <button type="button" onclick="closeModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 font-semibold rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition text-sm">
+                    Cancel
+                </button>
+                <button type="submit" class="flex-1 px-4 py-2 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-lg font-semibold hover:shadow-lg transition">
+                    <i class="fas fa-save mr-1"></i>Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete Modal -->
+<div id="deleteModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4">
+    <div class="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-xl shadow-2xl max-w-sm w-full border border-gray-200 dark:border-slate-700">
+        <div class="p-6 text-center">
+            <div class="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-exclamation-triangle text-2xl text-red-600 dark:text-red-400"></i>
+            </div>
+            <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Undo Damage?</h3>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">This will undo the damage record and return the items to your in-stock approved materials (if applicable).</p>
+            
+            <form method="POST" action="{% url 'damaged_materials' %}" class="inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="dm_id" id="deleteDmId" value="">
+                
+                <div class="flex gap-2">
+                    <button type="button" onclick="closeDeleteModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 font-semibold transition">
+                        Cancel
+                    </button>
+                    <button type="submit" class="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition">
+                        <i class="fas fa-undo mr-1"></i>Undo
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Admin/Storekeeper Review & Process Modal -->
+{% if role == 'Admin' or role == 'Storekeeper' %}
+<div id="approvalModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4">
+    <div class="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-xl shadow-2xl max-w-md w-full border border-gray-200 dark:border-slate-700 overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-200 dark:border-slate-700 flex items-center gap-3 bg-gradient-to-r from-red-50 to-rose-50 dark:from-slate-700 dark:to-slate-700">
+            <div class="h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <i class="fas fa-check-double text-lg text-red-600 dark:text-red-400"></i>
+            </div>
+            <div>
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Review Damage Report</h3>
+                <p id="reviewHeaderSub" class="text-xs text-gray-600 dark:text-gray-400">-</p>
+            </div>
+        </div>
+
+        <div class="p-5 space-y-4">
+            <div class="bg-red-50/50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800/30 text-sm">
+                <p class="text-gray-900 dark:text-white"><span class="font-bold">Branch User:</span> <span id="reviewBranch">-</span></p>
+                <p class="text-gray-900 dark:text-white mt-1"><span class="font-bold">Reason for Damage:</span> <span id="reviewReason">-</span></p>
+                <p class="text-gray-900 dark:text-white mt-1"><span class="font-bold">Severity:</span> <span id="reviewSeverity" class="px-2 py-0.5 rounded text-xs font-semibold">-</span></p>
+                <p class="text-gray-900 dark:text-white mt-1"><span class="font-bold">Current Status:</span> <span id="reviewStatus" class="px-2 py-0.5 rounded text-xs font-semibold">-</span></p>
+            </div>
+
+            <form method="POST" action="{% url 'damaged_materials' %}" class="space-y-4">
+                {% csrf_token %}
+                <input type="hidden" name="dm_id" id="reviewDmId" value="">
+                <input type="hidden" name="action" id="reviewAction" value="confirm">
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Admin Remarks</label>
+                    <textarea name="admin_note" id="reviewAdminNote" rows="3" placeholder="Add optional remarks..."
+                        class="w-full px-3 py-2 border-2 border-gray-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-slate-900 dark:text-white text-sm"></textarea>
+                </div>
+
+                <div class="flex gap-2 pt-4 border-t border-gray-200 dark:border-slate-700">
+                    <button type="button" onclick="closeApprovalModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 font-semibold transition text-sm">
+                        Cancel
+                    </button>
+                    <button type="submit" onclick="document.getElementById('reviewAction').value='reject'" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition text-sm">
+                        <i class="fas fa-times-circle mr-1"></i>Reject Report
+                    </button>
+                    <button type="submit" onclick="document.getElementById('reviewAction').value='confirm'" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition text-sm">
+                        <i class="fas fa-check-circle mr-1"></i>Confirm Damage
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+    function openAddModal() {
+        document.getElementById('formAction').value = 'create';
+        document.getElementById('dm_id').value = '';
+        document.getElementById('modalTitle').innerHTML = '<i class="fas fa-hammer text-red-600 dark:text-red-400"></i>Report Damaged Material';
+        
+        // Reset inputs
+        const select = document.getElementById('id_damaged_material_selection');
+        if (select) select.selectedIndex = 0;
+        const qty = document.getElementById('id_quantity');
+        if (qty) qty.value = 1;
+        const sev = document.getElementById('id_severity');
+        if (sev) sev.selectedIndex = 1; // Default Moderate
+        const reason = document.getElementById('id_damage_reason');
+        if (reason) reason.value = '';
+        
+        // For Branch users: quick auto-submit without manual input.
+        // If auto-submit fails or is disabled, fall back to showing the modal.
+        try {
+            {% if role == 'Branch' %}
+            autoSubmitDamagedReport();
+            return;
+            {% endif %}
+        } catch (e) {
+            console.warn('Auto quick submit check failed, showing modal', e);
+        }
+
+        document.getElementById('addEditModal').classList.remove('hidden');
+    }
+
+    // Auto-submit a minimal damage report for Branch users (no manual input required)
+    function autoSubmitDamagedReport() {
+        const form = document.getElementById('damagedForm');
+        if (!form) {
+            console.error('Damaged form not found.');
+            return document.getElementById('addEditModal').classList.remove('hidden');
+        }
+
+        // Read values from form inputs (they exist even when modal hidden)
+        const materialEl = document.getElementById('id_damaged_material_selection');
+        const qtyEl = document.getElementById('id_quantity');
+        const sevEl = document.getElementById('id_severity');
+        const reasonEl = document.getElementById('id_damage_reason');
+        const csrfEl = form.querySelector('input[name="csrfmiddlewaretoken"]');
+
+        if (!materialEl || !qtyEl || !sevEl || !csrfEl) {
+            // Missing elements – show modal so user can fill manually
+            console.warn('Required inputs missing, opening modal for manual input.');
+            return document.getElementById('addEditModal').classList.remove('hidden');
+        }
+
+        // Build minimal payload
+        const payload = new FormData();
+        payload.append('csrfmiddlewaretoken', csrfEl.value);
+        payload.append('action', 'create');
+        payload.append('material_selection', materialEl.value);
+        payload.append('quantity', qtyEl.value || '1');
+        payload.append('severity', sevEl.value || 'Moderate');
+        payload.append('damage_reason', (reasonEl && reasonEl.value) ? reasonEl.value : '');
+
+        // Submit using fetch to same URL as the form
+        const actionUrl = form.getAttribute('action') || window.location.href;
+
+        fetch(actionUrl, {
+            method: 'POST',
+            body: payload,
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(async res => {
+            if (res.redirected) {
+                // follow redirect
+                window.location.href = res.url;
+                return;
+            }
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error('Server error: ' + res.status + ' ' + text);
+            }
+            // Success – reload to reflect new record
+            window.location.reload();
+        })
+        .catch(err => {
+            console.error('Auto submit failed:', err);
+            // On failure open the modal so user can try manually
+            alert('Quick report failed. Please use the form to report the damage.');
+            document.getElementById('addEditModal').classList.remove('hidden');
+        });
+    }
+
+    function openEditModal(dmId) {
+        document.getElementById('formAction').value = 'edit';
+        document.getElementById('dm_id').value = dmId;
+        document.getElementById('modalTitle').innerHTML = '<i class="fas fa-edit text-red-600 dark:text-red-400"></i>Edit Damaged Material';
+        
+        // Load data via API
+        fetch(`/api/damaged-materials/${dmId}/`, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            document.getElementById('id_damaged_material_selection').value = data.material_selection;
+            document.getElementById('id_quantity').value = data.quantity;
+            document.getElementById('id_severity').value = data.severity;
+            document.getElementById('id_damage_reason').value = data.damage_reason || '';
+            document.getElementById('addEditModal').classList.remove('hidden');
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Failed to load damaged material details.');
+        });
+    }
+
+    function closeModal() {
+        document.getElementById('addEditModal').classList.add('hidden');
+    }
+
+    function confirmDelete(dmId) {
+        document.getElementById('deleteDmId').value = dmId;
+        document.getElementById('deleteModal').classList.remove('hidden');
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('deleteModal').classList.add('hidden');
+    }
+
+    // Admin/Storekeeper Review functions
+    {% if role == 'Admin' or role == 'Storekeeper' %}
+    function openApprovalModal(dmId, matName, qty, branchUser, reason, severity, status, adminNote) {
+        document.getElementById('reviewDmId').value = dmId;
+        document.getElementById('reviewHeaderSub').textContent = `${matName} • ${qty} items`;
+        document.getElementById('reviewBranch').textContent = branchUser;
+        document.getElementById('reviewReason').textContent = reason || 'No reason provided';
+        document.getElementById('reviewAdminNote').value = adminNote || '';
+        
+        const sevSpan = document.getElementById('reviewSeverity');
+        sevSpan.textContent = severity;
+        sevSpan.className = 'px-2 py-0.5 rounded text-xs font-semibold ';
+        if (severity === 'Minor') {
+            sevSpan.className += 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200';
+        } else if (severity === 'Moderate') {
+            sevSpan.className += 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200';
+        } else {
+            sevSpan.className += 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200';
+        }
+
+        const statusSpan = document.getElementById('reviewStatus');
+        statusSpan.textContent = status;
+        statusSpan.className = 'px-2 py-0.5 rounded text-xs font-semibold ';
+        if (status === 'Pending') {
+            statusSpan.className += 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200';
+        } else if (status === 'Confirmed') {
+            statusSpan.className += 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200';
+        } else {
+            statusSpan.className += 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200';
+        }
+
+        document.getElementById('approvalModal').classList.remove('hidden');
+    }
+
+    function closeApprovalModal() {
+        document.getElementById('approvalModal').classList.add('hidden');
+    }
+    {% endif %}
+
+    // Close modals on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeModal();
+            {% if role == 'Branch' %}
+            closeDeleteModal();
+            {% endif %}
+            {% if role == 'Admin' or role == 'Storekeeper' %}
+            closeApprovalModal();
+            {% endif %}
+        }
+    });
+
+    // Style elements after loading
+    document.addEventListener('DOMContentLoaded', () => {
+        const inputs = document.querySelectorAll('select, input[type="text"], input[type="number"], textarea');
+        inputs.forEach(input => {
+            if (!input.classList.contains('styled')) {
+                input.classList.add('w-full', 'px-4', 'py-3', 'border-2', 'border-gray-300', 'dark:border-slate-700', 'rounded-lg', 'focus:outline-none', 'focus:border-red-500', 'focus:ring-2', 'focus:ring-red-200', 'transition', 'dark:bg-slate-900', 'dark:text-white');
+                input.classList.add('styled');
+            }
+        });
+    });
+
+    function submitInventoryFilterForm() {
+        document.getElementById('inventory-filter-form').submit();
+    }
+</script>
+
+<style>
+    #addEditModal.hidden, #deleteModal.hidden, #approvalModal.hidden {
+        display: none !important;
+    }
+</style>
+{% endblock %}

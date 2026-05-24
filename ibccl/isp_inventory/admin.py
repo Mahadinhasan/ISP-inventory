@@ -217,3 +217,48 @@ class MaterialMacSerialImportAdmin(admin.ModelAdmin):
     date_hierarchy = 'created_at'
 
 admin.site.register(MaterialMacSerialImport, MaterialMacSerialImportAdmin)
+
+# class RefundableMaterialAdmin(admin.ModelAdmin):
+#     list_display = ['id', 'branch_user', 'material', 'quantity', 'status', 'created_at']
+#     list_filter = ['status', 'created_at', 'material']
+#     search_fields = ['branch_user__username', 'material__name']
+#     readonly_fields = ['created_at']
+#     fieldsets = (
+#         ('Material Info', {
+#             'fields': ('branch_user', 'material', 'quantity')
+#         }),
+#         ('Status', {
+#             'fields': ('status', 'admin_note')
+#         }),
+#         ('Timestamps', {
+#             'fields': ('created_at',),
+#             'classes': ('collapse',)
+#         }),
+#     )
+#     date_hierarchy = 'created_at'
+
+# admin.site.register(RefundableMaterial, RefundableMaterialAdmin)
+
+# class DamageMaterialAdmin(admin.ModelAdmin):
+#     list_display = ['id', 'branch_user', 'material', 'quantity', 'damage_type', 'status', 'created_at']
+#     list_filter = ['status', 'created_at', 'material', 'damage_type']
+#     search_fields = ['branch_user__username', 'material__name']
+#     readonly_fields = ['created_at']
+#     fieldsets = (
+#         ('Material Info', {
+#             'fields': ('branch_user', 'material', 'quantity')
+#         }),
+#         ('Damage Info', {
+#             'fields': ('damage_type', 'damage_description', 'photos', 'estimated_cost')
+#         }),
+#         ('Status', {
+#             'fields': ('status', 'admin_note')
+#         }),
+#         ('Timestamps', {
+#             'fields': ('created_at',),
+#             'classes': ('collapse',)
+#         }),
+#     )
+#     date_hierarchy = 'created_at'
+
+# admin.site.register(DamageMaterial, DamageMaterialAdmin)

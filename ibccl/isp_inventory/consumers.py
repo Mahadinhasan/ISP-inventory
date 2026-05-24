@@ -85,14 +85,11 @@ class MaterialsMonitoringConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         self.user = self.scope.get('user')
         role = await get_user_role(self.user) if self.user else None
-        if not self.user or not self.user.is_authenticated or role not in ['Admin', 'NOC']:
+        if not self.user or not self.user.is_authenticated or role != 'Admin':
             await self.close(code=4403)
             return
             
-        if role == 'Admin':
-            self.monitoring_group = MATERIALS_MONITORING_GROUP
-        else:
-            self.monitoring_group = f"materials_monitoring_noc_{self.user.id}"
+        self.monitoring_group = MATERIALS_MONITORING_GROUP
             
         await self.channel_layer.group_add(self.monitoring_group, self.channel_name)
         await self.accept()
