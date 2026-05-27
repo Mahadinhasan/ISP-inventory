@@ -361,6 +361,7 @@ def add_material(request):
         quantity = int(request.POST.get('quantity', 0))
         rate = int(request.POST.get('rate', 0))
         min_stock = int(request.POST.get('min_stock_level', 0))
+        total_price = quantity * rate
         
         Material.objects.create(
             name=name,
