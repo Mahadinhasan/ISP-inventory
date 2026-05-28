@@ -77,6 +77,16 @@
             }
         }
     </script>
+    <script>
+        // Apply saved theme BEFORE first paint to prevent the light/dark flash (FOUC)
+        (function () {
+            try {
+                var pref = localStorage.getItem('theme-preference') || 'auto';
+                var isDark = pref === 'dark' || (pref === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                if (isDark) document.documentElement.classList.add('dark');
+            } catch (e) {}
+        })();
+    </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         /* Modern Glassmorphism & High-end UI Styles */
@@ -205,6 +215,113 @@
                 transform: rotate(10deg);
             }
         }
+
+        /* ============================================================
+           DARK-MODE SAFETY NET
+           Provides readable dark defaults for any element that does
+           NOT already declare its own dark: variant. The
+           :not([class*="dark:..."]) guards make sure we never override
+           styling that was already handled correctly per element.
+           ============================================================ */
+        /* Surfaces */
+        .dark .bg-white:not([class*="dark:bg-"]) { background-color: #0f172a; }
+        .dark .bg-gray-50:not([class*="dark:bg-"]),
+        .dark .bg-gray-100:not([class*="dark:bg-"]),
+        .dark .bg-slate-50:not([class*="dark:bg-"]),
+        .dark .bg-slate-100:not([class*="dark:bg-"]) { background-color: #1e293b; }
+        .dark .bg-gray-200:not([class*="dark:bg-"]),
+        .dark .bg-slate-200:not([class*="dark:bg-"]) { background-color: #334155; }
+
+        /* Text */
+        .dark .text-black:not([class*="dark:text-"]),
+        .dark .text-gray-900:not([class*="dark:text-"]),
+        .dark .text-gray-800:not([class*="dark:text-"]),
+        .dark .text-slate-900:not([class*="dark:text-"]),
+        .dark .text-slate-800:not([class*="dark:text-"]) { color: #f1f5f9; }
+        .dark .text-gray-700:not([class*="dark:text-"]),
+        .dark .text-gray-600:not([class*="dark:text-"]),
+        .dark .text-slate-700:not([class*="dark:text-"]),
+        .dark .text-slate-600:not([class*="dark:text-"]) { color: #cbd5e1; }
+        .dark .text-gray-500:not([class*="dark:text-"]),
+        .dark .text-gray-400:not([class*="dark:text-"]),
+        .dark .text-slate-500:not([class*="dark:text-"]),
+        .dark .text-slate-400:not([class*="dark:text-"]) { color: #94a3b8; }
+
+        /* Borders & dividers */
+        .dark .border-gray-100:not([class*="dark:border-"]),
+        .dark .border-gray-200:not([class*="dark:border-"]),
+        .dark .border-slate-100:not([class*="dark:border-"]),
+        .dark .border-slate-200:not([class*="dark:border-"]) { border-color: #334155; }
+        .dark .border-gray-300:not([class*="dark:border-"]),
+        .dark .border-slate-300:not([class*="dark:border-"]) { border-color: #475569; }
+        .dark .divide-gray-100:not([class*="dark:divide-"]) > :not([hidden]) ~ :not([hidden]),
+        .dark .divide-gray-200:not([class*="dark:divide-"]) > :not([hidden]) ~ :not([hidden]) { border-color: #334155; }
+
+        /* Light gradient banners (from-/to- *-50 / *-100) -> subtle dark gradient.
+           from- rules first, to- second, so a "from x to y" pair resolves correctly. */
+        .dark .from-slate-50:not([class*="dark:from-"]),
+        .dark .from-gray-50:not([class*="dark:from-"]),
+        .dark .from-gray-100:not([class*="dark:from-"]),
+        .dark .from-indigo-50:not([class*="dark:from-"]),
+        .dark .from-indigo-100:not([class*="dark:from-"]),
+        .dark .from-purple-50:not([class*="dark:from-"]),
+        .dark .from-purple-100:not([class*="dark:from-"]),
+        .dark .from-blue-50:not([class*="dark:from-"]),
+        .dark .from-blue-100:not([class*="dark:from-"]),
+        .dark .from-red-50:not([class*="dark:from-"]),
+        .dark .from-rose-50:not([class*="dark:from-"]),
+        .dark .from-pink-50:not([class*="dark:from-"]),
+        .dark .from-teal-50:not([class*="dark:from-"]),
+        .dark .from-green-50:not([class*="dark:from-"]),
+        .dark .from-emerald-50:not([class*="dark:from-"]),
+        .dark .from-yellow-50:not([class*="dark:from-"]),
+        .dark .from-amber-50:not([class*="dark:from-"]),
+        .dark .from-sky-50:not([class*="dark:from-"]),
+        .dark .from-violet-50:not([class*="dark:from-"]) {
+            --tw-gradient-from: #0f172a var(--tw-gradient-from-position);
+            --tw-gradient-to: rgb(15 23 42 / 0) var(--tw-gradient-to-position);
+            --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+        }
+        .dark .to-slate-50:not([class*="dark:to-"]),
+        .dark .to-gray-50:not([class*="dark:to-"]),
+        .dark .to-gray-100:not([class*="dark:to-"]),
+        .dark .to-indigo-50:not([class*="dark:to-"]),
+        .dark .to-indigo-100:not([class*="dark:to-"]),
+        .dark .to-purple-50:not([class*="dark:to-"]),
+        .dark .to-purple-100:not([class*="dark:to-"]),
+        .dark .to-blue-50:not([class*="dark:to-"]),
+        .dark .to-blue-100:not([class*="dark:to-"]),
+        .dark .to-red-50:not([class*="dark:to-"]),
+        .dark .to-rose-50:not([class*="dark:to-"]),
+        .dark .to-pink-50:not([class*="dark:to-"]),
+        .dark .to-teal-50:not([class*="dark:to-"]),
+        .dark .to-green-50:not([class*="dark:to-"]),
+        .dark .to-emerald-50:not([class*="dark:to-"]),
+        .dark .to-yellow-50:not([class*="dark:to-"]),
+        .dark .to-amber-50:not([class*="dark:to-"]),
+        .dark .to-sky-50:not([class*="dark:to-"]),
+        .dark .to-violet-50:not([class*="dark:to-"]) {
+            --tw-gradient-to: #1e293b var(--tw-gradient-to-position);
+        }
+
+        /* Hover states */
+        .dark .hover\:bg-gray-50:hover:not([class*="dark:hover:bg-"]),
+        .dark .hover\:bg-gray-100:hover:not([class*="dark:hover:bg-"]) { background-color: #1e293b; }
+        .dark .hover\:bg-gray-200:hover:not([class*="dark:hover:bg-"]) { background-color: #334155; }
+        .dark .hover\:text-gray-900:hover:not([class*="dark:hover:text-"]),
+        .dark .hover\:text-gray-800:hover:not([class*="dark:hover:text-"]),
+        .dark .hover\:text-gray-700:hover:not([class*="dark:hover:text-"]) { color: #f1f5f9; }
+
+        /* Form controls (native / unstyled) */
+        .dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([class*="dark:bg-"]),
+        .dark select:not([class*="dark:bg-"]),
+        .dark textarea:not([class*="dark:bg-"]) {
+            background-color: #0f172a;
+            color: #f1f5f9;
+            border-color: #334155;
+        }
+        .dark input::placeholder,
+        .dark textarea::placeholder { color: #64748b; }
     </style>
 </head>
 
@@ -553,7 +670,7 @@
         {% if messages %}
         {% for message in messages %}
         <div
-            class="mb-6 p-4 rounded-lg {% if message.tags == 'error' %}bg-red-100 text-red-700{% else %}bg-green-100 text-green-700{% endif %}">
+            class="mb-6 p-4 rounded-lg {% if message.tags == 'error' %}bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-300{% else %}bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-300{% endif %}">
             <i class="fas fa-info-circle mr-2"></i>{{ message }}
         </div>
         {% endfor %}
@@ -570,8 +687,8 @@
     </audio>
 
     <!--added footer-->
-    <footer class="bg-white shadow-inner border-t border-gray-200 mt-10">
-        <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-500">
+    <footer class="bg-white dark:bg-gray-800 shadow-inner border-t border-gray-200 dark:border-gray-700 mt-10">
+        <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-500 dark:text-gray-400">
             &copy; <span class="current-year"></span> ISP Inventory System. All rights reserved.
         </div>
     </footer>
