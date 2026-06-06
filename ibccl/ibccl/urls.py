@@ -8,6 +8,6 @@ handler404 = custom_404_view
 urlpatterns = [
     path('admin@/', admin.site.urls),
     path('', include('isp_inventory.urls')),
-    path('noc/', include('Noc.urls')),
+    path('noc/', include(('Noc.urls', 'noc'), namespace='noc')),
     re_path(r'^.*$', custom_404_view, name='custom_404'),
 ]

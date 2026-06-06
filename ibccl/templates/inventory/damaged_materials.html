@@ -49,11 +49,12 @@
                         {% endif %}
                         <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Material Name</th>
                         <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Quantity</th>
-                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Severity</th>
-                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Reason / How it Damaged</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Mac/Serial</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">How it Damaged</th>
                         <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Status</th>
                         <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Date</th>
                         <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Confirmed By</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Note</th>
                         <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Actions</th>
                     </tr>
                 </thead>
@@ -65,15 +66,8 @@
                         {% endif %}
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ item.material_name }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-semibold">{{ item.quantity }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm">
-                            <span class="px-2.5 py-0.5 rounded text-xs font-semibold
-                                {% if item.severity == 'Minor' %}bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200
-                                {% elif item.severity == 'Moderate' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200
-                                {% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200{% endif %}">
-                                {{ item.severity }}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate" title="{{ item.damage_reason }}">{{ item.damage_reason|default:"-" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate" title="{{ item.mac_serial }}">{{ item.mac_serial|default:"N/A" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate" title="{{ item.damage_reason }}">{{ item.damage_reason|default:"-" }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm">
                             <span class="px-3 py-1 rounded-full text-xs font-semibold
                                 {% if item.status == 'Pending' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200
@@ -82,15 +76,16 @@
                                 {{ item.status }}
                             </span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ item.added_at|date:"Y-m-d H:i" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ item.added_at|date:"Y-m-d" }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ item.confirmed_by.username|default:"-" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ item.admin_note|default:"-" }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm">
                             <div class="flex gap-2">
                                 {% if role == 'Branch' %}
                                     {% if item.status == 'Pending' %}
-                                    <button onclick="openEditModal('{{ item.id }}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 font-semibold" title="Edit">
+                                    <!-- <button onclick="openEditModal('{{ item.id }}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 font-semibold" title="Edit">
                                         <i class="fas fa-edit"></i>
-                                    </button>
+                                    </button> -->
                                     <button onclick="confirmDelete('{{ item.id }}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 font-semibold" title="Delete">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -98,7 +93,12 @@
                                     <span class="text-xs text-gray-400 italic">Confirmed</span>
                                     {% endif %}
                                 {% elif role == 'Admin' or role == 'Storekeeper' %}
-                                    <button onclick="openApprovalModal('{{ item.id }}', '{{ item.material_name }}', '{{ item.quantity }}', '{{ item.branch_user_name }}', '{{ item.damage_reason }}', '{{ item.severity }}', '{{ item.status }}', '{{ item.admin_note }}')" 
+                                    {% if item.status == 'Pending' %}
+                                    <!-- <button onclick="openEditModal('{{ item.id }}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 font-semibold" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </button> -->
+                                    {% endif %}
+                                    <button onclick="openApprovalModal('{{ item.id }}', '{{ item.material_name }}', '{{ item.quantity }}', '{{ item.branch_user_name }}', '{{ item.damage_reason }}', '{{ item.mac_serial.mac_serial|default:"N/A" }}', '{{ item.status }}', '{{ item.admin_note }}')" 
                                             class="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 dark:bg-midnight-800 dark:hover:bg-midnight-700 dark:text-red-300 text-xs font-bold rounded-lg border border-red-100 dark:border-midnight-800 transition">
                                         <i class="fas fa-check-double mr-1"></i>Review
                                     </button>
@@ -196,8 +196,8 @@
                 </div>
                 
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Severity</label>
-                    {{ form.severity }}
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">MAC Serial</label>
+                    {{ form.mac_serial }}
                 </div>
                 
                 <div>
@@ -269,7 +269,7 @@
             <div class="bg-red-50/50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800/30 text-sm">
                 <p class="text-gray-900 dark:text-white"><span class="font-bold">Branch User:</span> <span id="reviewBranch">-</span></p>
                 <p class="text-gray-900 dark:text-white mt-1"><span class="font-bold">Reason for Damage:</span> <span id="reviewReason">-</span></p>
-                <p class="text-gray-900 dark:text-white mt-1"><span class="font-bold">Severity:</span> <span id="reviewSeverity" class="px-2 py-0.5 rounded text-xs font-semibold">-</span></p>
+                <p class="text-gray-900 dark:text-white mt-1"><span class="font-bold">MAC Serial:</span> <span id="reviewmacserial" class="px-2 py-0.5 rounded text-xs font-semibold">-</span></p>
                 <p class="text-gray-900 dark:text-white mt-1"><span class="font-bold">Current Status:</span> <span id="reviewStatus" class="px-2 py-0.5 rounded text-xs font-semibold">-</span></p>
             </div>
 
@@ -312,7 +312,7 @@
         if (select) select.selectedIndex = 0;
         const qty = document.getElementById('id_quantity');
         if (qty) qty.value = 1;
-        const sev = document.getElementById('id_severity');
+        const sev = document.getElementById('Mac/serial');
         if (sev) sev.selectedIndex = 1; // Default Moderate
         const reason = document.getElementById('id_damage_reason');
         if (reason) reason.value = '';
@@ -342,11 +342,11 @@
         // Read values from form inputs (they exist even when modal hidden)
         const materialEl = document.getElementById('id_damaged_material_selection');
         const qtyEl = document.getElementById('id_quantity');
-        const sevEl = document.getElementById('id_severity');
+        const macSerialEl = document.getElementById('id_mac_serial');
         const reasonEl = document.getElementById('id_damage_reason');
         const csrfEl = form.querySelector('input[name="csrfmiddlewaretoken"]');
 
-        if (!materialEl || !qtyEl || !sevEl || !csrfEl) {
+        if (!materialEl || !qtyEl || !macSerialEl || !csrfEl) {
             // Missing elements – show modal so user can fill manually
             console.warn('Required inputs missing, opening modal for manual input.');
             return document.getElementById('addEditModal').classList.remove('hidden');
@@ -358,7 +358,7 @@
         payload.append('action', 'create');
         payload.append('material_selection', materialEl.value);
         payload.append('quantity', qtyEl.value || '1');
-        payload.append('severity', sevEl.value || 'Moderate');
+        payload.append('mac_serial', macSerialEl.value || '');
         payload.append('damage_reason', (reasonEl && reasonEl.value) ? reasonEl.value : '');
 
         // Submit using fetch to same URL as the form
@@ -413,7 +413,7 @@
             }
             document.getElementById('id_damaged_material_selection').value = data.material_selection;
             document.getElementById('id_quantity').value = data.quantity;
-            document.getElementById('id_severity').value = data.severity;
+            document.getElementById('id_mac_serial').value = data.mac_serial;
             document.getElementById('id_damage_reason').value = data.damage_reason || '';
             document.getElementById('addEditModal').classList.remove('hidden');
         })
@@ -438,22 +438,17 @@
 
     // Admin/Storekeeper Review functions
     {% if role == 'Admin' or role == 'Storekeeper' %}
-    function openApprovalModal(dmId, matName, qty, branchUser, reason, severity, status, adminNote) {
+    function openApprovalModal(dmId, matName, qty, branchUser, reason, macSerial, status, adminNote) {
         document.getElementById('reviewDmId').value = dmId;
         document.getElementById('reviewHeaderSub').textContent = `${matName} • ${qty} items`;
         document.getElementById('reviewBranch').textContent = branchUser;
         document.getElementById('reviewReason').textContent = reason || 'No reason provided';
         document.getElementById('reviewAdminNote').value = adminNote || '';
         
-        const sevSpan = document.getElementById('reviewSeverity');
-        sevSpan.textContent = severity;
-        sevSpan.className = 'px-2 py-0.5 rounded text-xs font-semibold ';
-        if (severity === 'Minor') {
-            sevSpan.className += 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200';
-        } else if (severity === 'Moderate') {
-            sevSpan.className += 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200';
-        } else {
-            sevSpan.className += 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200';
+        const sevSpan = document.getElementById('reviewmacserial');
+        if (sevSpan) {
+            sevSpan.textContent = macSerial || 'N/A';
+            sevSpan.className = 'px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-800 dark:bg-slate-800 dark:text-slate-200';
         }
 
         const statusSpan = document.getElementById('reviewStatus');

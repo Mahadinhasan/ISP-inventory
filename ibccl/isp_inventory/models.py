@@ -626,18 +626,74 @@ class LogSettings(models.Model):
 
 
 class InternalMessage(models.Model):
-    """Upcoming feature: Internal Communication / SMS"""
+    """Internal Communication / SMS with BD Timezone (UTC+6) Real-time Analysis"""
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
     receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_messages')
     content = models.TextField(verbose_name="Message Content")
     is_read = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Timestamps - UTC by default
+    created_at = models.DateTimeField(auto_now_add=True, help_text="Creation timestamp in UTC")
+    created_at_bd = models.DateTimeField(null=True, blank=True, help_text="Creation timestamp in BD timezone (UTC+6)")
+    
+    # Real-time analysis fields
+    analyzed_at_bd = models.DateTimeField(null=True, blank=True, help_text="When message was analyzed in BD timezone (UTC+6)")
+    is_analyzed = models.BooleanField(default=False, help_text="Flag for real-time analysis completion")
+    analysis_metadata = models.JSONField(default=dict, blank=True, help_text="Real-time analysis results (sentiment, keywords, etc.)")
 
     class Meta:
         ordering = ['-created_at']
+        verbose_name = 'Internal Message'
+        verbose_name_plural = 'Internal Messages'
+        indexes = [
+            models.Index(fields=['sender', '-created_at']),
+            models.Index(fields=['receiver', '-created_at']),
+            models.Index(fields=['is_read', '-created_at']),
+            models.Index(fields=['is_analyzed', '-created_at']),
+        ]
 
     def __str__(self):
-        return f"Message from {self.sender.username} to {self.receiver.username}"
+        return f"Message from {self.sender.username} to {self.receiver.username} - {self.created_at_bd.strftime('%Y-%m-%d %H:%M:%S') if self.created_at_bd else 'N/A'}"
+    
+    def save(self, *args, **kwargs):
+        """Auto-convert UTC created_at to BD timezone (UTC+6) on save"""
+        from django.utils import timezone
+        
+        if not self.created_at_bd and self.created_at:
+            # Convert UTC to BD timezone (UTC+6)
+            bd_tz = timezone.pytz.timezone('Asia/Dhaka')
+            if self.created_at.tzinfo is None:
+                self.created_at = timezone.make_aware(self.created_at)
+            self.created_at_bd = self.created_at.astimezone(bd_tz)
+        
+        super().save(*args, **kwargs)
+    
+    @property
+    def created_at_bd_display(self):
+        """Return BD creation time in readable format"""
+        if self.created_at_bd:
+            return self.created_at_bd.strftime('%d-%b-%Y %H:%M:%S')
+        return 'N/A'
+    
+    @property
+    def analyzed_at_bd_display(self):
+        """Return BD analysis time in readable format"""
+        if self.analyzed_at_bd:
+            return self.analyzed_at_bd.strftime('%d-%b-%Y %H:%M:%S')
+        return 'Not analyzed'
+    
+    def mark_as_analyzed(self, metadata=None):
+        """Mark message as analyzed with optional metadata"""
+        
+        bd_tz = timezone.pytz.timezone('Asia/Dhaka')
+        self.is_analyzed = True
+        self.analyzed_at_bd = timezone.now().astimezone(bd_tz)
+        
+        if metadata:
+            self.analysis_metadata = metadata
+        
+        self.save()
+        return self
 
 
 class MacSerialNumber(models.Model):
@@ -732,51 +788,60 @@ class MaterialMacSerialImport(models.Model):
             return self.noc_user.get_full_name() or self.noc_user.username
         return 'N/A'
 
-
 class RefundableMaterial(models.Model):
-    """Track refundable materials for branch users"""
-    STATUS_CHOICES = [
-        ('Pending', 'Pending'),
-        ('Accepted', 'Accepted'),
-        ('Rejected', 'Rejected'),
-    ]
-    
-    # References
     branch_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='refundable_materials')
-    material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name='refundable_instances')
-    
-    # Material Details
+    material_name = models.CharField(max_length=200, default='')
+    mac_serial = models.CharField(max_length=200, default='N/A', blank=True, verbose_name='Mac/Serial')
     quantity = models.IntegerField(default=1)
-    issue = models.TextField(blank=True, verbose_name='Reason for Refund')
-    
-    # Status & Tracking
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
-    admin_note = models.TextField(blank=True, verbose_name='Admin Notes')
     added_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         ordering = ['-added_at']
         verbose_name = 'Refundable Material'
         verbose_name_plural = 'Refundable Materials'
         indexes = [
             models.Index(fields=['branch_user', '-added_at']),
-            models.Index(fields=['material', '-added_at']),
-            models.Index(fields=['status']),
+            models.Index(fields=['quantity']),
         ]
-    
+
     def __str__(self):
-        return f"{self.branch_user.username} - {self.material.name} (Refund) - {self.status}"
-    
-    @property
-    def material_name(self):
-        """Return material name"""
-        return self.material.name if self.material else 'N/A'
-    
+        return f"{self.branch_user.username} - {self.material_name} ({self.quantity})"
+
     @property
     def branch_user_name(self):
-        """Return branch user's full name"""
         return self.branch_user.get_full_name() or self.branch_user.username
+
+
+class RefundableMaterialUsage(models.Model):
+    refundable_material = models.ForeignKey(RefundableMaterial, on_delete=models.CASCADE, related_name='usages')
+    used_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='used_refundable_materials')
+    materials_quantity = models.IntegerField(default=1)
+    client_name = models.CharField(max_length=200, blank=True, verbose_name='Client Name')
+    client_address = models.TextField(blank=True, verbose_name='Client Address')
+    client_phone = models.CharField(max_length=20, blank=True, verbose_name='Client Phone')
+    issue = models.TextField(blank=True, verbose_name='Technical Issue / Notes')
+    used_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-used_at']
+        verbose_name = 'Refundable Material Usage'
+        verbose_name_plural = 'Refundable Material Usages'
+        indexes = [
+            models.Index(fields=['used_by', '-used_at']),
+            models.Index(fields=['refundable_material', '-used_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.used_by.get_full_name() or self.used_by.username if self.used_by else 'Unknown'} - {self.material_name} ({self.materials_quantity})"
+
+    @property
+    def material_name(self):
+        return self.refundable_material.material_name if self.refundable_material else 'N/A'
+
+    @property
+    def branch_user_name(self):
+        return self.refundable_material.branch_user_name if self.refundable_material else 'N/A'
 
 
 class DamageMaterial(models.Model):
@@ -794,8 +859,7 @@ class DamageMaterial(models.Model):
     # Damage Details
     quantity = models.IntegerField(default=1)
     damage_reason = models.TextField(blank=True, verbose_name='Reason for Damage')
-    severity = models.CharField(max_length=20, choices=[('Minor', 'Minor'), ('Moderate', 'Moderate'), ('Severe', 'Severe')], default='Moderate')
-    
+    mac_serial = models.ForeignKey('MacSerialNumber', on_delete=models.SET_NULL, null=True, blank=True, related_name='damage_records', help_text="Specific Mac/Serial number damaged")    
     # Status & Tracking
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
     admin_note = models.TextField(blank=True, verbose_name='Admin Notes')
@@ -815,7 +879,7 @@ class DamageMaterial(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.branch_user.username} - {self.material.name} (Damage: {self.severity}) - {self.status}"
+        return f"{self.branch_user.username} - {self.material.name} (Damage: {self.mac_serial}) - {self.status}"
     
     @property
     def material_name(self):
@@ -826,32 +890,3 @@ class DamageMaterial(models.Model):
     def branch_user_name(self):
         """Return branch user's full name"""
         return self.branch_user.get_full_name() or self.branch_user.username
-
-# class returnMaterial(models.Model):
-#     STATUS_CHOICES = [
-#         ('Pending', 'Pending'),
-#         ('Approved', 'Approved'),
-#         ('Rejected', 'Rejected'),
-#     ]
-    
-#     material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name='material_returns')
-#     assigned_to = models.ForeignKey(User, on_delete=models.CASCADE, related_name='material_returns', help_text="Branch user returning the materials")
-#     noc_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_material_returns', help_text="NOC user who created this return")
-#     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
-#     total_quantity = models.IntegerField(default=1, help_text="Total quantity for this return")
-#     notes = models.TextField(blank=True)
-#     created_at = models.DateTimeField(auto_now_add=True)
-#     approved_at = models.DateTimeField(null=True, blank=True)
-#     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_material_returns', help_text="Who approved this return")
-    
-#     class Meta:
-#         ordering = ['created_at']
-#         verbose_name = 'Material Return'
-#         verbose_name_plural = 'Material Returns'
-#         indexes = [
-#             models.Index(fields=['assigned_to', 'created_at']),
-#             models.Index(fields=['status', 'created_at']),
-#         ]
-    
-#     def __str__(self):
-#         return f"{self.material.name} - {self.assigned_to.username} - {self.status}"

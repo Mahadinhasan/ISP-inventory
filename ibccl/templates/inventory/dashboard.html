@@ -355,7 +355,7 @@
                         <td class="px-6 py-4 text-sm text-gray-500 font-mono">{{ req.serials_display|default:"N/A" }}</td>
                         <td class="px-6 py-4 text-sm">
                             {% if req.available_quantity > 0 %}
-                            <button onclick="reportDamageAuto('{{ req.material.id }}', '{{ req.material.name }}')"
+                            <button onclick="reportDamageAuto('{{ req.material.id }}', '{{ req.material.name }}', '{% if req.is_serialized %}{{ req.serials_display_id }}{% endif %}')"
                                     class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 dark:bg-midnight-800 dark:hover:bg-midnight-700 dark:text-red-300 text-xs font-bold rounded-lg border border-red-100 dark:border-midnight-800 transition flex items-center gap-1">
                                 <i class="fas fa-hammer"></i> Damage
                             </button>
@@ -1101,11 +1101,11 @@
                         <h4 class="text-md font-bold text-gray-900 dark:text-white">Logged Refundable Items</h4>
                         <p class="text-xs text-gray-500 dark:text-gray-400">Marked or returned stock items awaiting review.</p>
                     </div>
-                    {% if user.userprofile.role == 'Branch' %}
+                    <!-- {% if user.userprofile.role == 'Branch' %}
                     <button onclick="openTabAddModal('refundable')" class="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:shadow-indigo-500/20 text-white rounded-lg text-xs font-bold transition hover:shadow-lg flex items-center gap-1.5">
                         <i class="fas fa-plus"></i> Log Refundable
                     </button>
-                    {% endif %}
+                    {% endif %} -->
                 </div>
                 <div class="overflow-x-auto border border-gray-100 dark:border-midnight-800 rounded-xl">
                     <table class="min-w-full divide-y divide-gray-200 dark:divide-midnight-800">
@@ -1116,10 +1116,8 @@
                                 {% endif %}
                                 <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Material Name</th>
                                 <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Quantity</th>
-                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Reason</th>
-                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Status</th>
-                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Remarks</th>
-                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Actions</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">MAC Serial</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Date</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
@@ -1128,43 +1126,14 @@
                                 {% if role != 'Branch' %}
                                 <td class="px-4 py-3 whitespace-nowrap text-gray-900 dark:text-white font-medium">{{ item.branch_user.username }}</td>
                                 {% endif %}
-                                <td class="px-4 py-3 whitespace-nowrap text-gray-900 dark:text-white font-medium">{{ item.material.name }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap text-gray-900 dark:text-white font-medium">{{ item.material_name }}</td>
                                 <td class="px-4 py-3 whitespace-nowrap text-gray-900 dark:text-white font-bold">{{ item.quantity }}</td>
-                                <td class="px-4 py-3 text-gray-500 dark:text-gray-400 max-w-xs truncate" title="{{ item.issue }}">{{ item.issue|default:"-" }}</td>
-                                <td class="px-4 py-3 whitespace-nowrap">
-                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold
-                                        {% if item.status == 'Pending' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200
-                                        {% elif item.status == 'Accepted' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200
-                                        {% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200{% endif %}">
-                                        {{ item.status }}
-                                    </span>
-                                </td>
-                                <td class="px-4 py-3 text-gray-500 dark:text-gray-400 max-w-xs truncate" title="{{ item.admin_note }}">{{ item.admin_note|default:"-" }}</td>
-                                <td class="px-4 py-3 whitespace-nowrap">
-                                    <div class="flex gap-2">
-                                        {% if role == 'Branch' %}
-                                            {% if item.status == 'Pending' %}
-                                            <button onclick="openTabEditModal('refundable', '{{ item.id }}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 font-semibold" title="Edit">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button onclick="confirmTabDelete('refundable', '{{ item.id }}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 font-semibold" title="Delete">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                            {% else %}
-                                            <span class="text-xs text-gray-400 italic">Processed</span>
-                                            {% endif %}
-                                        {% elif role == 'Admin' or role == 'Storekeeper' %}
-                                            <button onclick="openTabApprovalModal('refundable', '{{ item.id }}', '{{ item.material.name }}', '{{ item.quantity }}', '{{ item.branch_user.username }}', '{{ item.issue }}', '{{ item.status }}', '{{ item.admin_note }}')" 
-                                                    class="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-midnight-800 dark:hover:bg-midnight-700 dark:text-indigo-300 text-xs font-bold rounded border border-indigo-100 dark:border-midnight-800 transition">
-                                                <i class="fas fa-check-double mr-1"></i>Review
-                                            </button>
-                                        {% endif %}
-                                    </div>
-                                </td>
+                                <td class="px-4 py-3 whitespace-nowrap text-gray-900 dark:text-white font-mono text-xs">{{ item.mac_serial|default:"N/A" }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap text-gray-500 dark:text-gray-400">{{ item.added_at|date:"Y-m-d" }}</td>
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="7" class="px-4 py-12 text-center text-gray-500 dark:text-gray-400">
+                                <td colspan="4" class="px-4 py-12 text-center text-gray-500 dark:text-gray-400">
                                     <i class="fas fa-inbox text-4xl mb-3 text-gray-300 dark:text-midnight-800"></i><br>
                                     No refundable materials found.
                                 </td>
@@ -1214,14 +1183,7 @@
                                 {% endif %}
                                 <td class="px-4 py-3 whitespace-nowrap text-gray-900 dark:text-white font-medium">{{ item.material.name }}</td>
                                 <td class="px-4 py-3 whitespace-nowrap text-gray-900 dark:text-white font-bold">{{ item.quantity }}</td>
-                                <td class="px-4 py-3 whitespace-nowrap">
-                                    <span class="px-2.5 py-0.5 rounded text-xs font-semibold
-                                        {% if item.severity == 'Minor' %}bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200
-                                        {% elif item.severity == 'Moderate' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200
-                                        {% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200{% endif %}">
-                                        {{ item.mac_serial|default:"N/A" }}
-                                    </span>
-                                </td>
+                                <td class="px-4 py-3 whitespace-nowrap text-gray-900 dark:text-white font-mono text-xs">{{ item.mac_serial|default:"-" }}</td>
                                 <td class="px-4 py-3 text-gray-500 dark:text-gray-400 max-w-xs truncate" title="{{ item.damage_reason }}">{{ item.damage_reason|default:"-" }}</td>
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold
@@ -1235,7 +1197,7 @@
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <div class="flex gap-2">
                                         {% if role == 'Admin' or role == 'Storekeeper' %}
-                                            <button onclick="openTabApprovalModal('damaged', '{{ item.id }}', '{{ item.material.name }}', '{{ item.quantity }}', '{{ item.branch_user.username }}', '{{ item.damage_reason }}', '{{ item.status }}', '{{ item.admin_note }}', '{{ item.severity }}')" 
+                                            <button onclick="openTabApprovalModal('damaged', '{{ item.id }}', '{{ item.material.name }}', '{{ item.quantity }}', '{{ item.branch_user.username }}', '{{ item.damage_reason }}', '{{ item.status }}', '{{ item.admin_note }}', '{{ item.mac_serial }}')" 
                                                     class="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 dark:bg-midnight-800 dark:hover:bg-midnight-700 dark:text-red-300 text-xs font-bold rounded border border-red-100 dark:border-midnight-800 transition">
                                                 <i class="fas fa-check-double mr-1"></i>Review
                                             </button>
@@ -1428,7 +1390,7 @@
             <div class="bg-red-50/50 dark:bg-red-900/10 p-3 rounded-lg border border-red-200 dark:border-red-800/30 text-sm">
                 <p class="text-gray-900 dark:text-white"><span class="font-bold">Branch User:</span> <span id="tabApprovalBranch">-</span></p>
                 <p class="text-gray-900 dark:text-white mt-1"><span class="font-bold">Reason/Description:</span> <span id="tabApprovalReason">-</span></p>
-                <p id="tabApprovalSeverityContainer" class="text-gray-900 dark:text-white mt-1 hidden"><span class="font-bold">Severity:</span> <span id="tabApprovalSeverity" class="px-2 py-0.5 rounded text-xs font-semibold">-</span></p>
+                <p id="tabApprovalmacserialContainer" class="text-gray-900 dark:text-white mt-1 hidden"><span class="font-bold">MAC Serial:</span> <span id="tabApprovalmacserial" class="px-2 py-0.5 rounded text-xs font-semibold">-</span></p>
                 <p class="text-gray-900 dark:text-white mt-1"><span class="font-bold">Current Status:</span> <span id="tabApprovalStatus" class="px-2 py-0.5 rounded text-xs font-semibold">-</span></p>
             </div>
 
@@ -1736,14 +1698,17 @@
         }
     }
 
-    function reportDamageAuto(materialId, materialName) {
-        const quantity = prompt(`How many units of "${materialName}" are damaged?`, "1");
-        if (quantity === null) return; // User cancelled
+    function reportDamageAuto(materialId, materialName, macSerialId = '') {
+        let qtyInt = 1;
+        if (!macSerialId) {
+            const quantity = prompt(`How many units of "${materialName}" are damaged?`, "1");
+            if (quantity === null) return; // User cancelled
 
-        const qtyInt = parseInt(quantity);
-        if (isNaN(qtyInt) || qtyInt <= 0) {
-            alert("Please enter a valid positive number.");
-            return;
+            qtyInt = parseInt(quantity);
+            if (isNaN(qtyInt) || qtyInt <= 0) {
+                alert("Please enter a valid positive number.");
+                return;
+            }
         }
 
         const reason = prompt("Enter reason for damage (optional):", "");
@@ -1787,7 +1752,7 @@
                 material_id: materialId,
                 quantity: qtyInt,
                 damage_reason: reason,
-                severity: 'Moderate'
+                mac_serial_id: macSerialId
             })
         })
         .then(response => {
@@ -1907,7 +1872,7 @@
                     const form = document.getElementById('damagedFormModal').querySelector('form');
                     form.querySelector('[name=material_selection]').value = data.material_id;
                     form.querySelector('[name=quantity]').value = data.quantity;
-                    form.querySelector('[name=severity]').value = data.severity;
+                    form.querySelector('[name=mac_serial]').value = data.mac_serial;
                     form.querySelector('[name=damage_reason]').value = data.damage_reason;
 
                     document.getElementById('damagedFormModal').classList.remove('hidden');
@@ -1936,7 +1901,7 @@
     }
 
     // Admin Process Approval Modal
-    function openTabApprovalModal(type, id, matName, qty, branchUser, reason, status, adminNote, severity) {
+    function openTabApprovalModal(type, id, matName, qty, branchUser, reason, status, adminNote, materialId) {
         const form = document.getElementById('tabApprovalForm');
         const idField = document.getElementById('tabApprovalIdField');
         const confirmBtn = document.getElementById('tabApprovalConfirmBtn');
@@ -1946,14 +1911,14 @@
             idField.name = "rf_id";
             document.getElementById('tabApprovalTitle').textContent = "Review Refund Request";
             confirmBtn.textContent = "Accept & Refund";
-            document.getElementById('tabApprovalSeverityContainer').classList.add('hidden');
+            document.getElementById('tabApprovalmacserialContainer').classList.add('hidden');
         } else {
             form.action = "{% url 'damaged_materials' %}";
             idField.name = "dm_id";
             document.getElementById('tabApprovalTitle').textContent = "Review Damage Report";
             confirmBtn.textContent = "Confirm Damage";
-            document.getElementById('tabApprovalSeverityContainer').classList.remove('hidden');
-            document.getElementById('tabApprovalSeverity').textContent = severity || 'Moderate';
+            document.getElementById('tabApprovalmacserialContainer').classList.remove('hidden');
+            document.getElementById('tabApprovalmacserial').textContent = mac_serial || 'Not specified';
         }
 
         idField.value = id;

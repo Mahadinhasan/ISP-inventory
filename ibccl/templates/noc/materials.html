@@ -60,7 +60,7 @@
                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {% for mat in materials %}
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                        <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{{ forloop.counter }}</td>
+                        <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{{ forloop.counter0|add:1 }}</td>
                         <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{{ mat.name }}</td>
                         <td class="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">{{ mat.quantity }}</td>
                         <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ mat.min_stock_level }}</td>

@@ -5,13 +5,14 @@ from django.contrib import messages
 from django.contrib.auth.models import User, Group
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
-from .forms import RegisterForm, MaterialForm, RequestForm, SystemSettingForm, NotificationSettingForm, UsedMaterialForm, LogSettingsForm, RefundableMaterialForm, DamageMaterialForm
-from .models import Material, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial, MaterialMonthlyCount, InternalMessage, ActivityLog, LogSettings, MacSerialNumber, RefundableMaterial, DamageMaterial
+from .forms import RegisterForm, MaterialForm, RequestForm, SystemSettingForm, NotificationSettingForm, UsedMaterialForm, LogSettingsForm, RefundableMaterialForm, RefundableMaterialUsageForm, DamageMaterialForm
+from .models import Material, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial, MaterialMonthlyCount, InternalMessage, ActivityLog, LogSettings, MacSerialNumber, RefundableMaterial, RefundableMaterialUsage, DamageMaterial
 from .utils import ensure_userprofile
 from django.db.models import Sum, Q, F, Case, When, IntegerField, Count
 from django.db import transaction
 from django.utils import timezone
 from datetime import datetime
+from django.conf import settings
 from django.http import HttpResponse, JsonResponse
 from django.core.management import call_command
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -74,7 +75,6 @@ def _set_jwt_cookies(response, user, tab_id):
     access = str(refresh.access_token)
     refresh_str = str(refresh)
 
-    from django.conf import settings
     jwt_cfg = getattr(settings, 'SIMPLE_JWT', {})
     secure = jwt_cfg.get('AUTH_COOKIE_SECURE', False)
     samesite = jwt_cfg.get('AUTH_COOKIE_SAMESITE', 'Lax')
@@ -306,13 +306,8 @@ def dashboard(request):
         for u in used_qs:
             used_totals[u['material_id']] = u['total'] or 0
 
-        # Include RefundableMaterial (Pending/Accepted) totals for this branch
-        ref_qs = RefundableMaterial.objects.filter(
-            branch_user=request.user,
-            status__in=['Pending', 'Accepted']
-        ).values('material_id').annotate(total=Sum('quantity'))
-        for r in ref_qs:
-            used_totals[r['material_id']] = used_totals.get(r['material_id'], 0) + (r['total'] or 0)
+        # RefundableMaterial records are stored as free-text material names and are not linked to Material objects.
+        # Therefore this dashboard stock calculation skips direct RefundableMaterial aggregation by material_id.
 
         # Include DamageMaterial (Pending/Confirmed) totals for this branch
         dam_qs = DamageMaterial.objects.filter(
@@ -495,12 +490,8 @@ def dashboard(request):
                 used_totals[u['material_id']] = u['total'] or 0
 
             # Include refundable totals for this branch
-            ref_qs = RefundableMaterial.objects.filter(
-                branch_user=branch_user,
-                status__in=['Pending', 'Accepted']
-            ).values('material_id').annotate(total=Sum('quantity'))
-            for r in ref_qs:
-                used_totals[r['material_id']] = used_totals.get(r['material_id'], 0) + (r['total'] or 0)
+            # RefundableMaterial records are free-text and not linked to Material objects,
+            # so skip this aggregation here to avoid invalid queries.
 
             # Include damaged totals for this branch
             dam_qs = DamageMaterial.objects.filter(
@@ -563,11 +554,11 @@ def dashboard(request):
 
     # Query Refundable and Damaged materials for the Destroy Materials Modal
     if role in ['Admin', 'Storekeeper']:
-        refundable_materials = RefundableMaterial.objects.all().select_related('branch_user', 'material').order_by('-added_at')[:10]
+        refundable_materials = RefundableMaterial.objects.all().select_related('branch_user').order_by('-added_at')[:10]
         damaged_materials = DamageMaterial.objects.all().select_related('branch_user', 'material', 'confirmed_by').order_by('-added_at')[:10]
         branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
     else:
-        refundable_materials = RefundableMaterial.objects.filter(branch_user=request.user).select_related('material').order_by('-added_at')[:10]
+        refundable_materials = RefundableMaterial.objects.filter(branch_user=request.user).select_related('branch_user').order_by('-added_at')[:10]
         damaged_materials = DamageMaterial.objects.filter(branch_user=request.user).select_related('material').order_by('-added_at')[:10]
         branch_users = None
 
@@ -655,13 +646,8 @@ def materials_monitoring_view(request):
         for u in used_qs:
             used_totals[u['material_id']] = u['total'] or 0
 
-        # Include refundable totals for this branch
-        ref_qs = RefundableMaterial.objects.filter(
-            branch_user=branch_user,
-            status__in=['Pending', 'Accepted']
-        ).values('material_id').annotate(total=Sum('quantity'))
-        for r in ref_qs:
-            used_totals[r['material_id']] = used_totals.get(r['material_id'], 0) + (r['total'] or 0)
+        # RefundableMaterial records are free-text material names and are not linked to Material objects.
+        # Therefore this dashboard stock calculation skips direct RefundableMaterial aggregation by material_id.
 
         # Include damaged totals for this branch
         dam_qs = DamageMaterial.objects.filter(
@@ -2484,10 +2470,13 @@ def settings_view(request):
             return redirect('settings')
 
         elif action == 'backup':
-            # Import at function level to avoid circular imports
+            """Create backup with full or partial data support"""
             import json
             import hashlib
+            import tempfile
+            import os
             from django.core.files.base import ContentFile
+            from io import StringIO
             
             # Check if user is Admin or can create backups (Storekeeper, Branch, NOC)
             user_role = profile.role
@@ -2496,27 +2485,50 @@ def settings_view(request):
                 return redirect('settings')
             
             try:
-                # Create backup data
+                backup_type = request.POST.get('backup_type', 'full')
+                description = request.POST.get('backup_description', '').strip()
+                
+                # Determine models to backup based on backup type
+                if backup_type == 'full':
+                    # Full backup: all data including users
+                    exclude_models = ['auth.permission', 'contenttypes', 'admin.logentry']
+                    backup_label = 'Full Backup'
+                else:
+                    # Partial backup: only materials, requests, and usage data (no user accounts)
+                    exclude_models = [
+                        'auth.permission', 'auth.user', 'auth.group', 
+                        'contenttypes', 'admin.logentry', 'sessions.session'
+                    ]
+                    backup_label = 'Partial Backup (Data Only)'
+                
+                # Create backup data using dumpdata
                 output = StringIO()
-                call_command('dumpdata', exclude=['auth.permission', 'contenttypes'], stdout=output)
+                call_command('dumpdata', exclude=exclude_models, stdout=output, indent=2)
                 backup_data = output.getvalue()
                 
-                # Calculate checksum
+                if not backup_data:
+                    messages.error(request, "Backup failed: No data to backup.")
+                    return redirect('settings')
+                
+                # Calculate checksum for integrity verification
                 checksum = hashlib.sha256(backup_data.encode()).hexdigest()
                 
-                # Get backup description
-                description = request.POST.get('backup_description', '').strip()
-                backup_type = request.POST.get('backup_type', 'full')
-                
                 # Count records
-                data_dict = json.loads(backup_data)
-                records_count = len(data_dict)
+                try:
+                    data_dict = json.loads(backup_data)
+                    records_count = len(data_dict) if isinstance(data_dict, list) else len(data_dict)
+                except json.JSONDecodeError:
+                    records_count = 0
                 
                 # Save backup to model
                 from isp_inventory.models import BackupRestore
+                
+                timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+                backup_filename = f'backup_{backup_type}_{timestamp}.json'
+                
                 backup_file = ContentFile(
                     backup_data.encode(),
-                    name=f'backup_{timezone.now().strftime("%Y%m%d_%H%M%S")}.json'
+                    name=backup_filename
                 )
                 
                 backup_obj = BackupRestore(
@@ -2524,26 +2536,27 @@ def settings_view(request):
                     created_by=request.user,
                     backup_type=backup_type,
                     backup_size=len(backup_data),
-                    description=description or f'Backup created by {request.user.username}',
+                    description=description or f'{backup_label} created by {request.user.username}',
                     status='active',
                     data_records_count=records_count,
                     checksum=checksum,
                 )
                 backup_obj.save()
                 
-                # Also return download
+                # Return download response
                 response = HttpResponse(backup_data, content_type='application/json')
-                response['Content-Disposition'] = 'attachment; filename="isp_backup_{}.json"'.format(
-                    timezone.now().strftime('%Y%m%d_%H%M%S')
-                )
-                messages.success(request, f"Backup created successfully! Records: {records_count}")
+                response['Content-Disposition'] = f'attachment; filename="{backup_filename}"'
+                messages.success(request, f"{backup_label} created successfully! Records: {records_count}, Size: {backup_obj.get_file_size_display()}")
                 return response
                 
             except Exception as e:
+                import traceback
                 messages.error(request, f"Backup failed: {str(e)}")
+                print(f"Backup Error: {traceback.format_exc()}")
                 return redirect('settings')
         
         elif action == 'restore':
+            """Restore from backup with full or partial data support"""
             # Only Admin can restore
             user_role = profile.role
             if user_role != 'Admin':
@@ -2551,10 +2564,15 @@ def settings_view(request):
                 return redirect('settings')
             
             try:
+                import json
+                import tempfile
+                import os
                 from isp_inventory.models import BackupRestore
                 
                 # Check if restoring from file upload or existing backup
                 restore_type = request.POST.get('restore_type', 'file')
+                backup_content = None
+                backup_obj = None
                 
                 if restore_type == 'file' and 'backup_file' in request.FILES:
                     # Restore from uploaded file
@@ -2579,8 +2597,10 @@ def settings_view(request):
                     return redirect('settings')
                 
                 # Parse and validate JSON
-                import json
                 backup_data = json.loads(backup_content)
+                if not backup_data:
+                    messages.error(request, "Backup file is empty.")
+                    return redirect('settings')
                 
                 # Confirmation required
                 confirm = request.POST.get('confirm_restore')
@@ -2588,40 +2608,78 @@ def settings_view(request):
                     messages.warning(request, "Please confirm restoration to proceed.")
                     return redirect('settings')
                 
-                # Perform restore
-                from django.core.management import call_command
-                import tempfile
+                # Determine restore type
+                is_partial = backup_obj and backup_obj.backup_type == 'partial'
                 
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
-                    json.dump(backup_data, tmp)
-                    tmp_path = tmp.name
-                
-                try:
-                    # Clear existing data (only non-auth tables based on backup patterns)
-                    call_command('flush', '--no-input')
-                    call_command('loaddata', tmp_path)
+                # Perform restore with proper transaction handling
+                with transaction.atomic():
+                    # Create temporary file for loaddata
+                    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
+                        json.dump(backup_data, tmp, indent=2)
+                        tmp_path = tmp.name
                     
-                    # Update backup object if restoring from history
-                    if restore_type == 'history':
-                        backup_obj.restored_at = timezone.now()
-                        backup_obj.restored_by = request.user
-                        backup_obj.save()
-                    
-                    messages.success(request, f"Restore completed successfully! {len(backup_data)} records restored.")
-                    
-                finally:
-                    import os
-                    os.unlink(tmp_path)
+                    try:
+                        if is_partial:
+                            # Partial restore: clear only data tables, keep users and auth
+                            from django.db import connection
+                            from django.apps import apps
+                            
+                            cursor = connection.cursor()
+                            
+                            # Tables to clear for partial restore (data only)
+                            tables_to_clear = [
+                                'isp_inventory_material',
+                                'isp_inventory_materialrequest',
+                                'isp_inventory_usedmaterial',
+                                'isp_inventory_macserialnum',
+                                'isp_inventory_refundablematerial',
+                                'isp_inventory_damagematerial',
+                                'isp_inventory_materialmonthlycoun',
+                                'isp_inventory_backuprestore',
+                                'isp_inventory_activitylog',
+                            ]
+                            
+                            for table in tables_to_clear:
+                                try:
+                                    cursor.execute(f'DELETE FROM {table}')
+                                except Exception:
+                                    pass  # Table might not exist
+                            
+                            connection.commit()
+                        else:
+                            # Full restore: clear all data
+                            call_command('flush', '--no-input')
+                        
+                        # Load backup data
+                        call_command('loaddata', tmp_path)
+                        
+                        # Update backup object if restoring from history
+                        if backup_obj and restore_type == 'history':
+                            backup_obj.restored_at = timezone.now()
+                            backup_obj.restored_by = request.user
+                            backup_obj.save()
+                        
+                        restore_type_label = 'Partial' if is_partial else 'Full'
+                        messages.success(request, f"{restore_type_label} restore completed successfully! {len(backup_data)} records restored.")
+                        
+                    finally:
+                        # Clean up temporary file
+                        try:
+                            os.unlink(tmp_path)
+                        except Exception:
+                            pass
                 
             except json.JSONDecodeError:
                 messages.error(request, "Invalid backup file format (not valid JSON).")
                 return redirect('settings')
             except Exception as e:
+                import traceback
                 messages.error(request, f"Restore failed: {str(e)}")
+                print(f"Restore Error: {traceback.format_exc()}")
                 return redirect('settings')
         
         elif action == 'delete_backup':
-            # Storekeeper, Branch, NOC can delete their own backups; Admin can delete any
+            """Soft delete a backup (recoverable for 30 days)"""
             from isp_inventory.models import BackupRestore
             
             backup_id = request.POST.get('backup_id')
@@ -2658,7 +2716,7 @@ def settings_view(request):
             return redirect('settings')
         
         elif action == 'recover_backup':
-            # Admin only - recover deleted backup
+            """Recover a soft-deleted backup"""
             from isp_inventory.models import BackupRestore
             
             backup_id = request.POST.get('backup_id')
@@ -2915,9 +2973,9 @@ def used_materials_view(request):
             Q(technician__username__icontains=search_query) |
             Q(technician__first_name__icontains=search_query) |
             Q(technician__last_name__icontains=search_query)|
-            #client name search and phone search (if applicable, assuming UsedMaterial has client_name and client_phone fields)
             Q(client_name__icontains=search_query) |
-            Q(client_phone__icontains=search_query)
+            Q(client_phone__icontains=search_query) |
+            Q(mac_serial__mac_serial__icontains=search_query)
         ).distinct()
 
     # Pagination - AFTER all filters are applied
@@ -3221,6 +3279,7 @@ def manage_used_material_api(request, pk):
         return JsonResponse({'error': 'Record not found or access denied'}, status=404)
 
     action = request.POST.get('action')
+    admin_note = request.POST.get('admin_note', '').strip()
 
     try:
         with transaction.atomic():
@@ -3413,7 +3472,7 @@ def refundable_materials_view(request):
 
     # Get refundable materials list
     if role in ['Admin', 'Storekeeper']:
-        refundable_qs = RefundableMaterial.objects.all().select_related('branch_user', 'material').order_by('-added_at')
+        refundable_qs = RefundableMaterial.objects.select_related('branch_user').order_by('-added_at')
         branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
         
         # Handle user dropdown filter
@@ -3425,10 +3484,9 @@ def refundable_materials_view(request):
             except User.DoesNotExist:
                 messages.error(request, "Selected user not found.")
     elif role == 'NOC':
-        refundable_qs = RefundableMaterial.objects.filter(material__category='Internet', material__created_by=request.user).select_related('branch_user', 'material').order_by('-added_at')
+        refundable_qs = RefundableMaterial.objects.filter(branch_user__userprofile__role='Branch').select_related('branch_user').order_by('-added_at')
         branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
-        
-        # Handle user dropdown filter
+
         selected_user_id = request.GET.get('user_id')
         if selected_user_id:
             try:
@@ -3438,7 +3496,7 @@ def refundable_materials_view(request):
                 messages.error(request, "Selected user not found.")
     else:
         # Branch user
-        refundable_qs = RefundableMaterial.objects.filter(branch_user=request.user).select_related('material').order_by('-added_at')
+        refundable_qs = RefundableMaterial.objects.filter(branch_user=request.user).order_by('-added_at')
         branch_users = None
 
     # Search functionality
@@ -3446,16 +3504,14 @@ def refundable_materials_view(request):
     if search_query:
         if role in ['Admin', 'Storekeeper', 'NOC']:
             refundable_qs = refundable_qs.filter(
-                Q(material__name__icontains=search_query) |
+                Q(material_name__icontains=search_query) |
                 Q(branch_user__username__icontains=search_query) |
                 Q(branch_user__first_name__icontains=search_query) |
-                Q(branch_user__last_name__icontains=search_query) |
-                Q(issue__icontains=search_query)
+                Q(branch_user__last_name__icontains=search_query)
             ).distinct()
         else:
             refundable_qs = refundable_qs.filter(
-                Q(material__name__icontains=search_query) |
-                Q(issue__icontains=search_query)
+                Q(material_name__icontains=search_query)
             ).distinct()
 
     # Pagination
@@ -3463,8 +3519,18 @@ def refundable_materials_view(request):
     page_number = request.GET.get('page')
     refundable_page = paginator.get_page(page_number)
 
-    # Forms
+    # Forms and usage list
     form = RefundableMaterialForm(user=request.user)
+    usage_form = RefundableMaterialUsageForm(user=request.user)
+
+    refundable_usages_qs = RefundableMaterialUsage.objects.select_related('refundable_material', 'used_by').order_by('-used_at')
+    if role == 'Branch':
+        refundable_usages_qs = refundable_usages_qs.filter(used_by=request.user)
+    elif role == 'NOC':
+        refundable_usages_qs = refundable_usages_qs.filter(refundable_material__branch_user__userprofile__role='Branch')
+
+    usage_paginator = Paginator(refundable_usages_qs, 20)
+    usage_page = usage_paginator.get_page(request.GET.get('usage_page'))
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -3473,12 +3539,11 @@ def refundable_materials_view(request):
             if role != 'Branch':
                 messages.error(request, "Only Branch users can add Refundable Materials.")
                 return redirect('refundable_materials')
-            
+
             form = RefundableMaterialForm(request.POST, user=request.user)
             if form.is_valid():
                 rf = form.save(commit=False)
                 rf.branch_user = request.user
-                rf.status = 'Pending'
                 rf.save()
                 messages.success(request, "Refundable Material logged successfully!")
                 return redirect('refundable_materials')
@@ -3488,12 +3553,29 @@ def refundable_materials_view(request):
                         messages.error(request, f"{field}: {errors[0]}")
                         break
                 return redirect('refundable_materials')
-                
+
+        elif action == 'create_usage':
+            if role != 'Branch':
+                messages.error(request, "Only Branch users can add Used Materials.")
+                return redirect('refundable_materials')
+
+            usage_form = RefundableMaterialUsageForm(request.POST, user=request.user)
+            if usage_form.is_valid():
+                usage_form.save()
+                messages.success(request, "Used material entry recorded successfully!")
+                return redirect('refundable_materials')
+            else:
+                for field, errors in usage_form.errors.items():
+                    if errors:
+                        messages.error(request, f"{field}: {errors[0]}")
+                        break
+                return redirect('refundable_materials')
+
         elif action == 'edit':
             if role != 'Branch':
                 messages.error(request, "Only Branch users can edit Refundable Materials.")
                 return redirect('refundable_materials')
-                
+
             rf_id = request.POST.get('rf_id')
             try:
                 rf = RefundableMaterial.objects.get(pk=rf_id, branch_user=request.user)
@@ -3511,52 +3593,42 @@ def refundable_materials_view(request):
             except RefundableMaterial.DoesNotExist:
                 messages.error(request, "Record not found or access denied.")
                 return redirect('refundable_materials')
-                
+
         elif action == 'delete':
             if role != 'Branch':
                 messages.error(request, "Only Branch users can delete Refundable Materials.")
                 return redirect('refundable_materials')
-                
+
             rf_id = request.POST.get('rf_id')
             try:
                 rf = RefundableMaterial.objects.get(pk=rf_id, branch_user=request.user)
-                if rf.status == 'Pending':
-                    rf.delete()
-                    messages.success(request, "Refundable Material record deleted.")
-                else:
-                    messages.error(request, "You cannot delete a record that has already been processed.")
+                rf.delete()
+                messages.success(request, "Refundable Material record deleted.")
                 return redirect('refundable_materials')
             except RefundableMaterial.DoesNotExist:
                 messages.error(request, "Record not found or access denied.")
                 return redirect('refundable_materials')
 
-        # Admin/Storekeeper actions: accept/reject
-        elif action in ['accept', 'reject']:
-            if role not in ['Admin', 'Storekeeper', 'NOC']:
-                messages.error(request, "Permission denied.")
+        elif action == 'delete_usage':
+            if role != 'Branch':
+                messages.error(request, "Only Branch users can delete Used Materials.")
                 return redirect('refundable_materials')
-                
-            rf_id = request.POST.get('rf_id')
-            admin_note = request.POST.get('admin_note', '').strip()
+
+            usage_id = request.POST.get('usage_id')
             try:
-                if role == 'NOC':
-                    rf = RefundableMaterial.objects.get(pk=rf_id, material__category='Internet', material__created_by=request.user)
-                else:
-                    rf = RefundableMaterial.objects.get(pk=rf_id)
-                rf.status = 'Accepted' if action == 'accept' else 'Rejected'
-                rf.admin_note = admin_note
-                rf.save()
-                
-                messages.success(request, f"Refundable Material record has been {rf.status.lower()}!")
-                return redirect('refundable_materials')
-            except RefundableMaterial.DoesNotExist:
-                messages.error(request, "Record not found.")
-                return redirect('refundable_materials')
+                usage = RefundableMaterialUsage.objects.get(pk=usage_id, used_by=request.user)
+                usage.delete()
+                messages.success(request, "Used material record deleted.")
+            except RefundableMaterialUsage.DoesNotExist:
+                messages.error(request, "Record not found or access denied.")
+            return redirect('refundable_materials')
 
     template_name = 'noc/refundable_materials.html' if role == 'NOC' else 'inventory/refundable_materials.html'
     return render(request, template_name, {
         'refundable_materials': refundable_page,
         'form': form,
+        'usage_form': usage_form,
+        'usage_page': usage_page,
         'role': role,
         'page_obj': refundable_page,
         'branch_users': branch_users,
@@ -3573,21 +3645,16 @@ def get_refundable_material_api(request, pk):
         if role in ['Admin', 'Storekeeper']:
             rf = RefundableMaterial.objects.get(pk=pk)
         elif role == 'NOC':
-            rf = RefundableMaterial.objects.get(pk=pk, material__category='Internet', material__created_by=request.user)
+            rf = RefundableMaterial.objects.filter(branch_user__userprofile__role='Branch').get(pk=pk)
         else:
             rf = RefundableMaterial.objects.get(pk=pk, branch_user=request.user)
     except RefundableMaterial.DoesNotExist:
         return JsonResponse({'error': 'Record not found or access denied'}, status=404)
 
-    selection = f"m:{rf.material.id}"
-    
     data = {
         'id': rf.id,
-        'material_selection': selection,
+        'material_name': rf.material_name,
         'quantity': rf.quantity,
-        'issue': rf.issue or '',
-        'status': rf.status,
-        'admin_note': rf.admin_note or '',
     }
     return JsonResponse(data)
 
@@ -3598,7 +3665,7 @@ def damaged_materials_view(request):
 
     # Get damaged materials list
     if role in ['Admin', 'Storekeeper']:
-        damaged_qs = DamageMaterial.objects.all().select_related('branch_user', 'material', 'confirmed_by').order_by('-added_at')
+        damaged_qs = DamageMaterial.objects.exclude(material__category='Internet').select_related('branch_user', 'material', 'confirmed_by').order_by('-added_at')
         branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
         
         # Handle user dropdown filter
@@ -3661,11 +3728,21 @@ def damaged_materials_view(request):
             
             form = DamageMaterialForm(request.POST, user=request.user)
             if form.is_valid():
-                dm = form.save(commit=False)
-                dm.branch_user = request.user
-                dm.status = 'Pending'
-                dm.save()
-                messages.success(request, "Damaged Material logged successfully!")
+                try:
+                    with transaction.atomic():
+                        dm = form.save(commit=False)
+                        dm.branch_user = request.user
+                        dm.status = 'Pending'
+                        dm.save()
+                        
+                        # Lock / Retire MacSerial if it exists
+                        if dm.mac_serial:
+                            dm.mac_serial.status = 'Retired'
+                            dm.mac_serial.save()
+                            
+                        messages.success(request, "Damaged Material logged successfully!")
+                except Exception as e:
+                    messages.error(request, f"Error: {str(e)}")
                 return redirect('damaged_materials')
             else:
                 for field, errors in form.errors.items():
@@ -3675,17 +3752,43 @@ def damaged_materials_view(request):
                 return redirect('damaged_materials')
                 
         elif action == 'edit':
-            if role != 'Branch':
-                messages.error(request, "Only Branch users can edit Damaged Materials.")
+            if role not in ['Branch', 'Admin', 'Storekeeper', 'NOC']:
+                messages.error(request, "Permission denied.")
                 return redirect('damaged_materials')
                 
             dm_id = request.POST.get('dm_id')
             try:
-                dm = DamageMaterial.objects.get(pk=dm_id, branch_user=request.user)
-                form = DamageMaterialForm(request.POST, instance=dm, user=request.user)
+                if role == 'Branch':
+                    dm = DamageMaterial.objects.get(pk=dm_id, branch_user=request.user)
+                elif role == 'NOC':
+                    dm = DamageMaterial.objects.get(pk=dm_id, material__category='Internet', material__created_by=request.user)
+                else:
+                    dm = DamageMaterial.objects.exclude(material__category='Internet').get(pk=dm_id)
+                
+                old_mac = dm.mac_serial
+                
+                # Verify owner for form context
+                form = DamageMaterialForm(request.POST, instance=dm, user=dm.branch_user)
                 if form.is_valid():
-                    form.save()
-                    messages.success(request, "Damaged Material updated successfully!")
+                    try:
+                        with transaction.atomic():
+                            new_dm = form.save(commit=False)
+                            new_mac = form.cleaned_data.get('mac_serial')
+                            
+                            # If MAC serial changed, restore old one
+                            if old_mac and old_mac != new_mac:
+                                old_mac.status = 'Active'
+                                old_mac.save()
+                                
+                            # Lock/Retire the new MAC serial
+                            if new_mac:
+                                new_mac.status = 'Retired'
+                                new_mac.save()
+                                
+                            new_dm.save()
+                            messages.success(request, "Damaged Material updated successfully!")
+                    except Exception as e:
+                        messages.error(request, f"Error updating record: {str(e)}")
                     return redirect('damaged_materials')
                 else:
                     for field, errors in form.errors.items():
@@ -3706,8 +3809,15 @@ def damaged_materials_view(request):
             try:
                 dm = DamageMaterial.objects.get(pk=dm_id, branch_user=request.user)
                 if dm.status == 'Pending':
-                    dm.delete()
-                    messages.success(request, "Damaged Material record deleted.")
+                    try:
+                        with transaction.atomic():
+                            if dm.mac_serial:
+                                dm.mac_serial.status = 'Active'
+                                dm.mac_serial.save()
+                            dm.delete()
+                        messages.success(request, "Damaged Material record deleted.")
+                    except Exception as e:
+                        messages.error(request, f"Error: {str(e)}")
                 else:
                     messages.error(request, "You cannot delete a record that has already been processed.")
                 return redirect('damaged_materials')
@@ -3727,14 +3837,26 @@ def damaged_materials_view(request):
                 if role == 'NOC':
                     dm = DamageMaterial.objects.get(pk=dm_id, material__category='Internet', material__created_by=request.user)
                 else:
-                    dm = DamageMaterial.objects.get(pk=dm_id)
-                dm.status = 'Confirmed' if action == 'confirm' else 'Rejected'
-                dm.admin_note = admin_note
-                dm.confirmed_by = request.user
-                dm.confirmed_at = timezone.now()
-                dm.save()
+                    dm = DamageMaterial.objects.exclude(material__category='Internet').get(pk=dm_id)
                 
-                messages.success(request, f"Damaged Material record has been {dm.status.lower()}!")
+                try:
+                    with transaction.atomic():
+                        dm.status = 'Confirmed' if action == 'confirm' else 'Rejected'
+                        dm.admin_note = admin_note
+                        dm.confirmed_by = request.user
+                        dm.confirmed_at = timezone.now()
+                        dm.save()
+                        
+                        if dm.mac_serial:
+                            if action == 'confirm':
+                                dm.mac_serial.status = 'Retired'
+                            else:
+                                dm.mac_serial.status = 'Active'
+                            dm.mac_serial.save()
+                            
+                    messages.success(request, f"Damaged Material record has been {dm.status.lower()}!")
+                except Exception as e:
+                    messages.error(request, f"Error: {str(e)}")
                 return redirect('damaged_materials')
             except DamageMaterial.DoesNotExist:
                 messages.error(request, "Record not found.")
@@ -3767,9 +3889,9 @@ def report_damage_auto(request):
         data = request.POST
 
     material_id = data.get('material_id')
+    mac_serial_id = data.get('mac_serial_id')
     quantity = int(data.get('quantity', 1))
     damage_reason = data.get('damage_reason', 'Reported directly from in-stock approved materials list.').strip()
-    severity = data.get('severity', 'Moderate')
 
     if not material_id:
         return JsonResponse({'success': False, 'error': 'Material ID is required.'}, status=400)
@@ -3778,6 +3900,14 @@ def report_damage_auto(request):
         material = Material.objects.get(id=material_id)
     except Material.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Material not found.'}, status=404)
+
+    mac_serial_obj = None
+    if mac_serial_id:
+        try:
+            mac_serial_obj = MacSerialNumber.objects.get(id=mac_serial_id, assigned_to=request.user)
+            quantity = 1
+        except MacSerialNumber.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Selected Serial Number not found or not assigned to you.'}, status=400)
 
     # Validate that they actually have enough in-stock quantity to mark as damaged!
     from django.db.models import Sum
@@ -3789,8 +3919,7 @@ def report_damage_auto(request):
     
     refundable_qty = RefundableMaterial.objects.filter(
         branch_user=request.user,
-        material=material,
-        status__in=['Pending', 'Accepted']
+        material_name=material.name
     ).aggregate(total=Sum('quantity'))['total'] or 0
     
     damaged_qty = DamageMaterial.objects.filter(
@@ -3808,20 +3937,29 @@ def report_damage_auto(request):
             'error': f'Insufficient available stock. Available: {available}, requested: {quantity}.'
         }, status=400)
 
-    # Create the DamageMaterial record!
-    dm = DamageMaterial.objects.create(
-        branch_user=request.user,
-        material=material,
-        quantity=quantity,
-        damage_reason=damage_reason,
-        severity=severity,
-        status='Pending'
-    )
-
-    return JsonResponse({
-        'success': True,
-        'message': f'Successfully reported {quantity} {material.name} as damaged.'
-    })
+    try:
+        with transaction.atomic():
+            # Create the DamageMaterial record!
+            dm = DamageMaterial.objects.create(
+                branch_user=request.user,
+                material=material,
+                quantity=quantity,
+                damage_reason=damage_reason,
+                mac_serial=mac_serial_obj,
+                status='Pending'
+            )
+            
+            # Update MacSerial status
+            if mac_serial_obj:
+                mac_serial_obj.status = 'Retired'
+                mac_serial_obj.save()
+                
+            return JsonResponse({
+                'success': True,
+                'message': f'Successfully reported {quantity} {material.name} as damaged.'
+            })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 @login_required
 def get_damaged_material_api(request, pk):
@@ -3831,7 +3969,7 @@ def get_damaged_material_api(request, pk):
 
     try:
         if role in ['Admin', 'Storekeeper']:
-            dm = DamageMaterial.objects.get(pk=pk)
+            dm = DamageMaterial.objects.exclude(material__category='Internet').get(pk=pk)
         elif role == 'NOC':
             dm = DamageMaterial.objects.get(pk=pk, material__category='Internet', material__created_by=request.user)
         else:
@@ -3839,14 +3977,14 @@ def get_damaged_material_api(request, pk):
     except DamageMaterial.DoesNotExist:
         return JsonResponse({'error': 'Record not found or access denied'}, status=404)
 
-    selection = f"m:{dm.material.id}"
+    selection = f"s:{dm.mac_serial.id}" if dm.mac_serial else f"m:{dm.material.id}"
     
     data = {
         'id': dm.id,
         'material_selection': selection,
         'quantity': dm.quantity,
         'damage_reason': dm.damage_reason or '',
-        'severity': dm.severity,
+        'mac_serial': dm.mac_serial.id if dm.mac_serial else '',
         'status': dm.status,
         'admin_note': dm.admin_note or '',
     }
