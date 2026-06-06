@@ -1154,6 +1154,7 @@ def requests_view(request):
 
     if request.method == 'POST':
         action = request.POST.get('action')
+        is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.POST.get('ajax') == '1'
 
         # Save received_by (Branch requester only) via AJAX (expects JSON)
         if action == 'save_received_by':
@@ -3665,7 +3666,7 @@ def damaged_materials_view(request):
 
     # Get damaged materials list
     if role in ['Admin', 'Storekeeper']:
-        damaged_qs = DamageMaterial.objects.exclude(material__category='Internet').select_related('branch_user', 'material', 'confirmed_by').order_by('-added_at')
+        damaged_qs = DamageMaterial.objects.select_related('branch_user', 'material', 'confirmed_by').order_by('-added_at')
         branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
         
         # Handle user dropdown filter
@@ -3763,7 +3764,7 @@ def damaged_materials_view(request):
                 elif role == 'NOC':
                     dm = DamageMaterial.objects.get(pk=dm_id, material__category='Internet', material__created_by=request.user)
                 else:
-                    dm = DamageMaterial.objects.exclude(material__category='Internet').get(pk=dm_id)
+                    dm = DamageMaterial.objects.get(pk=dm_id)
                 
                 old_mac = dm.mac_serial
                 
@@ -3837,7 +3838,7 @@ def damaged_materials_view(request):
                 if role == 'NOC':
                     dm = DamageMaterial.objects.get(pk=dm_id, material__category='Internet', material__created_by=request.user)
                 else:
-                    dm = DamageMaterial.objects.exclude(material__category='Internet').get(pk=dm_id)
+                    dm = DamageMaterial.objects.get(pk=dm_id)
                 
                 try:
                     with transaction.atomic():

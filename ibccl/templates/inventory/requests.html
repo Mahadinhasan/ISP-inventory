@@ -100,9 +100,9 @@
                 <tr class="hover:bg-gray-50 dark:hover:bg-midnight-900 transition duration-150 {% if req.request_type == 'Advance' %}border-l-4 border-indigo-400{% endif %}">
                     <td class="px-2 py-2 text-sm font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">
                         {% if req.request_type == 'Advance' %}
-                            ADV-{{req.id|stringformat:"03d"}}
+                            ADV-{{ page_obj.start_index|add:forloop.counter0 }}
                         {% else %}
-                            REQ-{{req.id|stringformat:"03d"}}
+                            REQ-{{ page_obj.start_index|add:forloop.counter0 }}
                         {% endif %}
                     </td>
                 {% endif %}

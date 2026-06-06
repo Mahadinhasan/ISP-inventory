@@ -104,8 +104,9 @@
             {% endif %}
 
             <!-- Login Form -->
-            <form method="post" class="space-y-6">
+            <form method="post" class="space-y-6" id="nocLoginForm">
                 {% csrf_token %}
+                <input type="hidden" name="tab_id" id="tabIdField" value="{{ request.GET.tab_id|default:'' }}">
 
                 <!-- Username -->
                 <div class="space-y-1">
@@ -170,8 +171,41 @@
         </div>
     </div>
 
-    <!-- Password Toggle Script -->
+    <!-- Multi-tab Session & Password Toggle Script -->
     <script>
+        function initializeTabId() {
+            let tabId = sessionStorage.getItem('tab_id');
+            if (!tabId) {
+                tabId = Math.random().toString(36).substring(2, 10);
+                sessionStorage.setItem('tab_id', tabId);
+            }
+
+            const currentUrl = new URL(window.location.href);
+            if (!currentUrl.searchParams.has('tab_id')) {
+                currentUrl.searchParams.set('tab_id', tabId);
+                window.history.replaceState(null, '', currentUrl.toString());
+            }
+
+            const hiddenTabId = document.getElementById('tabIdField');
+            if (hiddenTabId) {
+                hiddenTabId.value = currentUrl.searchParams.get('tab_id') || tabId;
+            }
+
+            document.querySelectorAll('a[href]').forEach(link => {
+                const href = link.getAttribute('href');
+                if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+                try {
+                    const url = new URL(link.href, window.location.origin);
+                    if (!url.searchParams.has('tab_id') && url.origin === window.location.origin) {
+                        url.searchParams.set('tab_id', tabId);
+                        link.href = url.toString();
+                    }
+                } catch (e) {
+                    // ignore invalid URLs
+                }
+            });
+        }
+
         function togglePassword() {
             const passwordInput = document.getElementById('password-input');
             const toggleIcon = document.getElementById('toggle-icon');
@@ -186,6 +220,19 @@
                 toggleIcon.classList.add('fa-eye');
             }
         }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            initializeTabId();
+
+            const form = document.getElementById('nocLoginForm');
+            if (form && !form.querySelector('input[name="tab_id"]')) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'tab_id';
+                input.value = sessionStorage.getItem('tab_id');
+                form.appendChild(input);
+            }
+        });
 
         // Auto-hide messages after 5 seconds
         setTimeout(() => {

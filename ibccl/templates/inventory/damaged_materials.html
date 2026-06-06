@@ -108,7 +108,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="9" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                        <td colspan="{% if user.userprofile.role != 'Branch' %}10{% else %}9{% endif %}" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                             <div class="flex flex-col items-center justify-center">
                                 <i class="fas fa-hammer text-5xl text-gray-300 dark:text-gray-700 mb-4 animate-bounce"></i>
                                 <p class="text-lg font-bold">No Damaged Materials logged</p>

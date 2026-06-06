@@ -1947,7 +1947,128 @@
 
     function setTabApprovalAction(actionType) {
         document.getElementById('tabApprovalAction').value = actionType;
-    }                // Toggle Destroy Materials Modal screen size (normal vs full/large width)
+    }
+
+    function getCsrfToken() {
+        const csrfEl = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (csrfEl) {
+            return csrfEl.value;
+        }
+        let cookieValue = null;
+        const cookies = document.cookie ? document.cookie.split(';') : [];
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.startsWith('csrftoken=')) {
+                cookieValue = decodeURIComponent(cookie.substring('csrftoken='.length));
+                break;
+            }
+        }
+        return cookieValue;
+    }
+
+    function initPendingRequestQuickActions() {
+        const modal = document.getElementById('requestsModal');
+        if (!modal) return;
+
+        modal.addEventListener('submit', function(event) {
+            const form = event.target;
+            if (!form.classList.contains('pending-request-action-form')) return;
+            event.preventDefault();
+            const submitter = event.submitter || form.querySelector('button[name="action"]');
+            if (!submitter) return;
+            submitPendingRequestAction(form, submitter.value);
+        });
+    }
+
+    function getFormActionUrl(form) {
+        const rawAction = form.getAttribute('action') || window.location.pathname;
+        try {
+            return new URL(rawAction, window.location.origin).href;
+        } catch (e) {
+            return rawAction;
+        }
+    }
+
+    function submitPendingRequestAction(form, actionValue) {
+        const formData = new FormData(form);
+        formData.set('action', actionValue);
+        formData.set('ajax', '1');
+
+        const csrftoken = getCsrfToken();
+        const fetchUrl = getFormActionUrl(form);
+        const tabId = formData.get('tab_id') || sessionStorage.getItem('tab_id');
+        if (tabId) {
+            formData.set('tab_id', tabId);
+        }
+
+        console.debug('Pending request action', actionValue, fetchUrl, 'tab_id=', tabId);
+
+        fetch(fetchUrl, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken || '',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            body: formData
+        })
+        .then(response => {
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                return response.text().then(text => {
+                    const snippet = text ? text.substring(0, 300) : 'No response body';
+                    throw new Error('Expected JSON response but received HTML. Response snippet: ' + snippet);
+                });
+            }
+            return response.json().then(data => {
+                if (!response.ok) {
+                    throw new Error(data && data.error ? data.error : ('HTTP ' + response.status));
+                }
+                return data;
+            });
+        })
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Unknown error');
+            }
+            const row = form.closest('tr');
+            if (row) {
+                row.remove();
+            }
+            decrementPendingRequestsCount();
+            updatePendingRequestModalEmptyState();
+        })
+        .catch(err => {
+            console.error('Pending request action failed:', err);
+            alert('Unable to complete request action: ' + (err.message || err));
+        });
+    }
+
+    function decrementPendingRequestsCount() {
+        const countEl = document.getElementById('pendingRequestsCount');
+        if (!countEl) return;
+        const current = parseInt(countEl.textContent.replace(/[^0-9]/g, '')) || 0;
+        countEl.textContent = Math.max(0, current - 1);
+    }
+
+    function updatePendingRequestModalEmptyState() {
+        const tbody = document.getElementById('pendingRequestsTableBody');
+        if (!tbody) return;
+        const rows = tbody.querySelectorAll('tr');
+        if (rows.length === 0) {
+            const colspan = tbody.dataset.emptyColspan || '6';
+            const emptyRow = document.createElement('tr');
+            emptyRow.innerHTML = `<td colspan="${colspan}" class="px-6 py-12 text-center text-gray-500">
+                    <i class="fas fa-check-circle text-4xl mb-3 text-green-100"></i><br>
+                    No pending requests found
+                </td>`;
+            tbody.appendChild(emptyRow);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', initPendingRequestQuickActions);
+
+    // Toggle Destroy Materials Modal screen size (normal vs full/large width)
     function toggleDestroyModalSize() {
         toggleModalSize('destroyModalContent', 'btnToggleDestroySize');
     }
