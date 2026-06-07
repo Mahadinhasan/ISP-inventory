@@ -57,28 +57,26 @@
             <table class="w-full divide-y divide-gray-200 dark:divide-midnight-700">
                 <thead class="bg-gray-50 dark:bg-midnight-950">
                     <tr class="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                        <th class="px-6 py-4 text-left">Mac/Serial</th>
+                        <th class="px-6 py-4 text-left">Count</th>
                         <th class="px-6 py-4 text-left">Material</th>
-                        <th class="px-6 py-4 text-center">Qty</th>
-                        <th class="px-6 py-4 text-left">Assigned To</th>
+                        <th class="px-6 py-4 text-left">Mac/Serial</th>
+                        <th class="px-6 py-4 text-left">Assigned To (Branch)</th>
                         <th class="px-6 py-4 text-left">Added</th>
-                        <th class="px-6 py-4 text-center">Actions</th>
+                        <th class="px-6 py-4 text-left">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
                     {% if mac_serials %}
                         {% for ms in mac_serials %}
                         <tr class="hover:bg-gray-50 dark:hover:bg-midnight-800/50 transition-colors">
-                            <td class="px-6 py-4 text-sm font-mono text-indigo-600 dark:text-indigo-400">
-                                {{ ms.mac_serial }}
+                            <td class="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                                {{ mac_serials.start_index|add:forloop.counter0 }}
                             </td>
-                            <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
+                            <td class="px-6 py-4 text-sm text-gray-900 dark:text-white">
                                 {{ ms.material.name }}
                             </td>
-                            <td class="px-6 py-4 text-sm text-center">
-                                <span class="px-3 py-1 bg-gray-200 dark:bg-midnight-700 rounded-full font-bold text-gray-900 dark:text-white">
-                                    {{ ms.quantity }}
-                                </span>
+                            <td class="px-6 py-4 text-sm text-blue-600 dark:text-blue-400 font-semibold">
+                                {{ ms.mac_serial }}
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
                                 {{ ms.assigned_to_username }}
@@ -86,12 +84,10 @@
                             <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                                 {{ ms.created_at|date:"Y-m-d" }}
                             </td>
-                            <td class="px-6 py-4 text-sm text-center">
-                                <div class="flex justify-center gap-2">
-                                    <a href="{% url 'noc:delete_mac_serial' ms.id %}" class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
-                                        <i class="fas fa-trash"></i>
-                                    </a>
-                                </div>
+                            <td class="px-6 py-4 text-sm text-left">
+                                <a href="{% url 'noc:delete_mac_serial' ms.id %}" class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
+                                    <i class="fas fa-trash"></i>
+                                </a>
                             </td>
                         </tr>
                         {% endfor %}

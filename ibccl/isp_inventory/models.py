@@ -3,7 +3,7 @@ from django.db import models
 from django.utils import timezone
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
-
+from django.db.models import Sum
 from django.core.validators import FileExtensionValidator
 
 class UserProfile(models.Model):
@@ -811,6 +811,11 @@ class RefundableMaterial(models.Model):
     @property
     def branch_user_name(self):
         return self.branch_user.get_full_name() or self.branch_user.username
+
+    @property
+    def available_quantity(self):
+        used_total = self.usages.aggregate(total=Sum('materials_quantity'))['total'] or 0
+        return max(0, self.quantity - used_total)
 
 
 class RefundableMaterialUsage(models.Model):

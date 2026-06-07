@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 from django.db.models import Sum
 # pyrefly: ignore [missing-import]
 from .models import Material, MaterialRequest, SystemSetting, NotificationSetting, UsedMaterial, BackupRestore, ActivityLog, LogSettings, MacSerialNumber, MaterialMacSerialImport, UserProfile, RefundableMaterial, RefundableMaterialUsage, DamageMaterial
+# pyrefly: ignore [missing-import]
 from .utils import ensure_userprofile
 
 class RegisterForm(UserCreationForm):
@@ -248,7 +249,7 @@ class UsedMaterialForm(forms.ModelForm):
         self.user = user
         
         if user:
-            choices = [('', 'Select Material from Stock')]
+            choices = [('', 'Select Material')]
             try:
                 profile = ensure_userprofile(user)
                 if profile and profile.role == 'Branch':
@@ -259,7 +260,7 @@ class UsedMaterialForm(forms.ModelForm):
                     ).select_related('material')
                     
                     for s in active_serials:
-                        choices.append((f"s:{s.id}", f"{s.material.name} (MAC: {s.mac_serial})"))
+                        choices.append((f"s:{s.id}", f"{s.material.name} - {s.mac_serial}"))
                     
                     # 2. Add Non-Serialized Items (approved for this branch)
                     # We exclude materials that are handled via MacSerialNumber
@@ -276,7 +277,7 @@ class UsedMaterialForm(forms.ModelForm):
                     mats_added = set()
                     for req in approved_requests:
                         if req.material.id not in mats_added:
-                            choices.append((f"m:{req.material.id}", f"{req.material.name} (Non-Serialized)"))
+                            choices.append((f"m:{req.material.id}", f"{req.material.name}"))
                             mats_added.add(req.material.id)
                 else:
                     # Admin/Storekeeper can see all materials
@@ -544,6 +545,13 @@ class RefundableMaterialForm(forms.ModelForm):
         quantity = self.cleaned_data.get('quantity')
         if quantity is None or quantity < 1:
             raise forms.ValidationError('Quantity must be at least 1.')
+
+        if self.instance and self.instance.pk:
+            used_total = self.instance.usages.aggregate(total=Sum('materials_quantity'))['total'] or 0
+            if quantity < used_total:
+                raise forms.ValidationError(
+                    f'Quantity cannot be less than the already used amount ({used_total}).'
+                )
         return quantity
 
     def save(self, commit=True):
@@ -672,8 +680,7 @@ class RefundableMaterialUsageForm(forms.ModelForm):
         return instance
 
 
-# ── Refundable Materials Form ──────────────────────────────────────────────────
-
+# ── Refundable Materials Form ──
 class DamageMaterialForm(forms.ModelForm):
     """Form for Branch users to report damaged materials.
     Only Branch users can mark materials as damaged from their approved stock.

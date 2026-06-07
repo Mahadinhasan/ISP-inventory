@@ -9,6 +9,7 @@ from .forms import RegisterForm, MaterialForm, RequestForm, SystemSettingForm, N
 from .models import Material, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial, MaterialMonthlyCount, InternalMessage, ActivityLog, LogSettings, MacSerialNumber, RefundableMaterial, RefundableMaterialUsage, DamageMaterial
 from .utils import ensure_userprofile
 from django.db.models import Sum, Q, F, Case, When, IntegerField, Count
+from django.db.models.functions import Coalesce
 from django.db import transaction
 from django.utils import timezone
 from datetime import datetime
@@ -209,9 +210,12 @@ def token_refresh_view(request):
 
 @login_required
 def dashboard(request):
-    process_month_end_reset()
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
+
+    # Monthly reset logic should only run for Admin/Storekeeper, not Branch users.
+    if role in ['Admin', 'Storekeeper']:
+        process_month_end_reset()
 
     if role == 'NOC':
         return redirect('noc:dashboard')
@@ -378,12 +382,9 @@ def dashboard(request):
             requested_at__month=now.month,
         ).select_related('material').order_by('-requested_at')
     else:
-        # For Admin & Storekeeper: Get all materials
-        if role == 'Storekeeper':
-            # Storekeeper sees only in-stock materials in the main list
-            all_materials = Material.objects.filter(quantity__gt=0).order_by('-added_at')
-        else:
-            all_materials = Material.objects.all().order_by('-added_at')
+        # For Admin & Storekeeper: Get all materials.
+        # Storekeeper should still see material names after month-end reset even when quantities drop to zero.
+        all_materials = Material.objects.all().order_by('-added_at')
         # Total accepted used materials count
         used_materials_count = UsedMaterial.objects.filter(status='Accepted', is_archived=False).count()
         # Get all advance requests
@@ -3471,9 +3472,17 @@ def refundable_materials_view(request):
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
 
+    def annotate_refundable_qs(queryset):
+        return queryset.annotate(
+            used_total=Coalesce(Sum('usages__materials_quantity'), 0),
+            available_quantity=F('quantity') - F('used_total')
+        )
+
     # Get refundable materials list
     if role in ['Admin', 'Storekeeper']:
-        refundable_qs = RefundableMaterial.objects.select_related('branch_user').order_by('-added_at')
+        refundable_qs = annotate_refundable_qs(
+            RefundableMaterial.objects.select_related('branch_user')
+        ).filter(available_quantity__gt=0).order_by('-added_at')
         branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
         
         # Handle user dropdown filter
@@ -3485,7 +3494,9 @@ def refundable_materials_view(request):
             except User.DoesNotExist:
                 messages.error(request, "Selected user not found.")
     elif role == 'NOC':
-        refundable_qs = RefundableMaterial.objects.filter(branch_user__userprofile__role='Branch').select_related('branch_user').order_by('-added_at')
+        refundable_qs = annotate_refundable_qs(
+            RefundableMaterial.objects.filter(branch_user__userprofile__role='Branch').select_related('branch_user')
+        ).filter(available_quantity__gt=0).order_by('-added_at')
         branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
 
         selected_user_id = request.GET.get('user_id')
@@ -3497,7 +3508,9 @@ def refundable_materials_view(request):
                 messages.error(request, "Selected user not found.")
     else:
         # Branch user
-        refundable_qs = RefundableMaterial.objects.filter(branch_user=request.user).order_by('-added_at')
+        refundable_qs = annotate_refundable_qs(
+            RefundableMaterial.objects.filter(branch_user=request.user)
+        ).filter(available_quantity__gt=0).order_by('-added_at')
         branch_users = None
 
     # Search functionality

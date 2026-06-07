@@ -86,7 +86,7 @@ REST_FRAMEWORK = {
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=12),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=3),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': False,
     'AUTH_COOKIE': 'jwt_access',           # HttpOnly cookie name for access token
@@ -113,12 +113,12 @@ DATABASES = {
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'mirpur.skcn@gmail.com'
-EMAIL_HOST_PASSWORD = 'ccwe ipbi andj cjch'
-DEFAULT_FROM_EMAIL = 'mirpur.skcn@gmail.com'
+# EMAIL_HOST = 'smtp.gmail.com'
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = 'mirpur.skcn@gmail.com'
+# EMAIL_HOST_PASSWORD = 'ccwe ipbi andj cjch'
+# DEFAULT_FROM_EMAIL = 'mirpur.skcn@gmail.com'
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
