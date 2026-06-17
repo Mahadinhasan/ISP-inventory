@@ -13,7 +13,7 @@
     {% if user.userprofile.role != 'Branch' %}
     <div class="flex justify-end mb-6">
         <div class="px-5 py-2.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-xl border border-blue-100 dark:border-blue-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
-            <i class="fas fa-taka-sign"></i> Total Inventory Value: {{ total_price1|default:"0" }}৳
+            <i class="fas fa-taka-sign"></i> Total Inventory Value: {{ total_price1|floatformat:2 }}৳
         </div>
     </div>
     {% endif %}

@@ -599,7 +599,6 @@ def dashboard(request):
         'branch_users': branch_users,
     })
 
-
 @login_required
 def materials_monitoring_view(request):
     """Real-time materials monitoring for Admin: branch users and used materials (Django Channels)."""
@@ -692,6 +691,39 @@ def materials_monitoring_view(request):
 
 
 @login_required
+def get_branch_stock_api(request, user_id):
+    """JSON API: returns in-stock and low-stock items for a given branch user (Admin only)."""
+    profile = ensure_userprofile(request.user)
+    role = profile.role if profile else None
+
+    if role != 'Admin':
+        return JsonResponse({'error': 'Permission denied.'}, status=403)
+
+    branch_user = get_object_or_404(User, id=user_id, userprofile__role='Branch')
+    in_stock_list, low_stock_list = get_branch_stock_data(branch_user)
+
+    def serialize_item(item):
+        return {
+            'material_name': item.material.name if item.material else 'Unknown',
+            'material_category': item.material.category if item.material else '',
+            'available_quantity': item.available_quantity,
+            'serials_display': getattr(item, 'serials_display', 'N/A'),
+            'is_serialized': getattr(item, 'is_serialized', False),
+            'requested_at': item.requested_at.isoformat() if item.requested_at else None,
+        }
+
+    return JsonResponse({
+        'user': {
+            'id': branch_user.id,
+            'username': branch_user.username,
+            'full_name': branch_user.get_full_name() or branch_user.username,
+        },
+        'in_stock': [serialize_item(i) for i in in_stock_list],
+        'low_stock': [serialize_item(i) for i in low_stock_list],
+    })
+
+
+@login_required
 def materials_view(request):
     """Materials management: Admin and Storekeeper can create, edit, delete; others read-only."""
     profile = ensure_userprofile(request.user)
@@ -769,6 +801,9 @@ def materials_view(request):
         if form.is_valid():
             material = form.save(commit=False)
             is_new = not material.id
+
+            if material.created_by and hasattr(material.created_by, 'userprofile') and material.created_by.userprofile.role == 'NOC':
+                material.Remaining_stock = 0
 
             material.save()
             messages.success(request, "Material saved successfully!")
@@ -1060,7 +1095,6 @@ def material_json(request, pk):
         
 #     return render(request, 'inventory/tasks.html', {'tasks': tasks.order_by('-created_at'), 'form': form, 'role': role})
 
-@login_required
 def requests_view(request):
     now = timezone.now()
     base_requests = MaterialRequest.objects.filter(
@@ -1146,10 +1180,10 @@ def requests_view(request):
     paginator = Paginator(all_requests, 20)  # Show 20 requests per page
     page_number = request.GET.get('page')
     requests_page = paginator.get_page(page_number)
-    
-    # Count advance requests for display
-    advance_count = base_requests.filter(request_type='Advance').count()
 
+    # Mark NOC material requests for frontend display logic
+    for req in requests_page:
+        req.is_noc_material = bool(req.material.created_by and hasattr(req.material.created_by, 'userprofile') and req.material.created_by.userprofile.role == 'NOC')
     # Initialize form - will be used in both GET and POST
     form = RequestForm()
 
@@ -1213,6 +1247,9 @@ def requests_view(request):
 
             if req.status != 'Approved':
                 return JsonResponse({'success': False, 'error': 'Only approved requests can be dispatched.'}, status=400)
+
+            if req.material.created_by and hasattr(req.material.created_by, 'userprofile') and req.material.created_by.userprofile.role == 'NOC':
+                return JsonResponse({'success': False, 'error': 'Pass on is disabled for NOC material requests.'}, status=403)
 
             req.pass_on = pass_on
             req.pass_on_at = timezone.now()
@@ -1288,6 +1325,10 @@ def requests_view(request):
             try:
                 req = MaterialRequest.objects.get(pk=req_id)
                 
+                if req.material.created_by and hasattr(req.material.created_by, 'userprofile') and req.material.created_by.userprofile.role == 'NOC':
+                    messages.error(request, "Action disabled: NOC material requests must be handled by NOC.")
+                    return redirect('requests')
+
                 if action == 'accept':
                     if req.status in ['Approved', 'Dispatched', 'Received']:
                         messages.warning(request, "Request already approved.")
@@ -1397,9 +1438,6 @@ def reports_view(request):
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
 
-    if role == 'NOC':
-        return redirect('noc:dashboard')
-
     # ── Date range ──
     preset    = request.GET.get('preset', '')
     from_date = request.GET.get('from_date', '')
@@ -1437,17 +1475,57 @@ def reports_view(request):
         from_date = start.strftime('%Y-%m-%d')
         to_date   = end.strftime('%Y-%m-%d')
 
-    # ── Base queryset ─────────────────────────────────────────────────────────
+    selected_user = None
+    branch_users = None
+    if role in ['Admin', 'Storekeeper', 'NOC']:
+        branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
+        selected_user_id = request.GET.get('user_id')
+        if selected_user_id:
+            selected_user = get_object_or_404(User, id=selected_user_id, userprofile__role='Branch')
+    else:
+        # Branch users can only view their own reports
+        selected_user = request.user
+
+    # ── Base querysets ──
     requests_qs = MaterialRequest.objects.filter(
         requested_at__date__gte=start,
         requested_at__date__lte=end
     ).select_related('material', 'requester')
 
-    # Role filter: Branch users see only their own requests
-    if role == 'Branch':
-        requests_qs = requests_qs.filter(requester=request.user)
+    used_qs = UsedMaterial.objects.filter(
+        added_at__date__gte=start,
+        added_at__date__lte=end
+    ).select_related('material', 'technician')
 
-    # ── Summary Stats ─────────────────────────────────────────────────────────
+    damaged_qs = DamageMaterial.objects.filter(
+        added_at__date__gte=start,
+        added_at__date__lte=end
+    ).select_related('material', 'branch_user', 'confirmed_by')
+
+    refundable_qs = RefundableMaterial.objects.filter(
+        added_at__date__gte=start,
+        added_at__date__lte=end
+    ).select_related('branch_user')
+
+    refundable_usages_qs = RefundableMaterialUsage.objects.filter(
+        used_at__date__gte=start,
+        used_at__date__lte=end
+    ).select_related('refundable_material', 'used_by')
+
+    # Apply branch filter if selected
+    if selected_user:
+        requests_qs = requests_qs.filter(requester=selected_user)
+        used_qs = used_qs.filter(technician=selected_user)
+        damaged_qs = damaged_qs.filter(branch_user=selected_user)
+        refundable_qs = refundable_qs.filter(branch_user=selected_user)
+        refundable_usages_qs = refundable_usages_qs.filter(used_by=selected_user)
+
+    refundable_qs = refundable_qs.annotate(
+        used_total=Coalesce(Sum('usages__materials_quantity'), 0),
+        available_quantity=F('quantity') - F('used_total')
+    )
+
+    # ── Summary Stats ──
     total_requests   = requests_qs.count()
     approved_count   = requests_qs.filter(status='Received').count()
     pending_count    = requests_qs.filter(status='Pending').count()
@@ -1455,23 +1533,30 @@ def reports_view(request):
     total_qty_issued = requests_qs.filter(status='Received').aggregate(total=Sum('quantity'))['total'] or 0
     advance_count    = requests_qs.filter(request_type='Advance', status='Received').count()
 
-    # Material stock summary
-    total_materials  = Material.objects.count()
-    low_stock_items  = Material.objects.filter(status='Low Stock').count()
-    out_of_stock     = Material.objects.filter(status='Out of Stock').count()
-    normal_stock     = Material.objects.filter(status='Normal').count()
-
-    # Used materials in period
-    used_qs = UsedMaterial.objects.filter(
-        added_at__date__gte=start,
-        added_at__date__lte=end
-    )
-    if role == 'Branch':
-        used_qs = used_qs.filter(technician=request.user)
     total_used_records = used_qs.count()
-    total_used_qty     = used_qs.aggregate(total=Sum('quantity'))['total'] or 0
+    total_used_qty     = used_qs.filter(status='Accepted').aggregate(total=Sum('quantity'))['total'] or 0
+    used_pending_count  = used_qs.filter(status='Pending').count()
+    used_accepted_count = used_qs.filter(status='Accepted').count()
+    used_rejected_count = used_qs.filter(status='Rejected').count()
 
-    # ── Top 10 materials by approved quantity ─────────────────────────────────
+    in_stock_list = []
+    low_stock_list = []
+    normal_stock = 0
+    low_stock_items = 0
+    out_of_stock = 0
+
+    if selected_user:
+        in_stock_list, low_stock_list = get_branch_stock_data(selected_user)
+        normal_stock = len(in_stock_list)
+        low_stock_items = len(low_stock_list)
+        out_of_stock = len([x for x in low_stock_list if getattr(x, 'available_quantity', 0) == 0])
+    else:
+        total_materials  = Material.objects.count()
+        low_stock_items  = Material.objects.filter(status='Low Stock').count()
+        out_of_stock     = Material.objects.filter(status='Out of Stock').count()
+        normal_stock     = Material.objects.filter(status='Normal').count()
+
+    # ── Top 10 materials ──
     top_materials = (
         requests_qs.filter(status='Received')
         .values('material__name')
@@ -1479,9 +1564,9 @@ def reports_view(request):
         .order_by('-total_qty')[:10]
     )
 
-    # ── Per-user breakdown (Admin/Storekeeper only) ───────────────────────────
+    # ── Per-user breakdown (Admin/Storekeeper/NOC only) ──
     user_breakdown = []
-    if role in ['Admin', 'Storekeeper']:
+    if not selected_user and role in ['Admin', 'Storekeeper', 'NOC']:
         user_breakdown = (
             requests_qs
             .values('requester__username', 'requester__first_name', 'requester__last_name')
@@ -1494,7 +1579,7 @@ def reports_view(request):
             ).order_by('-approved')[:15]
         )
 
-    # ── Chart data: daily request counts over the date range ─────────────────
+    # ── Chart data ──
     daily_data = (
         requests_qs
         .annotate(day=TruncDate('requested_at'))
@@ -1521,15 +1606,17 @@ def reports_view(request):
     cat_labels = [d['material__category'] or 'Unknown' for d in category_data]
     cat_values = [d['qty'] or 0 for d in category_data]
 
-    # ── Recent requests (up to 20 for table) ─────────────────────────────────
     recent_requests = requests_qs.order_by('-requested_at')[:20]
 
-    # ── Low-stock materials list ──────────────────────────────────────────────
-    low_stock_list = Material.objects.filter(
-        status__in=['Low Stock', 'Out of Stock']
-    ).order_by('status', 'name')[:20]
+    # Low stock alert table content
+    if selected_user:
+        low_stock_list_display = low_stock_list[:20]
+    else:
+        low_stock_list_display = Material.objects.filter(
+            status__in=['Low Stock', 'Out of Stock']
+        ).order_by('status', 'name')[:20]
 
-    # ── Branch-specific detailed data ─────────────────────────────────────────
+    # ── Branch-specific detailed data ──
     branch_req_pending  = []
     branch_req_approved = []
     branch_req_rejected = []
@@ -1537,7 +1624,7 @@ def reports_view(request):
     branch_um_accepted  = []
     branch_um_rejected  = []
 
-    if role == 'Branch':
+    if selected_user:
         branch_req_pending  = requests_qs.filter(status='Pending').order_by('-requested_at')
         branch_req_approved = requests_qs.filter(status='Received').order_by('-requested_at')
         branch_req_rejected = requests_qs.filter(status='Rejected').order_by('-requested_at')
@@ -1546,11 +1633,6 @@ def reports_view(request):
         branch_um_accepted = used_qs.filter(status='Accepted').order_by('-added_at')
         branch_um_rejected = used_qs.filter(status='Rejected').order_by('-added_at')
 
-    # Used materials stats by status
-    used_pending_count  = used_qs.filter(status='Pending').count()
-    used_accepted_count = used_qs.filter(status='Accepted').count()
-    used_rejected_count = used_qs.filter(status='Rejected').count()
-
     context = {
         # Date range
         'from_date':   from_date,
@@ -1558,6 +1640,8 @@ def reports_view(request):
         'preset':      preset,
         'report_type': report_type,
         'role':        role,
+        'selected_user': selected_user,
+        'branch_users':  branch_users,
         # Summary
         'total_requests':   total_requests,
         'approved_count':   approved_count,
@@ -1571,7 +1655,6 @@ def reports_view(request):
         'used_accepted_count': used_accepted_count,
         'used_rejected_count': used_rejected_count,
         # Stock summary
-        'total_materials': total_materials,
         'low_stock_items': low_stock_items,
         'out_of_stock':    out_of_stock,
         'normal_stock':    normal_stock,
@@ -1579,7 +1662,12 @@ def reports_view(request):
         'top_materials':    top_materials,
         'user_breakdown':   user_breakdown,
         'recent_requests':  recent_requests,
-        'low_stock_list':   low_stock_list,
+        'low_stock_list':   low_stock_list_display,
+        # Branch-specific data
+        'in_stock_list': in_stock_list,
+        'damaged_materials': damaged_qs,
+        'refundable_materials': refundable_qs,
+        'refundable_usages': refundable_usages_qs,
         # Branch detailed tables
         'branch_req_pending':  branch_req_pending,
         'branch_req_approved': branch_req_approved,
@@ -3345,6 +3433,9 @@ def pending_requests_api(request):
             status='Pending',
             is_archived=False
         ).select_related('requester', 'material').order_by('-requested_at')
+
+        if role in ['Admin', 'Storekeeper']:
+            pending_requests = exclude_noc_material_requests(pending_requests)
         
         # For non-admin users, optionally filter to their own requests
         show_all = request.GET.get('show_all', 'true').lower() == 'true'
@@ -3637,8 +3728,7 @@ def refundable_materials_view(request):
                 messages.error(request, "Record not found or access denied.")
             return redirect('refundable_materials')
 
-    template_name = 'noc/refundable_materials.html' if role == 'NOC' else 'inventory/refundable_materials.html'
-    return render(request, template_name, {
+    return render(request, 'inventory/refundable_materials.html', {
         'refundable_materials': refundable_page,
         'form': form,
         'usage_form': usage_form,
@@ -3658,8 +3748,6 @@ def get_refundable_material_api(request, pk):
     try:
         if role in ['Admin', 'Storekeeper']:
             rf = RefundableMaterial.objects.get(pk=pk)
-        elif role == 'NOC':
-            rf = RefundableMaterial.objects.filter(branch_user__userprofile__role='Branch').get(pk=pk)
         else:
             rf = RefundableMaterial.objects.get(pk=pk, branch_user=request.user)
     except RefundableMaterial.DoesNotExist:
@@ -3876,8 +3964,7 @@ def damaged_materials_view(request):
                 messages.error(request, "Record not found.")
                 return redirect('damaged_materials')
 
-    template_name = 'noc/damaged_materials.html' if role == 'NOC' else 'inventory/damaged_materials.html'
-    return render(request, template_name, {
+    return render(request, 'inventory/damaged_materials.html', {
         'damaged_materials': damaged_page,
         'form': form,
         'role': role,

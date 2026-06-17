@@ -142,8 +142,12 @@
                     <td class="px-4 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.admin_note|default:"N/A" }}</td>
                     <td class="px-4 py-4 text-sm">
                         <div class="flex items-center justify-between">
+                            {% if req.is_noc_material %}
+                            <span class="text-orange-600 font-semibold">NOC Required</span>
+                            {% else %}
                             <span class="text-gray-500 italic max-w-xs truncate">{{ req.pass_on|default:"Not Dispatched" }}</span>
-                            {% if role == 'Storekeeper' and userprofile.role != 'Admin' %}
+                            {% endif %}
+                            {% if role == 'Storekeeper' and userprofile.role != 'Admin' and not req.is_noc_material %}
                                 {% if req.status == 'Approved' %}
                                 <button onclick="openPassOnModal('{{ req.id }}')"
                                     class="ml-1 text-blue-600 hover:text-blue-900 font-medium bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition text-xs whitespace-nowrap">
@@ -173,10 +177,14 @@
                     </td>
                     {% if role == 'Admin' %}
                     <td class="px-6 py-4 text-sm">
+                        {% if req.is_noc_material %}
+                        <span class="text-orange-600 font-semibold">NOC Required</span>
+                        {% else %}
                         <button onclick="openAdminModal('{{ req.id }}', '{{ req.admin_note|escapejs }}', '{{ req.quantity }}')"
                             class="text-indigo-600 hover:text-indigo-900 font-medium bg-indigo-50 px-3 py-1 rounded hover:bg-indigo-100 transition">
                             Manage
                         </button>
+                        {% endif %}
                     </td>
                     {% endif %}
                 </tr>

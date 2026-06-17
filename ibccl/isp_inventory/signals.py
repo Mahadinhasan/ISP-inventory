@@ -18,6 +18,7 @@ def _broadcast_used_material(instance):
             return
         payload = {
             "id": instance.id,
+            "technician_id": instance.technician.id if instance.technician else None,
             "technician_username": instance.technician.username if instance.technician else "",
             "technician_name": (instance.technician.get_full_name() or instance.technician.username)
             if instance.technician

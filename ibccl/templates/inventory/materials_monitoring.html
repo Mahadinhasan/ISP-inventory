@@ -1,296 +1,749 @@
 {% extends 'inventory/base.html' %}
-{% block title %}Materials Monitoring (Live){% endblock %}
+{% block title %}Live Materials Monitoring — Admin{% endblock %}
 {% block content %}
+
+<style>
+/* ── Monitoring Page ───────────────────────────────────────────── */
+.mon-hero {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4c1d95 100%);
+    border-radius: 1.5rem;
+    padding: 2rem 2.5rem;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+}
+.mon-hero::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 240px; height: 240px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.04);
+}
+.mon-hero::after {
+    content: '';
+    position: absolute;
+    bottom: -40px; left: 30%;
+    width: 160px; height: 160px;
+    border-radius: 50%;
+    background: rgba(139,92,246,.15);
+}
+
+/* WS pill */
+.ws-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .45rem 1rem;
+    border-radius: 9999px;
+    background: rgba(255,255,255,.12);
+    border: 1px solid rgba(255,255,255,.18);
+    font-size: .78rem;
+    font-weight: 600;
+    color: #e0e7ff;
+    backdrop-filter: blur(4px);
+}
+.ws-dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: #6b7280;
+    transition: background .3s;
+    flex-shrink: 0;
+}
+.ws-dot.live { background: #22c55e; box-shadow: 0 0 8px #22c55e99; animation: pulse-dot 1.5s infinite; }
+.ws-dot.error { background: #ef4444; }
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .4; }
+}
+
+/* Stat pills in hero */
+.hero-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 1rem;
+    padding: .85rem 1.4rem;
+    min-width: 90px;
+}
+.hero-stat .hs-num { font-size: 1.7rem; font-weight: 800; color: #fff; line-height: 1; }
+.hero-stat .hs-lbl { font-size: .68rem; font-weight: 600; color: #c4b5fd; margin-top: .2rem; text-align: center; }
+
+/* Branch profile cards */
+.branch-card {
+    background: #fff;
+    border-radius: 1.2rem;
+    border: 2px solid transparent;
+    padding: 1.4rem 1.2rem 1rem;
+    box-shadow: 0 4px 20px rgba(79,70,229,.07), 0 1px 4px rgba(0,0,0,.04);
+    cursor: pointer;
+    transition: all .22s cubic-bezier(.4,0,.2,1);
+    position: relative;
+    overflow: hidden;
+}
+.dark .branch-card {
+    background: #1e1b3a;
+    box-shadow: 0 4px 20px rgba(0,0,0,.3);
+}
+.branch-card:hover {
+    border-color: #6d28d9;
+    box-shadow: 0 8px 32px rgba(109,40,217,.18), 0 2px 8px rgba(0,0,0,.06);
+    transform: translateY(-3px);
+}
+.branch-card.selected {
+    border-color: #4f46e5;
+    background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+    box-shadow: 0 8px 32px rgba(79,70,229,.2);
+}
+.dark .branch-card.selected {
+    background: linear-gradient(135deg, #1e1b3a, #2d2768);
+}
+.branch-card .avatar {
+    width: 54px; height: 54px;
+    border-radius: 50%;
+    font-size: 1.4rem;
+    font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1rem;
+    color: #fff;
+    flex-shrink: 0;
+    position: relative;
+}
+.branch-card .avatar .status-ring {
+    position: absolute;
+    bottom: 1px; right: 1px;
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+}
+.dark .branch-card .avatar .status-ring { border-color: #1e1b3a; }
+
+.branch-card .bc-name {
+    font-size: .92rem;
+    font-weight: 700;
+    color: #1e1b4b;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.dark .branch-card .bc-name { color: #e0e7ff; }
+.branch-card .bc-user {
+    font-size: .72rem;
+    color: #6b7280;
+    text-align: center;
+    margin-top: .15rem;
+}
+.branch-card .bc-stats {
+    display: flex;
+    gap: .5rem;
+    justify-content: center;
+    margin-top: .8rem;
+    flex-wrap: wrap;
+}
+.branch-card .bc-stat-chip {
+    font-size: .65rem;
+    font-weight: 700;
+    padding: .2rem .6rem;
+    border-radius: 9999px;
+    white-space: nowrap;
+}
+.chip-used { background: #ede9fe; color: #5b21b6; }
+.chip-online { background: #d1fae5; color: #065f46; }
+.chip-offline { background: #f3f4f6; color: #6b7280; }
+.dark .chip-used { background: #3b1f7a; color: #c4b5fd; }
+.dark .chip-online { background: #064e3b; color: #6ee7b7; }
+.dark .chip-offline { background: #374151; color: #9ca3af; }
+
+.branch-card .bc-view-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+    margin-top: 1rem;
+    padding: .45rem 0;
+    border-radius: .65rem;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: #fff;
+    font-size: .75rem;
+    font-weight: 700;
+    transition: opacity .18s;
+    text-decoration: none;
+}
+.branch-card .bc-view-btn:hover { opacity: .88; }
+.branch-card.selected .bc-view-btn {
+    background: linear-gradient(135deg, #7c3aed, #4f46e5);
+}
+
+/* Skeleton loader for cards */
+@keyframes shimmer {
+    0% { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
+}
+.skeleton {
+    border-radius: .5rem;
+    background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+    background-size: 800px 100%;
+    animation: shimmer 1.5s infinite;
+}
+.dark .skeleton {
+    background: linear-gradient(90deg, #1f2937 25%, #374151 50%, #1f2937 75%);
+    background-size: 800px 100%;
+}
+
+/* In-stock panel */
+.stock-panel {
+    background: #fff;
+    border-radius: 1.2rem;
+    box-shadow: 0 4px 24px rgba(79,70,229,.09), 0 1px 4px rgba(0,0,0,.04);
+    overflow: hidden;
+    border: 1.5px solid #e0e7ff;
+    transition: all .3s;
+}
+.dark .stock-panel {
+    background: #1e1b3a;
+    border-color: #2d2768;
+    box-shadow: 0 4px 24px rgba(0,0,0,.3);
+}
+.stock-panel-header {
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    padding: 1.1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+.stock-panel-header h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+
+/* In-stock table */
+.ist-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+.ist-table th {
+    background: #f5f3ff;
+    color: #4c1d95;
+    padding: .6rem 1rem;
+    text-align: left;
+    font-weight: 700;
+    font-size: .7rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    border-bottom: 1.5px solid #ede9fe;
+    position: sticky; top: 0; z-index: 1;
+}
+.dark .ist-table th {
+    background: #2d2768;
+    color: #c4b5fd;
+    border-color: #3b1f7a;
+}
+.ist-table td {
+    padding: .6rem 1rem;
+    border-bottom: 1px solid #f3f4f6;
+    color: #374151;
+}
+.dark .ist-table td { color: #cbd5e1; border-color: #2d2b55; }
+.ist-table tr:last-child td { border-bottom: none; }
+.ist-table tr:hover td { background: #faf5ff; }
+.dark .ist-table tr:hover td { background: #26245a; }
+
+/* Live feed table */
+.live-feed-panel {
+    background: #fff;
+    border-radius: 1.2rem;
+    box-shadow: 0 4px 24px rgba(79,70,229,.07), 0 1px 4px rgba(0,0,0,.04);
+    overflow: hidden;
+}
+.dark .live-feed-panel { background: #1e1b3a; }
+
+/* Badge */
+.badge-sm {
+    display: inline-block;
+    padding: .18rem .6rem;
+    border-radius: 9999px;
+    font-size: .68rem;
+    font-weight: 700;
+}
+.badge-normal { background: #d1fae5; color: #065f46; }
+.badge-low { background: #fef9c3; color: #78350f; }
+.badge-out { background: #fee2e2; color: #991b1b; }
+.badge-serial { background: #ede9fe; color: #5b21b6; }
+.badge-accepted { background: #d1fae5; color: #065f46; }
+.badge-pending { background: #fef9c3; color: #78350f; }
+.badge-rejected { background: #fee2e2; color: #991b1b; }
+
+/* Fade-in animation for stock panel */
+@keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.fade-slide-in { animation: fadeSlideIn .3s ease-out; }
+
+/* Loading spinner */
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
 <div class="fade-in">
-    <div class="mb-8">
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <!-- ── Hero Header ─────────────────────────────────────────── -->
+    <div class="mon-hero mb-6">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative z-10">
             <div>
-                <h1 class="text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent dark:from-indigo-400 dark:via-purple-400 dark:to-pink-400">Materials Monitoring</h1>
-                <p class="mt-2 text-lg text-gray-600 dark:text-gray-300 font-medium">Real-time branch user usage (Admin only)</p>
+                <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
+                    <span class="text-3xl">📡</span> Live Materials Monitoring
+                </h1>
+                <p class="text-indigo-300 text-sm mt-1 font-medium">Real-time branch stock — Admin access only</p>
             </div>
-            <div class="flex items-center gap-3">
-                <div class="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-md">
-                    <span id="ws-dot" class="w-3 h-3 rounded-full bg-gray-400 animate-pulse"></span>
-                    <span id="ws-status" class="text-gray-700 dark:text-gray-300">Connecting…</span>
+            <div class="flex items-center gap-3 flex-wrap">
+                <div class="ws-pill">
+                    <span id="ws-dot" class="ws-dot"></span>
+                    <span id="ws-status">Connecting…</span>
                 </div>
-                <button type="button" id="btn-refresh" class="btn-primary px-6 py-2.5 rounded-xl flex items-center gap-2">
-                    <i class="fas fa-sync-alt"></i>Refresh
+                <button id="btn-refresh" class="inline-flex items-center gap-2 px-5 py-2.5 bg-white/15 hover:bg-white/25 border border-white/25 text-white font-bold text-sm rounded-xl transition-all active:scale-95">
+                    <i class="fas fa-sync-alt text-xs"></i> Refresh
                 </button>
             </div>
         </div>
+        <!-- Hero stats -->
+        <div class="flex flex-wrap gap-3 mt-5 relative z-10" id="hero-stats">
+            <div class="hero-stat"><span class="hs-num" id="stat-branches">—</span><span class="hs-lbl">Branch Users</span></div>
+            <div class="hero-stat"><span class="hs-num" id="stat-online">—</span><span class="hs-lbl">Online Now</span></div>
+            <div class="hero-stat"><span class="hs-num" id="stat-used">—</span><span class="hs-lbl">Total Used Entries</span></div>
+        </div>
     </div>
 
-    <!-- Branch users grid -->
-    <div class="mb-12">
-        <div class="mb-6">
-            <h2 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                <div class="w-1 h-8 bg-gradient-to-b from-indigo-600 to-purple-600 rounded-full"></div>
-                Branch Users Overview
+    <!-- ── Branch User Profile Cards ──────────────────────────── -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <i class="fas fa-users text-indigo-500"></i> Branch Users
             </h2>
-            <p class="text-gray-600 dark:text-gray-400 mt-2 ml-4">Click "Details" on any branch to view their in-stock materials</p>
+            <span class="text-sm text-gray-500 dark:text-gray-400">Click a card to view in-stock materials</span>
         </div>
-        <div id="branch-users-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            <div class="col-span-full py-12 text-center">
-                <div class="inline-flex flex-col items-center gap-3">
-                    <div class="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center">
-                        <i class="fas fa-spinner fa-spin text-indigo-600 dark:text-indigo-400 text-lg"></i>
-                    </div>
-                    <p class="text-gray-600 dark:text-gray-400 font-medium">Loading branch data…</p>
+        <div id="branch-cards-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <!-- Skeleton loaders -->
+            {% for i in "12345" %}
+            <div class="branch-card pointer-events-none">
+                <div class="skeleton rounded-full w-14 h-14 mx-auto mb-3"></div>
+                <div class="skeleton h-3 w-3/4 mx-auto mb-2 rounded"></div>
+                <div class="skeleton h-2 w-1/2 mx-auto mb-3 rounded"></div>
+                <div class="skeleton h-7 w-full rounded-lg"></div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ── In-Stock Materials Panel (hidden until card clicked) ── -->
+    <div id="stock-panel-wrap" class="mb-8 hidden">
+        <div class="stock-panel fade-slide-in">
+            <div class="stock-panel-header">
+                <h3>
+                    <i class="fas fa-boxes"></i>
+                    <span id="stock-panel-title">In-Stock Materials</span>
+                </h3>
+                <div class="flex items-center gap-2">
+                    <span id="stock-loading-indicator" class="hidden">
+                        <svg class="spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                    </span>
+                    <button onclick="closeStockPanel()" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center transition-all text-sm font-bold" title="Close">✕</button>
                 </div>
             </div>
-        </div>
-    </div>
-
-    {{ materials_monitoring|json_script:"materials-data" }}
-    
-
-    <!-- Hero: In-stock materials (hidden unless detail clicked) -->
-    <div id="instockSection" class="mb-8 hidden">
-        <div class="flex items-center justify-between mb-4">
-            <div>
-                <h2 class="text-xl font-semibold text-gray-900 dark:text-white">In-stock Materials for <span id="selectedBranchName"></span></h2>
-                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Branch User In-Stock Overview</p>
+            <!-- Tabs: In Stock / Low Stock -->
+            <div class="flex gap-0 border-b border-indigo-100 dark:border-indigo-900/40 bg-gray-50 dark:bg-gray-800/50">
+                <button onclick="showTab('in-stock')" id="tab-in-stock"
+                    class="px-5 py-3 text-sm font-700 font-bold border-b-2 transition-all text-indigo-600 border-indigo-500 dark:text-indigo-400">
+                    <i class="fas fa-check-circle mr-1 text-green-500"></i> In Stock <span id="tab-in-count" class="ml-1 text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 px-1.5 py-0.5 rounded-full font-bold"></span>
+                </button>
+                <button onclick="showTab('low-stock')" id="tab-low-stock"
+                    class="px-5 py-3 text-sm font-bold border-b-2 border-transparent transition-all text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400">
+                    <i class="fas fa-exclamation-triangle mr-1 text-yellow-500"></i> Low / Out <span id="tab-low-count" class="ml-1 text-xs bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300 px-1.5 py-0.5 rounded-full font-bold"></span>
+                </button>
             </div>
-            <button onclick="document.getElementById('instockSection').classList.add('hidden')" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 text-2xl">&times;</button>
-        </div>
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div class="overflow-x-auto max-h-[360px] overflow-y-auto">
-                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
-                    <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0">
+            <div class="overflow-x-auto max-h-96 overflow-y-auto">
+                <table class="ist-table" id="stock-table">
+                    <thead>
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Material</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Qty</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Status</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Date</th>
+                            <th>#</th>
+                            <th>Material</th>
+                            <th>Category</th>
+                            <th>Available Qty</th>
+                            <th>Serial / MAC</th>
+                            <th>Status</th>
+                            <th>Received</th>
                         </tr>
                     </thead>
-                    <tbody id="instockTableBody" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">
-                        <tr><td colspan="4" class="px-4 py-6 text-center text-gray-500 dark:text-gray-400">Detail click will show results here.</td></tr>
+                    <tbody id="stock-table-body">
+                        <tr><td colspan="7" class="text-center py-10 text-gray-400"><i class="fas fa-spinner fa-spin text-2xl"></i></td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- Side by side: Live feed and Legacy table -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <!-- Live feed: recent used materials -->
-        <div>
-            <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Live feed – Used materials</h2>
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div class="overflow-x-auto max-h-[720px] overflow-y-auto">
-                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
-                        <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Branch user</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Material</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Qty</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Status</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Time</th>
-                            </tr>
-                        </thead>
-                        <tbody id="recent-used-tbody" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">
-                            <tr><td colspan="5" class="px-4 py-6 text-center text-gray-500 dark:text-gray-400">Loading…</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+    <!-- ── Live Feed: Recent Used Materials ───────────────────── -->
+    <div class="live-feed-panel">
+        <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                Live Feed — Recent Used Materials
+            </h2>
+            <span class="text-xs text-gray-400">Up to 50 most recent</span>
         </div>
+        <div class="overflow-x-auto max-h-96 overflow-y-auto">
+            <table class="ist-table">
+                <thead>
+                    <tr>
+                        <th>Branch User</th>
+                        <th>Material</th>
+                        <th>Qty</th>
+                        <th>Status</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody id="live-feed-tbody">
+                    <tr><td colspan="5" class="text-center py-10 text-gray-400">Connecting to live feed…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
 <script>
-const materialsData = JSON.parse(document.getElementById('materials-data').textContent || '[]');
+(function () {
+    /* ── tab_id: required for JWT cookie auth over WebSocket ────── */
+    const urlParams = new URLSearchParams(window.location.search);
+    const TAB_ID = urlParams.get('tab_id') || '';
 
-(function() {
-    const wsUrl = '{{ ws_url|escapejs }}';
-    const statusEl = document.getElementById('ws-status');
-    const dotEl = document.getElementById('ws-dot');
-    const branchContainer = document.getElementById('branch-users-container');
-    const recentTbody = document.getElementById('recent-used-tbody');
-    const instockSection = document.getElementById('instockSection');
-    const instockTableBody = document.getElementById('instockTableBody');
-    const selectedBranchName = document.getElementById('selectedBranchName');
-    const btnRefresh = document.getElementById('btn-refresh');
+    /* ── Constants ─────────────────────────────────────────────── */
+    // Append tab_id to WS URL so JWTAuthMiddleware can authenticate
+    const WS_BASE = '{{ ws_url|escapejs }}';
+    const WS_URL  = TAB_ID ? WS_BASE + '?tab_id=' + encodeURIComponent(TAB_ID) : WS_BASE;
 
+    // API URL — tab_id passed as query param for session cookie lookup
+    function branchStockUrl(userId) {
+        return '/api/branch-stock/' + userId + '/' + (TAB_ID ? '?tab_id=' + encodeURIComponent(TAB_ID) : '');
+    }
+
+    /* ── DOM refs ──────────────────────────────────────────────── */
+    const wsDot      = document.getElementById('ws-dot');
+    const wsStatus   = document.getElementById('ws-status');
+    const cardsGrid  = document.getElementById('branch-cards-grid');
+    const stockWrap  = document.getElementById('stock-panel-wrap');
+    const stockTitle = document.getElementById('stock-panel-title');
+    const stockBody  = document.getElementById('stock-table-body');
+    const liveBody   = document.getElementById('live-feed-tbody');
+    const loadingInd = document.getElementById('stock-loading-indicator');
+    const statBranches = document.getElementById('stat-branches');
+    const statOnline   = document.getElementById('stat-online');
+    const statUsed     = document.getElementById('stat-used');
+    const tabInCount   = document.getElementById('tab-in-count');
+    const tabLowCount  = document.getElementById('tab-low-count');
+
+    /* ── State ─────────────────────────────────────────────────── */
     let ws = null;
     let reconnectTimer = null;
-    const reconnectDelay = 3000;
-    let currentSelectedBranchId = null;
-    let allBranchUsers = []; // Store branch users for jumpToBranchStock
-
-    function setStatus(connected, text) {
-        statusEl.textContent = text;
-        statusEl.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ' +
-            (connected ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300' : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300');
-        dotEl.className = 'w-2 h-2 rounded-full ' + (connected ? 'bg-green-500' : 'bg-gray-500');
-    }
-
-    function renderInStockTable(items) {
-        if (!items || items.length === 0) {
-            instockTableBody.innerHTML = '<tr><td colspan="4" class="px-4 py-6 text-center text-gray-500 dark:text-gray-400">No in-stock materials found.</td></tr>';
-            return;
-        }
-
-        instockTableBody.innerHTML = items.map(function(item) {
-            var statusClassName = item.status === 'Normal' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
-                item.status === 'Low Stock' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' :
-                'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
-
-            return '<tr id="branch-stock-' + item.branch.id + '-' + item.material.id + '" data-branch-stock-row="' + item.branch.id + '" class="hover:bg-gray-50 dark:hover:bg-gray-700">' +
-                '<td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-300">' + item.material.name + '</td>' +
-                '<td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-300 font-bold">' + item.quantity + '</td>' +
-                '<td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-semibold ' + statusClassName + '">' + item.status + '</span></td>' +
-                '<td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">' + (new Date(item.date).toLocaleDateString()) + '</td>' +
-                '</tr>';
-        }).join('');
-    }
-
-    function jumpToBranchStock(branchId) {
-        instockSection.classList.remove('hidden');
-        currentSelectedBranchId = branchId;
-        
-        // Find the branch user to get their name
-        const branchUser = allBranchUsers.find(u => u.id === branchId);
-        if (branchUser) {
-            selectedBranchName.textContent = branchUser.username || branchUser.username;
-        }
-        
-        // Filter materials for this branch only
-        const filteredItems = materialsData.filter(function(item) {
-            return item.branch.id === branchId;
-        });
-        
-        renderInStockTable(filteredItems);
-
-        var target = document.querySelector('[data-branch-stock-row="' + branchId + '"]');
-        if (target) {
-            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            target.classList.add('ring-2', 'ring-indigo-500', 'dark:ring-indigo-300');
-            setTimeout(function() {
-                target.classList.remove('ring-2', 'ring-indigo-500', 'dark:ring-indigo-300');
-            }, 1500);
-        }
-    }
-
-    function renderBranchUsers(data) {
-        if (!data || !data.branch_users || !data.branch_users.length) {
-            branchContainer.innerHTML = '<p class="text-gray-500 dark:text-gray-400 col-span-full">No branch users.</p>';
-            allBranchUsers = [];
-            return;
-        }
-        
-        // Store branch users for jumpToBranchStock function
-        allBranchUsers = data.branch_users;
-        
-        branchContainer.innerHTML = data.branch_users.map(function(u) {
-            const statusColor = u.is_online ? 'status-online shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'status-offline';
-            return '<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 p-4 shadow-sm" id="user-card-' + u.id + '">' +
-                '<div class="flex items-center justify-between">' +
-                '<div>' +
-                '<p class="font-medium text-gray-900 dark:text-white">' + (u.name || u.username) + '</p>' +
-                '<p class="text-sm text-gray-500 dark:text-gray-400 mt-1">@' + (u.username || '') + '</p>' +
-                '</div>' +
-                '<span data-status-id="' + u.id + '" class="status-indicator-dot w-3 h-3 rounded-full ' + statusColor + ' border-2 border-white dark:border-gray-700" title="' + (u.is_online ? 'Online' : 'Offline') + '"></span>' +
-                '</div>' +
-                '<div class="mt-3 flex gap-4 text-sm">' +
-                '<span class="text-indigo-600 dark:text-indigo-400">' + (u.used_materials_count || 0) + ' entries</span>' +
-                '<span class="text-gray-600 dark:text-gray-300">' + (u.used_quantity_total || 0) + ' units</span>' +
-                '<a href="javascript:void(0)" onclick="jumpToBranchStock(' + u.id + ')" class="text-indigo-600 dark:text-indigo-300">' + (u.updated_at || 'Details') + '</a>' +
-                '</div></div>';
-        }).join('');
-    }
-
-    function formatTime(iso) {
-        if (!iso) return '–';
-        try {
-            const d = new Date(iso);
-            return d.toLocaleString();
-        } catch (e) { return iso; }
-    }
-
-    function statusClass(s) {
-        if (s === 'Accepted') return 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300';
-        if (s === 'Rejected') return 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300';
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300';
-    }
-
-    function renderRecentRows(rows) {
-        if (!rows || !rows.length) {
-            recentTbody.innerHTML = '<tr><td colspan="5" class="px-4 py-6 text-center text-gray-500 dark:text-gray-400">No recent used materials.</td></tr>';
-            return;
-        }
-        recentTbody.innerHTML = rows.map(function(r) {
-            return '<tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">' +
-                '<td class="px-4 py-3 text-sm text-gray-900 dark:text-white">' + (r.technician_name || r.technician_username || '–') + '</td>' +
-                '<td class="px-4 py-3 text-sm text-gray-900 dark:text-white">' + (r.material_name || '–') + '</td>' +
-                '<td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">' + (r.quantity != null ? r.quantity : '–') + '</td>' +
-                '<td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs font-medium ' + statusClass(r.status) + '">' + (r.status || '–') + '</span></td>' +
-                '<td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">' + formatTime(r.added_at) + '</td></tr>';
-        }).join('');
-    }
-
+    let branchUsers = [];
     let recentRows = [];
+    let selectedUserId = null;
+    let activeTab = 'in-stock';
+    let cachedStockData = {}; // { userId: { in_stock: [], low_stock: [] } }
 
-    function prependRecent(payload) {
-        recentRows.unshift(payload);
-        if (recentRows.length > 50) recentRows.pop();
-        renderRecentRows(recentRows);
+    /* ── Avatar palette ─────────────────────────────────────────── */
+    const AVATAR_COLORS = [
+        'linear-gradient(135deg,#4f46e5,#7c3aed)',
+        'linear-gradient(135deg,#0891b2,#06b6d4)',
+        'linear-gradient(135deg,#059669,#10b981)',
+        'linear-gradient(135deg,#d97706,#f59e0b)',
+        'linear-gradient(135deg,#dc2626,#ef4444)',
+        'linear-gradient(135deg,#7c3aed,#a855f7)',
+        'linear-gradient(135deg,#0284c7,#38bdf8)',
+        'linear-gradient(135deg,#16a34a,#4ade80)',
+    ];
+    function avatarColor(id) { return AVATAR_COLORS[id % AVATAR_COLORS.length]; }
+    function initials(name) {
+        const parts = (name || '?').trim().split(/\s+/);
+        if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+        return (parts[0][0] || '?').toUpperCase();
     }
 
+    /* ── WS status UI ───────────────────────────────────────────── */
+    function setWsStatus(state) { /* state: 'connecting' | 'live' | 'disconnected' | 'error' */
+        const map = {
+            'connecting':    { dot: '',      txt: 'Connecting…' },
+            'live':          { dot: 'live',  txt: 'Live' },
+            'disconnected':  { dot: 'error', txt: 'Disconnected' },
+            'error':         { dot: 'error', txt: 'Error' },
+        };
+        const s = map[state] || map['connecting'];
+        wsDot.className = 'ws-dot ' + s.dot;
+        wsStatus.textContent = s.txt;
+    }
+
+    /* ── Render branch cards ────────────────────────────────────── */
+    function renderBranchCards(users) {
+        branchUsers = users || [];
+        statBranches.textContent = branchUsers.length;
+        statOnline.textContent   = branchUsers.filter(u => u.is_online).length;
+        statUsed.textContent     = branchUsers.reduce((s, u) => s + (u.used_materials_count || 0), 0);
+
+        if (!branchUsers.length) {
+            cardsGrid.innerHTML = '<p class="col-span-full text-center text-gray-500 dark:text-gray-400 py-10">No branch users found.</p>';
+            return;
+        }
+
+        cardsGrid.innerHTML = branchUsers.map(u => {
+            const isOnline   = u.is_online;
+            const bgGrad     = avatarColor(u.id);
+            const avatarText = initials(u.full_name || u.username);
+            const ringColor  = isOnline ? '#22c55e' : '#9ca3af';
+            return `
+            <div class="branch-card" id="bcard-${u.id}" onclick="selectBranchUser(${u.id}, '${escHtml(u.full_name || u.username)}')">
+                <div class="avatar" style="background:${bgGrad}">
+                    ${avatarText}
+                    <span class="status-ring" style="background:${ringColor}" data-status-ring="${u.id}" title="${isOnline ? 'Online' : 'Offline'}"></span>
+                </div>
+                <p class="bc-name">${escHtml(u.full_name || u.username)}</p>
+                <p class="bc-user">@${escHtml(u.username)}</p>
+                <div class="bc-stats">
+                    <span class="bc-stat-chip ${isOnline ? 'chip-online' : 'chip-offline'}">
+                        <i class="fas fa-circle" style="font-size:.5rem"></i> ${isOnline ? 'Online' : 'Offline'}
+                    </span>
+                    <span class="bc-stat-chip chip-used">
+                        <i class="fas fa-box" style="font-size:.55rem"></i> ${u.used_materials_count || 0} used
+                    </span>
+                </div>
+                <div class="bc-view-btn mt-3">
+                    <i class="fas fa-layer-group text-xs"></i> View Stock
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    /* ── Select branch user → fetch stock ───────────────────────── */
+    window.selectBranchUser = async function(userId, userName) {
+        // Highlight selected card
+        document.querySelectorAll('.branch-card').forEach(c => c.classList.remove('selected'));
+        const card = document.getElementById('bcard-' + userId);
+        if (card) card.classList.add('selected');
+
+        selectedUserId = userId;
+        activeTab = 'in-stock';
+        updateTabUI();
+
+        stockTitle.textContent = `📦 In-Stock for ${userName}`;
+        stockWrap.classList.remove('hidden');
+        stockWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+        // Show loading
+        loadingInd.classList.remove('hidden');
+        stockBody.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-gray-400"><i class="fas fa-spinner fa-spin text-2xl"></i><br><span class="text-sm mt-2 block">Loading stock data…</span></td></tr>';
+
+        // If cached, use immediately
+        if (cachedStockData[userId]) {
+            renderStockTable(cachedStockData[userId], activeTab);
+            loadingInd.classList.add('hidden');
+            return;
+        }
+
+        // Fetch from API
+        try {
+            const resp = await fetch(BRANCH_STOCK_API + userId + '/');
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const data = await resp.json();
+            cachedStockData[userId] = data;
+            renderStockTable(data, activeTab);
+            // Update counts
+            tabInCount.textContent  = data.in_stock.length;
+            tabLowCount.textContent = data.low_stock.length;
+        } catch (err) {
+            stockBody.innerHTML = `<tr><td colspan="7" class="text-center py-10 text-red-400"><i class="fas fa-exclamation-circle text-2xl mb-2"></i><br>Failed to load stock data.</td></tr>`;
+            console.error('Branch stock fetch error:', err);
+        } finally {
+            loadingInd.classList.add('hidden');
+        }
+    };
+
+    /* ── Tab control ────────────────────────────────────────────── */
+    window.showTab = function(tab) {
+        activeTab = tab;
+        updateTabUI();
+        if (cachedStockData[selectedUserId]) {
+            renderStockTable(cachedStockData[selectedUserId], tab);
+        }
+    };
+
+    function updateTabUI() {
+        ['in-stock', 'low-stock'].forEach(t => {
+            const btn = document.getElementById('tab-' + t);
+            if (t === activeTab) {
+                btn.classList.add('text-indigo-600', 'border-indigo-500', 'dark:text-indigo-400');
+                btn.classList.remove('text-gray-500', 'border-transparent', 'dark:text-gray-400');
+            } else {
+                btn.classList.remove('text-indigo-600', 'border-indigo-500', 'dark:text-indigo-400');
+                btn.classList.add('text-gray-500', 'border-transparent', 'dark:text-gray-400');
+            }
+        });
+    }
+
+    /* ── Render stock table ─────────────────────────────────────── */
+    function renderStockTable(data, tab) {
+        const items = tab === 'in-stock' ? (data.in_stock || []) : (data.low_stock || []);
+        tabInCount.textContent  = (data.in_stock || []).length;
+        tabLowCount.textContent = (data.low_stock || []).length;
+
+        if (!items.length) {
+            const emptyMsg = tab === 'in-stock'
+                ? '<i class="fas fa-box-open text-4xl mb-2 block"></i>No in-stock materials found.'
+                : '<i class="fas fa-exclamation-triangle text-4xl mb-2 block text-yellow-400"></i>No low/out-of-stock items found.';
+            stockBody.innerHTML = `<tr><td colspan="7" class="text-center py-12 text-gray-400">${emptyMsg}</td></tr>`;
+            return;
+        }
+
+        stockBody.innerHTML = items.map((item, idx) => {
+            const qty = item.available_quantity || 0;
+            let statusBadge = '';
+            if (tab === 'in-stock') {
+                statusBadge = `<span class="badge-sm badge-normal">In Stock</span>`;
+            } else {
+                statusBadge = qty === 0
+                    ? `<span class="badge-sm badge-out">Out of Stock</span>`
+                    : `<span class="badge-sm badge-low">Low Stock</span>`;
+            }
+            const serialBadge = item.is_serialized
+                ? `<span class="badge-sm badge-serial text-xs">${escHtml(item.serials_display)}</span>`
+                : `<span class="text-gray-400 text-xs">N/A</span>`;
+            const dateStr = item.requested_at
+                ? new Date(item.requested_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })
+                : '—';
+
+            return `<tr>
+                <td class="font-bold text-indigo-600">${idx + 1}</td>
+                <td class="font-medium">${escHtml(item.material_name)}</td>
+                <td class="text-gray-500 dark:text-gray-400 text-xs">${escHtml(item.material_category || '—')}</td>
+                <td class="font-bold text-lg">${qty}</td>
+                <td>${serialBadge}</td>
+                <td>${statusBadge}</td>
+                <td class="text-gray-500 dark:text-gray-400 whitespace-nowrap text-xs">${dateStr}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    /* ── Close stock panel ─────────────────────────────────────── */
+    window.closeStockPanel = function () {
+        stockWrap.classList.add('hidden');
+        document.querySelectorAll('.branch-card').forEach(c => c.classList.remove('selected'));
+        selectedUserId = null;
+    };
+
+    /* ── Live feed rendering ─────────────────────────────────────── */
+    function renderLiveFeed(rows) {
+        if (!rows || !rows.length) {
+            liveBody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-gray-400">No recent activity.</td></tr>';
+            return;
+        }
+        liveBody.innerHTML = rows.map(r => {
+            const badgeClass = r.status === 'Accepted' ? 'badge-accepted' : r.status === 'Rejected' ? 'badge-rejected' : 'badge-pending';
+            const timeStr = r.added_at ? new Date(r.added_at).toLocaleString() : '—';
+            return `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700/40">
+                <td class="font-medium">${escHtml(r.technician_name || r.technician_username || '—')}</td>
+                <td>${escHtml(r.material_name || '—')}</td>
+                <td class="font-bold text-indigo-600">${r.quantity != null ? r.quantity : '—'}</td>
+                <td><span class="badge-sm ${badgeClass}">${escHtml(r.status || '—')}</span></td>
+                <td class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">${timeStr}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    /* ── WS connection ──────────────────────────────────────────── */
     function connect() {
         if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
-        try {
-            ws = new WebSocket(wsUrl);
-        } catch (e) {
-            setStatus(false, 'Error connecting');
-            scheduleReconnect();
-            return;
-        }
-        ws.onopen = function() { setStatus(true, 'Live'); };
-        ws.onclose = function() {
-            setStatus(false, 'Disconnected');
-            ws = null;
-            scheduleReconnect();
-        };
-        ws.onerror = function() { setStatus(false, 'Error'); };
-        ws.onmessage = function(ev) {
+        setWsStatus('connecting');
+        try { ws = new WebSocket(WS_URL); } catch (e) { setWsStatus('error'); scheduleReconnect(); return; }
+
+        ws.onopen = () => setWsStatus('live');
+        ws.onclose = () => { setWsStatus('disconnected'); ws = null; scheduleReconnect(); };
+        ws.onerror = () => setWsStatus('error');
+        ws.onmessage = ev => {
             try {
                 const msg = JSON.parse(ev.data);
                 if (msg.type === 'initial' && msg.payload) {
-                    renderBranchUsers(msg.payload);
+                    renderBranchCards(msg.payload.branch_users || []);
                     recentRows = msg.payload.recent_used || [];
-                    renderRecentRows(recentRows);
+                    renderLiveFeed(recentRows);
                 } else if (msg.type === 'used_material_update' && msg.payload) {
-                    prependRecent(msg.payload);
-                    // Optionally refresh branch counts; here we only update the feed
+                    recentRows.unshift(msg.payload);
+                    if (recentRows.length > 50) recentRows.pop();
+                    renderLiveFeed(recentRows);
+                    // Invalidate cache for that branch user so next click fetches fresh
+                    if (msg.payload.technician_id) delete cachedStockData[msg.payload.technician_id];
                 } else if (msg.type === 'user_status_change' && msg.payload) {
-                    const dot = document.querySelector('.status-indicator-dot[data-status-id="' + msg.payload.user_id + '"]');
-                    if (dot) {
-                        dot.className = 'status-indicator-dot w-3 h-3 rounded-full border-2 border-white dark:border-gray-700 ' + 
-                            (msg.payload.status === 'online' ? 'status-online shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'status-offline');
-                        dot.title = msg.payload.status === 'online' ? 'Online' : 'Offline';
-                    }
+                    updateCardOnlineStatus(msg.payload.user_id, msg.payload.status === 'online');
                 }
-            } catch (err) { console.warn('WS message parse error', err); }
+            } catch (err) { console.warn('WS parse error', err); }
         };
     }
 
     function scheduleReconnect() {
         if (reconnectTimer) return;
-        reconnectTimer = setTimeout(function() {
-            reconnectTimer = null;
-            connect();
-        }, reconnectDelay);
+        reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(); }, 3000);
     }
 
-    btnRefresh.addEventListener('click', function() {
+    /* ── Update card online status ring ────────────────────────── */
+    function updateCardOnlineStatus(userId, isOnline) {
+        const ring = document.querySelector(`[data-status-ring="${userId}"]`);
+        if (ring) {
+            ring.style.background = isOnline ? '#22c55e' : '#9ca3af';
+            ring.title = isOnline ? 'Online' : 'Offline';
+        }
+        // Update in branchUsers array
+        const u = branchUsers.find(b => b.id === userId);
+        if (u) {
+            u.is_online = isOnline;
+            statOnline.textContent = branchUsers.filter(b => b.is_online).length;
+        }
+        // Update chip inside the card
+        const chipEl = document.querySelector(`#bcard-${userId} .chip-online, #bcard-${userId} .chip-offline`);
+        if (chipEl) {
+            chipEl.className = 'bc-stat-chip ' + (isOnline ? 'chip-online' : 'chip-offline');
+            chipEl.innerHTML = `<i class="fas fa-circle" style="font-size:.5rem"></i> ${isOnline ? 'Online' : 'Offline'}`;
+        }
+    }
+
+    /* ── Refresh button ─────────────────────────────────────────── */
+    document.getElementById('btn-refresh').addEventListener('click', function () {
+        // Clear cache
+        cachedStockData = {};
         if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'refresh' }));
         } else {
             connect();
         }
+        // Refresh currently selected user's stock
+        if (selectedUserId !== null) {
+            const card = document.getElementById('bcard-' + selectedUserId);
+            const name = card ? card.querySelector('.bc-name')?.textContent || '' : '';
+            selectBranchUser(selectedUserId, name);
+        }
     });
 
+    /* ── Utility ────────────────────────────────────────────────── */
+    function escHtml(str) {
+        if (str == null) return '';
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    /* ── Boot ───────────────────────────────────────────────────── */
     connect();
 })();
 </script>
+
 {% endblock %}

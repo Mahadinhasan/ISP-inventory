@@ -12,7 +12,7 @@
     {% if user.userprofile.role != 'Branch' %}
     <div class="flex justify-end mb-6">
         <div class="px-5 py-2.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-xl border border-blue-100 dark:border-blue-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
-            <i class="fas fa-taka-sign"></i> Total Inventory Value: {{ total_price1 }}৳
+            <i class="fas fa-taka-sign"></i> Total Inventory Value: {{ total_price1|floatformat:2 }}৳
         </div>
     </div>
     {% endif %}
@@ -512,14 +512,14 @@
                             <tr>
                                 <td colspan="4" class="px-4 py-12 text-center text-gray-500 dark:text-gray-400">
                                     <i class="fas fa-inbox text-4xl mb-3 text-gray-300 dark:text-midnight-800"></i><br>
-                                    No refundable materials found.
+                                    No Refundable materials found.
                                 </td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                     <div class="mt-4 text-right">
-                        <a href="{% url 'noc:refundable_materials' %}" class="text-indigo-600 hover:text-indigo-900 font-medium">Go to
+                        <a href="{% url 'refundable_materials' %}" class="text-indigo-600 hover:text-indigo-900 font-medium">Go to
                             Refundable Materials Page &rarr;</a>
                     </div>
                 </div>

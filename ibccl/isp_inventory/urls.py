@@ -28,6 +28,7 @@ urlpatterns = [
     path('api/pending-requests/', views.pending_requests_api, name='pending_requests_api'),
     path('chat/', views.chat_view, name='chat'),
     path('api/chat/<int:user_id>/', views.chat_history_api, name='chat_history_api'),
+    path('api/branch-stock/<int:user_id>/', views.get_branch_stock_api, name='get_branch_stock_api'),
 
     # Catch-all: show custom 404 for any unrecognised URL (works in DEBUG=True too)
     # re_path(r'^.*$', views.custom_404_view, name='custom_404'),

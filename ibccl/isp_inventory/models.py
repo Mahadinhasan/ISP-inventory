@@ -1,3 +1,4 @@
+from enum import unique
 from django.contrib.auth.models import User
 from django.db import models
 from django.utils import timezone
@@ -142,6 +143,11 @@ class Material(models.Model):
     def __str__(self):
         stock_indicator = " (in stock)" if self.quantity > 0 else ""
         return f"{self.name}{stock_indicator}"
+
+    def save(self, *args, **kwargs):
+        if self.created_by and hasattr(self.created_by, 'userprofile') and self.created_by.userprofile.role == 'NOC':
+            self.Remaining_stock = 0
+        super().save(*args, **kwargs)
 
     def soft_delete(self):
         self.is_deleted = True
@@ -791,7 +797,7 @@ class MaterialMacSerialImport(models.Model):
 class RefundableMaterial(models.Model):
     branch_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='refundable_materials')
     material_name = models.CharField(max_length=200, default='')
-    mac_serial = models.CharField(max_length=200, default='N/A', blank=True, verbose_name='Mac/Serial')
+    mac_serial = models.CharField(max_length=200, default='N/A', blank=True, verbose_name='Mac/Serial',unique=True)
     quantity = models.IntegerField(default=1)
     added_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -814,8 +820,14 @@ class RefundableMaterial(models.Model):
 
     @property
     def available_quantity(self):
+        if hasattr(self, '_available_quantity'):
+            return self._available_quantity
         used_total = self.usages.aggregate(total=Sum('materials_quantity'))['total'] or 0
         return max(0, self.quantity - used_total)
+
+    @available_quantity.setter
+    def available_quantity(self, value):
+        self._available_quantity = value
 
 
 class RefundableMaterialUsage(models.Model):

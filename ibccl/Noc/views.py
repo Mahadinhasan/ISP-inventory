@@ -268,8 +268,8 @@ def noc_dashboard(request):
     refundable_form = NocRefundableMaterialForm(noc_user=request.user)
     damaged_form = NocDamageMaterialForm(noc_user=request.user)
 
-    #Total price
-    total_price_agg1 = Material.objects.aggregate(total=Sum('total_price'))['total']
+    #Total price filter role user noc
+    total_price_agg1 = Material.objects.filter(created_by=request.user).aggregate(total=Sum('total_price'))['total']
     total_price1 = total_price_agg1 if total_price_agg1 is not None else 0
 
     context = {
@@ -326,6 +326,7 @@ def noc_materials(request):
     total_normal_stock = 0
     total_low_stock = 0
     total_out_of_stock = 0
+    total_price = 0
     
     for material in all_materials:
         if material.quantity <= 0:
@@ -346,6 +347,10 @@ def noc_materials(request):
     except EmptyPage:
         materials = paginator.page(paginator.num_pages)
     
+    #Total price filter role user noc
+    total_price_agg = Material.objects.filter(created_by=request.user).aggregate(total=Sum('total_price'))['total']
+    total_price = total_price_agg if total_price_agg is not None else 0
+
     context = {
         'materials': materials,
         'search_query': search_query,
@@ -354,6 +359,7 @@ def noc_materials(request):
         'total_out_of_stock': total_out_of_stock,
         'paginator': paginator,
         'page_obj': materials,
+        'total_price':total_price,
     }
     
     return render(request, 'noc/materials.html', context)
