@@ -4,15 +4,15 @@
 {% block title %}Messages | ISP Inventory{% endblock %}
 
 {% block content %}
-<div class="h-[calc(100vh-140px)] flex bg-white dark:bg-midnight-900 rounded-2xl shadow-xl overflow-hidden glass-card border border-gray-100 dark:border-midnight-800">
+<div class="h-[calc(100vh-130px)] flex bg-white dark:bg-midnight-900 rounded-2xl shadow-sm overflow-hidden border border-slate-200/70 dark:border-midnight-800">
     <!-- Sidebar: User List -->
-    <div class="w-full md:w-1/3 border-r border-gray-100 dark:border-midnight-800 flex flex-col h-full bg-white dark:bg-midnight-900">
+    <div class="w-full md:w-[340px] flex-shrink-0 border-r border-slate-200/70 dark:border-midnight-800 flex flex-col h-full bg-white dark:bg-midnight-900">
         <!-- Sidebar Header -->
-        <div class="p-4 bg-gray-50/50 dark:bg-midnight-950/50 border-b border-gray-100 dark:border-midnight-800 flex justify-between items-center">
-            <h2 class="text-xl font-bold text-gray-800 dark:text-white flex items-center">
-                <i class="fas fa-comments text-indigo-600 mr-3"></i>Messages
+        <div class="p-4 bg-slate-50/70 dark:bg-midnight-950/50 border-b border-slate-200/70 dark:border-midnight-800 flex justify-between items-center">
+            <h2 class="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2.5">
+                <span class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center shadow-sm"><i class="fas fa-comments text-sm"></i></span>Messages
             </h2>
-            <span class="text-xs font-semibold px-2 py-1 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-full">
+            <span class="text-[11px] font-bold px-2.5 py-1 bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-full">
                 {{ users|length }} Users
             </span>
         </div>
@@ -70,13 +70,13 @@
     </div>
 
     <!-- Main Chat Window -->
-    <div class="hidden md:flex flex-1 flex-col h-full bg-slate-50/10 dark:bg-midnight-950/20" id="chat-window-empty">
+    <div class="flex max-md:hidden flex-1 flex-col h-full bg-slate-50/10 dark:bg-midnight-950/20" id="chat-window-empty">
         <div class="flex-1 flex flex-col items-center justify-center text-center p-10">
-            <div class="w-28 h-28 bg-indigo-100 dark:bg-indigo-900/40 rounded-full flex items-center justify-center mb-6 animate-pulse shadow-inner">
-                <i class="fas fa-paper-plane text-5xl text-indigo-600 dark:text-indigo-400"></i>
+            <div class="w-24 h-24 bg-gradient-to-br from-indigo-100 to-violet-100 dark:from-indigo-900/40 dark:to-violet-900/30 rounded-2xl flex items-center justify-center mb-6 shadow-inner">
+                <i class="fas fa-paper-plane text-4xl text-indigo-600 dark:text-indigo-400"></i>
             </div>
-            <h3 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Team Communication</h3>
-            <p class="text-gray-500 dark:text-gray-400 max-w-sm mx-auto">Select a team member to start a one-to-one conversation. All messages are encrypted and real-time.</p>
+            <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Team Communication</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto">Select a team member to start a one-to-one conversation. All messages are real-time.</p>
         </div>
     </div>
 
@@ -114,7 +114,7 @@
                     <!-- Sticker button removed -->
                 </div>
                 <button type="button" id="chat-send-btn" onclick="sendMessage()"
-                    class="h-12 w-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-600/40 transition-all duration-200 transform hover:scale-105 active:scale-95 group">
+                    class="h-12 w-12 bg-gradient-to-br from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/40 transition-all duration-200 transform hover:scale-105 active:scale-95 group">
                     <i class="fas fa-paper-plane group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"></i>
                 </button>
             </form>

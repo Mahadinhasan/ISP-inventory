@@ -478,7 +478,7 @@
                                         <i data-status-id="{{ user.id }}" class="status-indicator-icon fas fa-circle mr-3 {% if user.userprofile.is_online %}text-green-500{% else %}text-gray-400{% endif %}"></i>
                                         Status
                                     </span>
-                                    <span data-status-text-id="{{ user.id }}" class="status-text text-[10px] font-bold uppercase tracking-wider {% if user.userprofile.is_online %}text-green-600{% else %}text-gray-400{% endif %}">
+                                    <span data-status-text-id="{{ user.id }}" class="status-text text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full {% if user.userprofile.is_online %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
                                         {% if user.userprofile.is_online %}Online{% else %}Offline{% endif %}
                                     </span>
                                 </div>

@@ -2,48 +2,58 @@
 {% block title %}ISP-Inventory: Dashboard{% endblock %}
 {% block content %}
 <div class="fade-in">
-    <div class="mb-8">
-        <div>
-            <h1 class="text-4xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-            <p class="mt-2 text-lg text-gray-600 dark:text-gray-400">Welcome back, {{ user.username }}!</p>
+    <!-- Page header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+        <div class="flex items-center gap-4">
+            <div class="hidden sm:flex h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 items-center justify-center shadow-lg shadow-indigo-200 dark:shadow-indigo-900/40 flex-shrink-0">
+                <i class="fas fa-gauge-high text-white text-2xl"></i>
+            </div>
+            <div>
+                <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">Dashboard</h1>
+                <p class="mt-1 text-base text-gray-500 dark:text-gray-400">Welcome back, <span class="font-semibold text-gray-700 dark:text-gray-300">{{ user.username }}</span>!</p>
+            </div>
         </div>
-    </div>
 
-    <!--Right side add count total materials price value-->
-    {% if user.userprofile.role != 'Branch' %}
-    <div class="flex justify-end mb-6">
-        <div class="px-5 py-2.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-xl border border-blue-100 dark:border-blue-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
-            <i class="fas fa-taka-sign"></i> Total Inventory Value: {{ total_price1|floatformat:2 }}৳
+        <!--Right side add count total materials price value-->
+        {% if user.userprofile.role != 'Branch' %}
+        <div class="inline-flex items-center gap-3 px-5 py-3 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-200 dark:shadow-indigo-900/40">
+            <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
+                <i class="fas fa-taka-sign text-lg"></i>
+            </span>
+            <span class="leading-tight">
+                <span class="block text-[10px] font-semibold uppercase tracking-widest text-indigo-100">Total Inventory Value</span>
+                <span class="block text-xl font-extrabold">{{ total_price1|floatformat:2 }}৳</span>
+            </span>
         </div>
+        {% endif %}
     </div>
-    {% endif %}
 
     <!-- Dashboard Statistics Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
         <!-- 1. Total Materials / Users Card -->
         {% if user.userprofile.role == 'Admin' %}
         <div onclick="document.getElementById('usersModal').classList.remove('hidden')"
-            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
-                <div class="p-4 bg-indigo-100 dark:bg-indigo-900/30 rounded-full">
-                    <i class="fas fa-users text-3xl mr-2 text-indigo-600 dark:text-indigo-400"></i>
+                <div class="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-full">
+                    <i class="fas fa-users text-xl text-indigo-600 dark:text-indigo-400"></i>
                 </div>
-                <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Total Users</p>
-                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ total_users }}</p>
+                <div class="ml-4">
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Users</p>
+                    <p class="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{{ total_users }}</p>
                 </div>
             </div>
         </div>
         {% else %}
         <div onclick="document.getElementById('materialsModal').classList.remove('hidden')"
-            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
-                <div class="p-4 bg-blue-100 dark:bg-blue-900/30 rounded-full">
-                    <i class="fas fa-box text-3xl mr-2 text-blue-600 dark:text-blue-400"></i>
+                <div class="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                    <i class="fas fa-box text-xl text-blue-600 dark:text-blue-400"></i>
                 </div>
-                <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">In Stock</p>
-                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ total_materials }}</p>
+                <div class="ml-4">
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">In Stock</p>
+                    <p class="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{{ total_materials }}</p>
                 </div>
             </div>
         </div>
@@ -51,28 +61,28 @@
 
         <!-- 2. Advance Materials Card -->
         <div onclick="document.getElementById('advanceMaterialsModal').classList.remove('hidden')"
-            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
-                <div class="p-4 bg-amber-100 dark:bg-amber-900/30 rounded-full">
-                    <i class="fas fa-star text-3xl mr-2 text-amber-600 dark:text-amber-400"></i>
+                <div class="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-full">
+                    <i class="fas fa-star text-xl text-amber-600 dark:text-amber-400"></i>
                 </div>
-                <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Advance Materials</p>
-                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ advance_materials|length }}</p>
+                <div class="ml-4">
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Advance Materials</p>
+                    <p class="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{{ advance_materials|length }}</p>
                 </div>
             </div>
         </div>
 
         <!-- 3. Pending Requests Card -->
         <div onclick="document.getElementById('requestsModal').classList.remove('hidden')"
-            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
-                <div class="p-4 bg-yellow-100 dark:bg-yellow-900/30 rounded-full">
-                    <i class="fas fa-clock text-3xl mr-2 text-yellow-600 dark:text-yellow-400"></i>
+                <div class="p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-full">
+                    <i class="fas fa-clock text-xl text-yellow-600 dark:text-yellow-400"></i>
                 </div>
-                <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Pending Requests</p>
-                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ pending_requests }}</p>
+                <div class="ml-4">
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Pending Requests</p>
+                    <p class="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{{ pending_requests }}</p>
                 </div>
             </div>
         </div>
@@ -80,14 +90,14 @@
         <!-- 4. Used Materials Card (Count) -->
         {% if user.userprofile.role != 'Branch' %}
         <div onclick="document.getElementById('usedMaterialsModal').classList.remove('hidden')"
-            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
-                <div class="p-4 bg-teal-100 dark:bg-teal-900/30 rounded-full">
-                    <i class="fas fa-warehouse text-3xl mr-2 text-teal-600 dark:text-teal-400"></i>
+                <div class="p-3 bg-teal-100 dark:bg-teal-900/30 rounded-full">
+                    <i class="fas fa-warehouse text-xl text-teal-600 dark:text-teal-400"></i>
                 </div>
-                <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Used Materials</p>
-                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ used_materials_count|default:"0" }}</p>
+                <div class="ml-4">
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Used Materials</p>
+                    <p class="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{{ used_materials_count|default:"0" }}</p>
                 </div>
             </div>
         </div>
@@ -96,14 +106,14 @@
         <!-- 5. Low Stock Card -->
         {% if user.userprofile.role != 'Admin' %}
         <div onclick="document.getElementById('lowStockModal').classList.remove('hidden')"
-            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
-                <div class="p-4 bg-red-100 dark:bg-red-900/30 rounded-full">
-                    <i class="fas fa-box text-3xl mr-2 text-red-600 dark:text-red-400"></i>
+                <div class="p-3 bg-red-100 dark:bg-red-900/30 rounded-full">
+                    <i class="fas fa-box text-xl text-red-600 dark:text-red-400"></i>
                 </div>
-                <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Low Stock</p>
-                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ low_stock_materials }}</p>
+                <div class="ml-4">
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Low Stock</p>
+                    <p class="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{{ low_stock_materials }}</p>
                 </div>
             </div>
         </div>
@@ -111,33 +121,33 @@
 
         <!-- 6. Internal Communication Card -->
         <div onclick="document.getElementById('internalCommModal').classList.remove('hidden')"
-            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
-                <div class="p-4 bg-pink-100 dark:bg-pink-900/30 rounded-full relative">
-                    <i class="fas fa-comments text-3xl mr-2 text-pink-600 dark:text-pink-400"></i>
+                <div class="p-3 bg-pink-100 dark:bg-pink-900/30 rounded-full relative">
+                    <i class="fas fa-comments text-xl text-pink-600 dark:text-pink-400"></i>
                     {% if unread_messages_count > 0 %}
                     <span class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-bounce">
                         {{ unread_messages_count }}
                     </span>
                     {% endif %}
                 </div>
-                <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Messages</p>
-                    <p class="text-lg font-bold text-gray-900 dark:text-white">Internal</p>
+                <div class="ml-4">
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Messages</p>
+                    <p class="text-base font-bold text-gray-900 dark:text-white">Internal</p>
                 </div>
             </div>
         </div>
 
         <!-- 7. Reports Card -->
         <div onclick="document.getElementById('reportsModal').classList.remove('hidden')"
-            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
-                <div class="p-4 bg-purple-100 dark:bg-purple-900/30 rounded-full">
-                    <i class="fas fa-chart-bar text-3xl mr-2 text-purple-600 dark:text-purple-400"></i>
+                <div class="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-full">
+                    <i class="fas fa-chart-bar text-xl text-purple-600 dark:text-purple-400"></i>
                 </div>
-                <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Reports</p>
-                    <p class="text-lg font-bold text-gray-900 dark:text-white">Summary</p>
+                <div class="ml-4">
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Reports</p>
+                    <p class="text-base font-bold text-gray-900 dark:text-white">Summary</p>
                 </div>
             </div>
         </div>
@@ -145,14 +155,14 @@
         <!-- 9. Materials Monitoring Card (Admin Only) -->
         {% if user.userprofile.role == 'Admin' %}
         <div onclick="document.getElementById('materialsMonitoringModal').classList.remove('hidden')"
-            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
-                <div class="p-4 bg-blue-100 dark:bg-blue-900/30 rounded-full">
-                    <i class="fas fa-eye text-3xl mr-2 text-blue-600 dark:text-blue-400"></i>
+                <div class="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                    <i class="fas fa-eye text-xl text-blue-600 dark:text-blue-400"></i>
                 </div>
-                <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Monitoring</p>
-                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ materials_monitoring|length }}</p>
+                <div class="ml-4">
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Monitoring</p>
+                    <p class="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{{ materials_monitoring|length }}</p>
                 </div>
             </div>
         </div>
@@ -161,14 +171,14 @@
         <!-- 10. PoP/Area Used Materials (Branch) -->
         {% if user.userprofile.role != 'Admin' and user.userprofile.role != 'Storekeeper' %}
         <div onclick="document.getElementById('popModal').classList.remove('hidden')"
-            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
-                <div class="p-4 bg-teal-100 dark:bg-teal-900/30 rounded-full">
-                    <i class="fa-solid fa-server text-3xl mr-2 text-teal-600 dark:text-teal-400"></i>
+                <div class="p-3 bg-teal-100 dark:bg-teal-900/30 rounded-full">
+                    <i class="fa-solid fa-server text-xl text-teal-600 dark:text-teal-400"></i>
                 </div>
-                <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Area Usage</p>
-                    <p class="text-lg font-bold text-gray-900 dark:text-white">PoP/Server</p>
+                <div class="ml-4">
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Area Usage</p>
+                    <p class="text-base font-bold text-gray-900 dark:text-white">PoP/Server</p>
                 </div>
             </div>
         </div>
@@ -176,14 +186,14 @@
 
         <!-- 11. Destroy Materials Card -->
         <div onclick="document.getElementById('destroyMaterialsModal').classList.remove('hidden')"
-            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
-                <div class="p-4 bg-red-100 dark:bg-red-900/30 rounded-full">
-                    <i class="fas fa-trash-alt text-3xl mr-2 text-red-600 dark:text-red-400"></i>
+                <div class="p-3 bg-red-100 dark:bg-red-900/30 rounded-full">
+                    <i class="fas fa-trash-alt text-xl text-red-600 dark:text-red-400"></i>
                 </div>
-                <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Destroy Logs</p>
-                    <p class="text-lg font-bold text-gray-900 dark:text-white">View</p>
+                <div class="ml-4">
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Destroy Logs</p>
+                    <p class="text-base font-bold text-gray-900 dark:text-white">View</p>
                 </div>
             </div>
         </div>
@@ -221,7 +231,7 @@
                 </thead>
                 <tbody class="divide-y divide-gray-200">
                     {% for u in all_users_list %}
-                    <tr class="hover:bg-gray-50 transition">
+                    <tr class="hover:bg-slate-50 dark:hover:bg-midnight-800/40 transition-colors">
                         <td class="px-6 py-4">
                             <div class="flex items-center gap-3">
                                 <div class="relative">
@@ -522,7 +532,7 @@
                 </thead>
                 <tbody class="divide-y divide-gray-200">
                     {% for req in pending_requests_list %}
-                    <tr class="hover:bg-gray-50 transition">
+                    <tr class="hover:bg-slate-50 dark:hover:bg-midnight-800/40 transition-colors">
                         {% if role != 'Branch' %}
                         <td class="px-6 py-4 text-sm font-medium text-gray-900">
                             {{ req.requester.username }}
@@ -1238,7 +1248,7 @@
 <div id="refundableFormModal"  class="hidden fixed inset-0 bg-black/75 flex items-center justify-center z-[60] backdrop-blur-sm p-4">
     <div class="bg-white dark:bg-midnight-950 rounded-2xl shadow-2xl max-w-md w-full border border-gray-100 dark:border-midnight-800 overflow-hidden transform transition-all" onclick="event.stopPropagation()">
         <div class="px-6 py-4 border-b border-gray-100 dark:border-midnight-800 flex justify-between items-center bg-gray-50 dark:bg-midnight-900/60">
-            <h4 id="refundableFormTitle" class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <h4 id="refundableFormTitle" class="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 <i class="fas fa-box-open text-indigo-600 dark:text-indigo-400"></i> Log Refundable Material
             </h4>
             <button onclick="closeTabFormModal('refundable')" class="text-gray-400 hover:text-gray-600 dark:hover:text-white text-2xl font-bold">&times;</button>
@@ -1289,7 +1299,7 @@
 <div id="damagedFormModal"  class="hidden fixed inset-0 bg-black/75 flex items-center justify-center z-[60] backdrop-blur-sm p-4">
     <div class="bg-white dark:bg-midnight-950 rounded-2xl shadow-2xl max-w-md w-full border border-gray-100 dark:border-midnight-800 overflow-hidden transform transition-all" onclick="event.stopPropagation()">
         <div class="px-6 py-4 border-b border-gray-100 dark:border-midnight-800 flex justify-between items-center bg-gray-50 dark:bg-midnight-900/60">
-            <h4 id="damagedFormTitle" class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <h4 id="damagedFormTitle" class="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 <i class="fas fa-hammer text-red-600 dark:text-red-400"></i> Report Damaged Material
             </h4>
             <button onclick="closeTabFormModal('damaged')" class="text-gray-400 hover:text-gray-600 dark:hover:text-white text-2xl font-bold">&times;</button>
@@ -1348,7 +1358,7 @@
             <div class="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i class="fas fa-exclamation-triangle text-2xl text-red-600"></i>
             </div>
-            <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Delete Log Entry?</h3>
+            <h3 class="text-base font-bold text-gray-900 dark:text-white mb-2">Delete Log Entry?</h3>
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">This action cannot be undone. You're about to delete this record permanently.</p>
             
             <form id="tabDeleteForm" method="POST" action="" class="inline">
@@ -1381,7 +1391,7 @@
                 <i class="fas fa-check-double text-lg text-red-600"></i>
             </div>
             <div>
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white" id="tabApprovalTitle">Review Record</h3>
+                <h3 class="text-base font-bold text-gray-900 dark:text-white" id="tabApprovalTitle">Review Record</h3>
                 <p id="tabApprovalSub" class="text-xs text-gray-600 dark:text-gray-400">-</p>
             </div>
         </div>
@@ -1495,9 +1505,9 @@
 
 <!--Today's Used Materials-->
 {% if user.userprofile.role != 'Branch' and user.userprofile.role != 'Storekeeper' %}
-<div class="bg-white rounded-xl shadow-lg overflow-hidden">
-    <div class="px-8 py-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-gray-200">
-        <h3 class="text-2xl font-bold text-gray-900 flex items-center">
+<div class="bg-white dark:bg-midnight-900/50 rounded-2xl shadow-sm border border-slate-200/70 dark:border-midnight-800 overflow-hidden mb-8">
+    <div class="px-6 py-4 bg-slate-50/70 dark:bg-midnight-950/40 border-b border-slate-200/70 dark:border-midnight-800">
+        <h3 class="text-base font-bold text-gray-900 dark:text-white flex items-center">
             <i class="fas fa-history mr-3 text-indigo-600"></i>
             Today's Used Materials ({{ all_used_materials|length }})
         </h3>
@@ -1506,19 +1516,19 @@
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="px-6 py-3 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Date</th>
+                    <th class="px-6 py-3 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                         Branch</th>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Material
+                    <th class="px-6 py-3 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Material
                     </th>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status
+                    <th class="px-6 py-3 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Qty</th>
+                    <th class="px-6 py-3 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status
                     </th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for req in all_used_materials %}
-                <tr class="hover:bg-gray-50 transition">
+                <tr class="hover:bg-slate-50 dark:hover:bg-midnight-800/40 transition-colors">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {{ req.added_at|date:"d-m-Y" }}
                     </td>
@@ -1555,9 +1565,9 @@
 {% endif %}
 <!---recent pending Requests-->
 {% if user.userprofile.role != 'Branch' and user.userprofile.role != 'Admin' %}
-<div class="bg-white rounded-xl shadow-lg overflow-hidden">
-    <div class="px-8 py-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-gray-200">
-        <h3 class="text-2xl font-bold text-gray-900 flex items-center">
+<div class="bg-white dark:bg-midnight-900/50 rounded-2xl shadow-sm border border-slate-200/70 dark:border-midnight-800 overflow-hidden mb-8">
+    <div class="px-6 py-4 bg-slate-50/70 dark:bg-midnight-950/40 border-b border-slate-200/70 dark:border-midnight-800">
+        <h3 class="text-base font-bold text-gray-900 dark:text-white flex items-center">
             <i class="fas fa-history mr-3 text-indigo-600"></i>
             Pending Requests ({{ recent_requests|length }})
         </h3>
@@ -1566,19 +1576,19 @@
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="px-6 py-3 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Date</th>
+                    <th class="px-6 py-3 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                         Branch</th>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Material
+                    <th class="px-6 py-3 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Material
                     </th>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
-                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status
+                    <th class="px-6 py-3 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Qty</th>
+                    <th class="px-6 py-3 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status
                     </th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for req in recent_requests %}
-                <tr class="hover:bg-gray-50 transition">
+                <tr class="hover:bg-slate-50 dark:hover:bg-midnight-800/40 transition-colors">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {{ req.requested_at|date:"d M Y" }}
                     </td>
