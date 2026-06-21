@@ -77,14 +77,17 @@
                             class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
                             Mac/Serial</th>
                         <th scope="col"
-                            class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
-                            Category</th>
-                        <th scope="col"
                             class="px-6 py-4 text-center text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
                             Qty</th>
                         <th scope="col"
                             class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
                             Client Name</th>
+                        <th scope="col"
+                            class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
+                            Address</th>
+                        <th scope="col"
+                            class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
+                            Phone</th>
                         <th scope="col"
                             class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
                             Issue</th>
@@ -106,21 +109,17 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
                             {{ item.material.name }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
-                            {{ item.mac_address|default:"N/A" }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider
-                                {% if item.material.category == 'Internet' %}bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400
-                                {% elif item.material.category == 'Dish' %}bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400
-                                {% else %}bg-gray-50 text-gray-700 dark:bg-gray-800 dark:text-gray-400{% endif %}">
-                                {{ item.material.category }}
-                            </span>
-                        </td>
+                            {{ item.mac_serial.mac_serial|default:"N/A" }}</td>
                         <td
                             class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-black text-center">
                             {{ item.quantity }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
                             {{ item.client_name|default:"Maintenance" }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 truncate max-w-[150px]">
+                            {{ item.client_address|default:"N/A" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                            {{ item.client_phone|default:"N/A" }}</td>
                         <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 truncate max-w-[150px]">
                             {{ item.issue|default:"N/A" }}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
@@ -138,7 +137,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="9" class="px-6 py-20 text-center">
+                        <td colspan="{% if role != 'Branch' %}11{% else %}10{% endif %}" class="px-6 py-20 text-center">
                             <div class="flex flex-col items-center">
                                 <i class="fas fa-box-open text-gray-200 dark:text-gray-800 text-6xl mb-4"></i>
                                 <p class="text-gray-500 dark:text-gray-400 font-bold text-lg">No consumption records

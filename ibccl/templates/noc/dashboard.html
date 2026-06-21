@@ -291,6 +291,7 @@
                         <tr class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
                             <th class="px-6 py-3 text-left">Branch</th>
                             <th class="px-6 py-3 text-left">Material</th>
+                            <th class="px-6 py-3 text-left">Mac/Serial</th>
                             <th class="px-6 py-3 text-center">Quantity</th>
                             <th class="px-6 py-3 text-left">Date Used</th>
                             <th class="px-6 py-4 text-left">Status</th>
@@ -301,6 +302,7 @@
                         <tr class="hover:bg-gray-50 dark:hover:bg-midnight-800/50 transition-colors">
                             <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{{ used.technician.username }}</td>
                             <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">{{ used.material.name }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">{{ used.mac_serial.mac_serial|default:"N/A" }}</td>
                             <td class="px-6 py-4 text-sm font-bold text-center text-gray-900 dark:text-white">
                                 <span class="bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 px-3 py-1 rounded-lg">
                                     {{ used.quantity }}

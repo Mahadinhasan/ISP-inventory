@@ -631,6 +631,8 @@ class RefundableMaterialUsageForm(forms.ModelForm):
         except Exception:
             pass
         self.fields['material_selection'].choices = choices
+        if self.instance and self.instance.pk:
+            self.fields['material_selection'].initial = f"r:{self.instance.refundable_material_id}"
 
     def clean(self):
         cleaned_data = super().clean()

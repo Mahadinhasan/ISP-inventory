@@ -607,13 +607,15 @@ def noc_used_materials(request):
     used_qs = UsedMaterial.objects.filter(
         material__category='Internet',
         material__created_by=request.user
-    ).select_related('technician', 'material').order_by('-added_at')
+    ).select_related('technician', 'material', 'mac_serial').order_by('-added_at')
     
     if search_query:
         used_qs = used_qs.filter(
             Q(material__name__icontains=search_query) |
             Q(technician__username__icontains=search_query) |
-            Q(client_name__icontains=search_query)
+            Q(client_name__icontains=search_query) |
+            Q(client_phone__icontains=search_query) |
+            Q(client_address__icontains=search_query)
         )
     
     if status_filter:

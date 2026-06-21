@@ -24,6 +24,7 @@ urlpatterns = [
     path('api/used-materials/<int:pk>/', views.get_used_material_api, name='get_used_material_api'),
     path('api/used-materials/<int:pk>/manage/', views.manage_used_material_api, name='manage_used_material'),
     path('api/refundable-materials/<int:pk>/', views.get_refundable_material_api, name='get_refundable_material_api'),
+    path('api/refundable-materials-usage/<int:pk>/', views.get_refundable_material_usage_api, name='get_refundable_material_usage_api'),
     path('api/damaged-materials/<int:pk>/', views.get_damaged_material_api, name='get_damaged_material_api'),
     path('api/pending-requests/', views.pending_requests_api, name='pending_requests_api'),
     path('chat/', views.chat_view, name='chat'),

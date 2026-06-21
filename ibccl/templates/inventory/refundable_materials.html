@@ -6,14 +6,14 @@
 <div class="space-y-6">
     <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-4">
         <div>
-            <h1 class="text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent dark:from-indigo-400 dark:via-purple-400 dark:to-pink-400">Refundable Materials</h1>
+            <h1 class="text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent dark:from-indigo-400 dark:via-purple-400 dark:to-pink-400">Returnable Materials</h1>
         </div>
 
         <div class="flex flex-col lg:flex-row items-start lg:items-center gap-2 w-full lg:w-auto">
             {% if role == 'Admin' or role == 'Storekeeper' %}
             <!--Return materials List button-->
             <button onclick="openReturnModal()" class="w-full sm:w-auto justify-center px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-md text-sm font-bold transition-all inline-flex items-center gap-1 shadow-lg hover:shadow-indigo-200 mt-2 sm:mt-0">
-                <i class="fas fa-undo"></i>Return Materials List
+                <i class="fas fa-list"></i>View Materials
             </button>
             <select name="user_id" onchange="submitInventoryFilterForm()"
                 class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white text-sm font-medium min-w-[160px] w-full sm:w-auto">
@@ -39,69 +39,78 @@
         
         {% if user.userprofile.role == 'Branch' %}
         <div class="flex flex-col sm:flex-row items-center gap-2 sm:gap-1">
-            <button onclick="openRefundableModal()" class="w-full sm:w-auto justify-center px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-md text-sm font-bold transition-all inline-flex items-center gap-1 shadow-lg hover:shadow-indigo-200 mt-2 sm:mt-0">
-                <i class="fas fa-plus"></i>input refundable material
-            </button>
             <button onclick="openUsageModal()" class="w-full sm:w-auto justify-center px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-md text-sm font-bold transition-all inline-flex items-center gap-1 shadow-lg hover:shadow-indigo-200 mt-2 sm:mt-0">
                 <i class="fas fa-plus"></i>Used Materials
             </button>
             <button onclick="openReturnModal()" class="w-full sm:w-auto justify-center px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-md text-sm font-bold transition-all inline-flex items-center gap-1 shadow-lg hover:shadow-indigo-200 mt-2 sm:mt-0">
-                <i class="fas fa-undo"></i>Return Materials List
+                <i class="fas fa-list"></i>View Materials
             </button>
         </div>
         {% endif %}
     </div>
 
-    <!-- Materials List -->
+    <!-- Used Materials Table as main list -->
     <div class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-midnight-800 mx-4">
-        <div class="overflow-x-auto">
+        <div class="px-6 py-5 border-b border-gray-100 dark:border-midnight-800 flex justify-between items-center">
+            <div>
+                <h2 class="text-lg font-bold text-gray-900 dark:text-white">Used Materials</h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Records of refundable materials that were used.</p>
+            </div>
+        </div>
+        <div class="overflow-x-auto p-6">
             <table class="min-w-full divide-y divide-gray-200 dark:divide-midnight-800">
                 <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
                     <tr>
-                        {% if user.userprofile.role != 'Branch' %}
-                        <th scope="col" class="px-3 py-2 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Branch</th>
+                        {% if role != 'Branch' %}
+                        <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Branch</th>
                         {% endif %}
-                        <th scope="col" class="px-3 py-2 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Material Name</th>
-                        <th scope="col" class="px-3 py-2 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Mac/Serial</th>
-                        <th scope="col" class="px-3 py-2 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Quantity</th>
-                        <th scope="col" class="px-3 py-2 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Date</th>
+                        <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Material</th>
+                        <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Quantity</th>
+                        <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">MAC Serial</th>
+                        <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Client</th>
+                        <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Address</th>
+                        <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Phone</th>
+                        <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Issue</th>
+                        <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Used At</th>
                         {% if role == 'Branch' %}
-                        <th scope="col" class="px-3 py-2 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Actions</th>
+                        <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Actions</th>
                         {% endif %}
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
-                    {% for item in refundable_materials %}
+                    {% for usage in usage_page %}
                     <tr class="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition duration-300">
-                        {% if user.userprofile.role != 'Branch' %}
-                        <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ item.branch_user_name }}</td>
+                        {% if role != 'Branch' %}
+                        <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ usage.refundable_material.branch_user_name }}</td>
                         {% endif %}
-                        <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ item.material_name }}</td>
-                         <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{{ item.mac_serial }}</td>
-                        <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-semibold">{{ item.available_quantity|default:item.quantity }}</td>
-                        <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ item.added_at|date:"Y-m-d" }}</td>
-                        <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm">
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{{ usage.material_name }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">{{ usage.materials_quantity }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{{ usage.mac_serial|default:'N/A' }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{{ usage.client_name|default:'N/A' }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{{ usage.client_address|default:'N/A' }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{{ usage.client_phone|default:'N/A' }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{{ usage.issue|default:'-' }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ usage.used_at|date:"Y-m-d" }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm">
+                            {% if role == 'Branch' %}
                             <div class="flex gap-2">
-                                {% if role == 'Branch' %}
-                                    <button onclick="openEditModal('{{ item.id }}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 font-semibold" title="Edit">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <button onclick="confirmDelete('{{ item.id }}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 font-semibold" title="Delete">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                {% else %}
-                                    <span class="text-xs text-gray-400 italic">View only</span>
-                                {% endif %}
+                                <button onclick="openUsageEditModal('{{ usage.id }}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 font-semibold" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button onclick="confirmUsageDelete('{{ usage.id }}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 font-semibold" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
                             </div>
+                            {% endif %}
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="{% if user.userprofile.role != 'Branch' %}5{% else %}4{% endif %}" class="px-3 py-8 sm:px-6 sm:py-12 text-center text-gray-500 dark:text-gray-400">
+                        <td colspan="{% if role == 'Branch' %}9{% else %}10{% endif %}" class="px-3 py-8 text-center text-gray-500 dark:text-gray-400">
                             <div class="flex flex-col items-center justify-center">
-                                <i class="fas fa-inbox text-5xl text-gray-300 dark:text-gray-700 mb-4 animate-bounce"></i>
-                                <p class="text-lg font-bold">No Refundable Materials found</p>
-                                <p class="text-sm mt-1 text-gray-400">Use the button above to log refundable items.</p>
+                                <i class="fas fa-box text-5xl text-gray-300 dark:text-gray-700 mb-4 animate-bounce"></i>
+                                <p class="text-lg font-bold">No Used Materials found</p>
+                                <p class="text-sm mt-1 text-gray-400">Use the Used Materials button to record a usage entry.</p>
                             </div>
                         </td>
                     </tr>
@@ -109,124 +118,162 @@
                 </tbody>
             </table>
         </div>
-    </div>
-
-    <!-- Pagination -->
-    {% if page_obj.paginator.num_pages > 1 %}
-    <div class="flex justify-end mt-8 items-center">
-        <nav class="inline-flex gap-1 bg-white dark:bg-slate-800 p-2 rounded-lg border border-gray-200 dark:border-slate-700 shadow-sm">
-            {% if page_obj.has_previous %}
-            <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}page={{ page_obj.previous_page_number }}" class="px-3 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition">
-                <i class="fas fa-chevron-left"></i>
-            </a>
-            {% endif %}
-            {% for num in page_obj.paginator.page_range %}
-                {% if page_obj.number == num %}
-                    <span class="px-3 py-2 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg">{{ num }}</span>
-                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-                    <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}page={{ num }}" class="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition">{{ num }}</a>
+        
+        <!-- Pagination for Used Materials -->
+        {% if usage_page.paginator.num_pages > 1 %}
+        <div class="flex justify-end mt-4 items-center px-6 pb-6">
+            <nav class="inline-flex gap-1 bg-white dark:bg-slate-800 p-2 rounded-lg border border-gray-200 dark:border-slate-700 shadow-sm">
+                {% if usage_page.has_previous %}
+                <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}usage_page={{ usage_page.previous_page_number }}" class="px-3 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
                 {% endif %}
-            {% endfor %}
-            {% if page_obj.has_next %}
-            <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}page={{ page_obj.next_page_number }}" class="px-3 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition">
-                <i class="fas fa-chevron-right"></i>
-            </a>
-            {% endif %}
-        </nav>
+                {% for num in usage_page.paginator.page_range %}
+                    {% if usage_page.number == num %}
+                        <span class="px-3 py-2 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg">{{ num }}</span>
+                    {% elif num > usage_page.number|add:'-3' and num < usage_page.number|add:'3' %}
+                        <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}usage_page={{ num }}" class="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition">{{ num }}</a>
+                    {% endif %}
+                {% endfor %}
+                {% if usage_page.has_next %}
+                <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}usage_page={{ usage_page.next_page_number }}" class="px-3 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+                {% endif %}
+            </nav>
+        </div>
+        {% endif %}
     </div>
-    {% endif %}
 </div>
 
-<div class="mt-10 bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
-    <div class="px-6 py-5 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center">
-        <div>
-            <h2 class="text-lg font-bold text-gray-900 dark:text-white">Used Materials</h2>
-            <p class="text-sm text-gray-500 dark:text-gray-400">Records of refundable materials that were used.</p>
+<!-- Returnable Materials Modal -->
+<div id="returnModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4 animate-fade-in">
+    <div class="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl shadow-2xl max-w-6xl w-full border border-gray-100 dark:border-slate-700 overflow-hidden transform transition-all duration-300">
+        <div class="px-6 py-5 border-b border-gray-100 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-indigo-50/50 to-purple-50/50 dark:from-slate-800 dark:to-slate-800">
+            <div class="flex items-center gap-2">
+                <i class="fas fa-list text-indigo-600 dark:text-indigo-400"></i>
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white">Returnable Materials List</h3>
+            </div>
+            <button onclick="closeReturnModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white transition text-2xl font-bold">&times;</button>
+        </div>
+        <div class="px-6 py-4 border-b border-gray-100 dark:border-slate-700 bg-gray-50/80 dark:bg-midnight-950/40">
+            <div class="flex flex-col lg:flex-row items-center justify-between gap-3">
+                <form id="returnable-filter-form" method="get" class="flex flex-col sm:flex-row items-center gap-2 w-full lg:max-w-3xl">
+                    <input type="hidden" name="open_return_modal" value="1">
+                    {% if request.GET.tab_id %}
+                    <input type="hidden" name="tab_id" value="{{ request.GET.tab_id }}">
+                    {% endif %}
+                    {% if branch_users %}
+                    <select name="user_id" onchange="document.getElementById('returnable-filter-form').submit()"
+                        class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white text-sm font-medium min-w-[160px] w-full sm:w-auto">
+                        <option value="">All Users</option>
+                        {% for branch_user in branch_users %}
+                        <option value="{{ branch_user.id }}" {% if request.GET.user_id == branch_user.id|stringformat:"d" %}selected{% endif %}>
+                            {{ branch_user.username }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+                    <div class="flex w-full sm:w-auto items-center gap-0">
+                        <input type="text" name="search" placeholder="Search returnable materials..." value="{{ request.GET.search }}"
+                            class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-l-2xl px-4 py-2 focus:outline-none focus:border-indigo-500 transition-all flex-1 dark:text-white text-sm">
+                        <button type="submit"
+                            class="bg-gray-100 dark:bg-midnight-800 text-gray-500 dark:text-gray-400 px-4 py-2 rounded-r-2xl border-2 border-l-0 border-gray-100 dark:border-midnight-800 hover:bg-gray-200 dark:hover:bg-midnight-700 transition-all">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </form>
+                {% if role == 'Branch' %}
+                <button type="button" onclick="openRefundableModal()" class="w-full sm:w-auto justify-center px-3 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-md text-sm font-bold transition-all inline-flex items-center gap-2 shadow-lg hover:shadow-indigo-200">
+                    <i class="fas fa-plus"></i>Input Returnable Material
+                </button>
+                {% endif %}
+                {% if role != 'Branch' %}
+                <span class="px-6 py-2 text-sm text-gray-500 dark:text-gray-400">Total Returnable Materials: <strong>{{ refundable_count }}</strong></span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="p-6 overflow-y-auto max-h-[80vh] space-y-4">
+            <div class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-midnight-800">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-midnight-800">
+                        <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
+                            <tr>
+                                {% if user.userprofile.role != 'Branch' %}
+                                <th scope="col" class="px-3 py-2 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Branch</th>
+                                {% endif %}
+                                <th scope="col" class="px-3 py-2 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Material Name</th>
+                                <th scope="col" class="px-3 py-2 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Mac/Serial</th>
+                                <th scope="col" class="px-3 py-2 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Quantity</th>
+                                <th scope="col" class="px-3 py-2 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Date</th>
+                                {% if role == 'Branch' %}
+                                <th scope="col" class="px-3 py-2 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Actions</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
+                            {% for item in refundable_materials %}
+                            <tr class="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition duration-300">
+                                {% if user.userprofile.role != 'Branch' %}
+                                <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ item.branch_user_name }}</td>
+                                {% endif %}
+                                <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ item.material_name }}</td>
+                                 <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{{ item.mac_serial }}</td>
+                                <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-semibold">{{ item.available_quantity|default:item.quantity }}</td>
+                                <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ item.added_at|date:"Y-m-d" }}</td>
+                                <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm">
+                                    <div class="flex gap-2">
+                                        {% if role == 'Branch' %}
+                                            <button onclick="openEditModal('{{ item.id }}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 font-semibold" title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button onclick="confirmDelete('{{ item.id }}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 font-semibold" title="Delete">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="{% if user.userprofile.role != 'Branch' %}5{% else %}4{% endif %}" class="px-3 py-8 sm:px-6 sm:py-12 text-center text-gray-500 dark:text-gray-400">
+                                    <div class="flex flex-col items-center justify-center">
+                                        <i class="fas fa-inbox text-5xl text-gray-300 dark:text-gray-700 mb-4 animate-bounce"></i>
+                                        <p class="text-lg font-bold">No Returnable Materials found</p>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Pagination for Returnable Materials -->
+            {% if page_obj.paginator.num_pages > 1 %}
+            <div class="flex justify-end mt-4 items-center">
+                <nav class="inline-flex gap-1 bg-white dark:bg-slate-800 p-2 rounded-lg border border-gray-200 dark:border-slate-700 shadow-sm">
+                    {% if page_obj.has_previous %}
+                    <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}page={{ page_obj.previous_page_number }}" class="px-3 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition">
+                        <i class="fas fa-chevron-left"></i>
+                    </a>
+                    {% endif %}
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <span class="px-3 py-2 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg">{{ num }}</span>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                            <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}page={{ num }}" class="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition">{{ num }}</a>
+                        {% endif %}
+                    {% endfor %}
+                    {% if page_obj.has_next %}
+                    <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}page={{ page_obj.next_page_number }}" class="px-3 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                    {% endif %}
+                </nav>
+            </div>
+            {% endif %}
         </div>
     </div>
-    <div class="overflow-x-auto p-6">
-        <table class="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
-            <thead class="bg-gray-50 dark:bg-slate-800">
-                <tr>
-                    {% if role != 'Branch' %}
-                    <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Branch</th>
-                    {% endif %}
-                    <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Material</th>
-                    <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Quantity</th>
-                    <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">MAC Serial</th>
-                    <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Client</th>
-                    <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Address</th>
-                    <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Phone</th>
-                    <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Issue</th>
-                    <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Used At</th>
-                    {% if role == 'Branch' %}
-                    <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Actions</th>
-                    {% endif %}
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100 dark:divide-slate-700">
-                {% for usage in usage_page %}
-                <tr class="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition duration-300">
-                    {% if role != 'Branch' %}
-                    <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ usage.refundable_material.branch_user_name }}</td>
-                    {% endif %}
-                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{{ usage.material_name }}</td>
-                    <td class="px-3 py-2 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">{{ usage.materials_quantity }}</td>
-                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{{ usage.mac_serial|default:'N/A' }}</td>
-                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{{ usage.client_name|default:'N/A' }}</td>
-                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{{ usage.client_address|default:'N/A' }}</td>
-                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{{ usage.client_phone|default:'N/A' }}</td>
-                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{{ usage.issue|default:'-' }}</td>
-                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ usage.used_at|date:"Y-m-d" }}</td>
-                    <td class="px-3 py-2 whitespace-nowrap text-sm">
-                        {% if role == 'Branch' %}
-                        <button onclick="openUsageEditModal('{{ usage.id }}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 font-semibold" title="Edit">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button onclick="confirmUsageDelete('{{ usage.id }}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 font-semibold" title="Delete">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                        {% else %}
-                        <span class="text-xs text-gray-400 italic">View only</span>
-                        {% endif %}
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="{% if role == 'Branch' %}6{% else %}7{% endif %}" class="px-3 py-8 text-center text-gray-500 dark:text-gray-400">
-                        <div class="flex flex-col items-center justify-center">
-                            <i class="fas fa-box text-5xl text-gray-300 dark:text-gray-700 mb-4 animate-bounce"></i>
-                            <p class="text-lg font-bold">No Used Materials found</p>
-                            <p class="text-sm mt-1 text-gray-400">Use the Used Materials button to record a usage entry.</p>
-                        </div>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% if usage_page.paginator.num_pages > 1 %}
-    <div class="flex justify-end mt-4 items-center px-6 pb-6">
-        <nav class="inline-flex gap-1 bg-white dark:bg-slate-800 p-2 rounded-lg border border-gray-200 dark:border-slate-700 shadow-sm">
-            {% if usage_page.has_previous %}
-            <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}usage_page={{ usage_page.previous_page_number }}" class="px-3 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition">
-                <i class="fas fa-chevron-left"></i>
-            </a>
-            {% endif %}
-            {% for num in usage_page.paginator.page_range %}
-                {% if usage_page.number == num %}
-                    <span class="px-3 py-2 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg">{{ num }}</span>
-                {% elif num > usage_page.number|add:'-3' and num < usage_page.number|add:'3' %}
-                    <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}usage_page={{ num }}" class="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition">{{ num }}</a>
-                {% endif %}
-            {% endfor %}
-            {% if usage_page.has_next %}
-            <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}usage_page={{ usage_page.next_page_number }}" class="px-3 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition">
-                <i class="fas fa-chevron-right"></i>
-            </a>
-            {% endif %}
-        </nav>
-    </div>
-    {% endif %}
 </div>
 
 <!-- Add/Edit Modal (Branch Only) -->
@@ -276,14 +323,15 @@
 <div id="usageModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4 animate-fade-in">
     <div class="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl shadow-2xl max-w-xl w-full border border-gray-100 dark:border-slate-700 overflow-hidden transform transition-all duration-300">
         <div class="px-6 py-5 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gradient-to-r from-indigo-50/50 to-purple-50/50 dark:from-slate-800 dark:to-slate-800">
-            <h3 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <h3 id="usageModalTitle" class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 <i class="fas fa-box-open text-indigo-600 dark:text-indigo-400"></i>Log Used Material
             </h3>
             <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white transition">&times;</button>
         </div>
         <form id="usageForm" method="POST" action="{% url 'refundable_materials' %}" class="p-4 space-y-3">
             {% csrf_token %}
-            <input type="hidden" name="action" value="create_usage">
+            <input type="hidden" name="action" id="usageFormAction" value="create_usage">
+            <input type="hidden" name="usage_id" id="usage_id" value="">
             
             <div class="grid grid-cols-2 gap-3">
                 <div>
@@ -331,13 +379,14 @@
             <div class="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i class="fas fa-exclamation-triangle text-2xl text-red-600 dark:text-red-400"></i>
             </div>
-            <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Delete Entry?</h3>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">This action cannot be undone. You're about to delete this refundable material record.</p>
+            <h3 id="deleteModalTitle" class="text-xl font-bold text-gray-900 dark:text-white mb-2">Delete Entry?</h3>
+            <p id="deleteModalMessage" class="text-sm text-gray-600 dark:text-gray-400 mb-6">This action cannot be undone. You're about to delete this refundable material record.</p>
             
-            <form method="POST" action="{% url 'refundable_materials' %}" class="inline">
+            <form id="deleteForm" method="POST" action="{% url 'refundable_materials' %}" class="inline">
                 {% csrf_token %}
-                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="action" id="deleteFormAction" value="delete">
                 <input type="hidden" name="rf_id" id="deleteRfId" value="">
+                <input type="hidden" name="usage_id" id="deleteUsageId" value="">
                 
                 <div class="flex gap-2">
                     <button type="button" onclick="closeDeleteModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 font-semibold transition">
@@ -355,6 +404,14 @@
 
 <!-- Admin/Storekeeper Review & Process Modal -->
 <script>
+    function openReturnModal() {
+        document.getElementById('returnModal').classList.remove('hidden');
+    }
+
+    function closeReturnModal() {
+        document.getElementById('returnModal').classList.add('hidden');
+    }
+
     function openRefundableModal() {
         document.getElementById('formAction').value = 'create';
         document.getElementById('rf_id').value = '';
@@ -364,6 +421,8 @@
         if (refundableForm) {
             const nameInput = refundableForm.querySelector('input[name="material_name"]');
             if (nameInput) nameInput.value = '';
+            const macInput = refundableForm.querySelector('input[name="mac_serial"]');
+            if (macInput) macInput.value = '';
             const qty = refundableForm.querySelector('input[type="number"]');
             if (qty) qty.value = 1;
         }
@@ -376,9 +435,30 @@
         if (usageForm) {
             const select = usageForm.querySelector('select');
             if (select) select.selectedIndex = 0;
-            const qty = usageForm.querySelector('input[type="number"]');
+            const qty = usageForm.querySelector('input[name="materials_quantity"]');
             if (qty) qty.value = 1;
+            
+            // Clear other fields
+            const textfields = usageForm.querySelectorAll('input[type="text"], textarea');
+            textfields.forEach(f => f.value = '');
         }
+
+        // Change title and action back to create
+        const titleEl = document.getElementById('usageModalTitle');
+        if (titleEl) {
+            titleEl.innerHTML = '<i class="fas fa-box-open text-indigo-600 dark:text-indigo-400"></i>Log Used Material';
+        }
+        
+        const actionInput = document.getElementById('usageFormAction');
+        if (actionInput) {
+            actionInput.value = 'create_usage';
+        }
+
+        const idInput = document.getElementById('usage_id');
+        if (idInput) {
+            idInput.value = '';
+        }
+
         document.getElementById('usageModal').classList.remove('hidden');
     }
 
@@ -403,6 +483,8 @@
             if (refundableForm) {
                 const nameInput = refundableForm.querySelector('input[name="material_name"]');
                 if (nameInput) nameInput.value = data.material_name || '';
+                const macInput = refundableForm.querySelector('input[name="mac_serial"]');
+                if (macInput) macInput.value = data.mac_serial || '';
                 const qty = refundableForm.querySelector('input[type="number"]');
                 if (qty) qty.value = data.quantity;
             }
@@ -414,13 +496,102 @@
         });
     }
 
+    function openUsageEditModal(usageId) {
+        const usageForm = document.getElementById('usageForm');
+        if (!usageForm) return;
+
+        // Change title and action
+        const titleEl = document.getElementById('usageModalTitle');
+        if (titleEl) {
+            titleEl.innerHTML = '<i class="fas fa-edit text-indigo-600 dark:text-indigo-400"></i>Edit Used Material';
+        }
+        
+        const actionInput = document.getElementById('usageFormAction');
+        if (actionInput) {
+            actionInput.value = 'edit_usage';
+        }
+
+        const idInput = document.getElementById('usage_id');
+        if (idInput) {
+            idInput.value = usageId;
+        }
+
+        fetch(`/api/refundable-materials-usage/${usageId}/`, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            
+            // Populate form fields
+            const selectionSelect = usageForm.querySelector('select[name="material_selection"]');
+            if (selectionSelect) {
+                selectionSelect.value = `r:${data.refundable_material_id}`;
+            }
+
+            const qtyInput = usageForm.querySelector('input[name="materials_quantity"]');
+            if (qtyInput) {
+                qtyInput.value = data.materials_quantity;
+            }
+
+            const nameInput = usageForm.querySelector('input[name="client_name"]');
+            if (nameInput) {
+                nameInput.value = data.client_name === 'N/A' ? '' : data.client_name;
+            }
+
+            const phoneInput = usageForm.querySelector('input[name="client_phone"]');
+            if (phoneInput) {
+                phoneInput.value = data.client_phone === 'N/A' ? '' : data.client_phone;
+            }
+
+            const addressInput = usageForm.querySelector('textarea[name="client_address"]');
+            if (addressInput) {
+                addressInput.value = data.client_address === 'N/A' ? '' : data.client_address;
+            }
+
+            const issueInput = usageForm.querySelector('textarea[name="issue"]');
+            if (issueInput) {
+                issueInput.value = data.issue === 'N/A' ? '' : data.issue;
+            }
+
+            document.getElementById('usageModal').classList.remove('hidden');
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Failed to load used material details.');
+        });
+    }
+
     function closeModal() {
         document.getElementById('addEditModal').classList.add('hidden');
         document.getElementById('usageModal').classList.add('hidden');
     }
 
     function confirmDelete(rfId) {
+        document.getElementById('deleteFormAction').value = 'delete';
         document.getElementById('deleteRfId').value = rfId;
+        document.getElementById('deleteUsageId').value = '';
+        
+        document.getElementById('deleteModalTitle').innerText = 'Delete Entry?';
+        document.getElementById('deleteModalMessage').innerText = "This action cannot be undone. You're about to delete this refundable material record.";
+        
+        document.getElementById('deleteModal').classList.remove('hidden');
+    }
+
+    function confirmUsageDelete(usageId) {
+        document.getElementById('deleteFormAction').value = 'delete_usage';
+        document.getElementById('deleteUsageId').value = usageId;
+        document.getElementById('deleteRfId').value = '';
+        
+        document.getElementById('deleteModalTitle').innerText = 'Delete Used Material Record?';
+        document.getElementById('deleteModalMessage').innerText = "This action cannot be undone. You're about to delete this used material record.";
+        
         document.getElementById('deleteModal').classList.remove('hidden');
     }
 
@@ -433,6 +604,7 @@
         if (e.key === 'Escape') {
             closeModal();
             closeDeleteModal();
+            closeReturnModal();
         }
     });
 
@@ -445,6 +617,12 @@
                 input.classList.add('styled');
             }
         });
+
+        // Automatically open the return modal if we are on a paginated page of refundable materials or if filtering was requested from inside the modal
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('page') || urlParams.get('open_return_modal') === '1') {
+            openReturnModal();
+        }
     });
 
     function submitInventoryFilterForm() {
@@ -453,7 +631,7 @@
 </script>
 
 <style>
-    #addEditModal.hidden, #deleteModal.hidden, #usageModal.hidden {
+    #addEditModal.hidden, #deleteModal.hidden, #usageModal.hidden, #returnModal.hidden {
         display: none !important;
     }
 </style>

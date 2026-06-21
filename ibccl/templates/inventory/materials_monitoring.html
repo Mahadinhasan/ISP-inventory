@@ -476,7 +476,7 @@
     }
 
     /* ── WS status UI ───────────────────────────────────────────── */
-    function setWsStatus(state) { /* state: 'connecting' | 'live' | 'disconnected' | 'error' */
+    function setWsStatus(state) {
         const map = {
             'connecting':    { dot: '',      txt: 'Connecting…' },
             'live':          { dot: 'live',  txt: 'Live' },
@@ -556,7 +556,7 @@
 
         // Fetch from API
         try {
-            const resp = await fetch(BRANCH_STOCK_API + userId + '/');
+            const resp = await fetch(branchStockUrl(userId));
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const data = await resp.json();
             cachedStockData[userId] = data;
@@ -637,14 +637,14 @@
         }).join('');
     }
 
-    /* ── Close stock panel ─────────────────────────────────────── */
+    /* ── Close stock panel ── */
     window.closeStockPanel = function () {
         stockWrap.classList.add('hidden');
         document.querySelectorAll('.branch-card').forEach(c => c.classList.remove('selected'));
         selectedUserId = null;
     };
 
-    /* ── Live feed rendering ─────────────────────────────────────── */
+    /* ── Live feed rendering ── */
     function renderLiveFeed(rows) {
         if (!rows || !rows.length) {
             liveBody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-gray-400">No recent activity.</td></tr>';
@@ -663,7 +663,7 @@
         }).join('');
     }
 
-    /* ── WS connection ──────────────────────────────────────────── */
+    /* ── WS connection ── */
     function connect() {
         if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
         setWsStatus('connecting');
@@ -697,7 +697,7 @@
         reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(); }, 3000);
     }
 
-    /* ── Update card online status ring ────────────────────────── */
+    /* ── Update card online status ring ─── */
     function updateCardOnlineStatus(userId, isOnline) {
         const ring = document.querySelector(`[data-status-ring="${userId}"]`);
         if (ring) {
@@ -718,7 +718,7 @@
         }
     }
 
-    /* ── Refresh button ─────────────────────────────────────────── */
+    /* ── Refresh button ──*/
     document.getElementById('btn-refresh').addEventListener('click', function () {
         // Clear cache
         cachedStockData = {};
@@ -735,13 +735,13 @@
         }
     });
 
-    /* ── Utility ────────────────────────────────────────────────── */
+    /* ── Utility ──*/
     function escHtml(str) {
         if (str == null) return '';
         return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
-    /* ── Boot ───────────────────────────────────────────────────── */
+    /* ── Boot ──*/
     connect();
 })();
 </script>

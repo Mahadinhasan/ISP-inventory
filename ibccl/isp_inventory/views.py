@@ -723,6 +723,43 @@ def get_branch_stock_api(request, user_id):
     })
 
 
+def get_branch_stock_data(branch_user):
+    """
+    Get in-stock and low-stock items for a branch user.
+    Returns a tuple of (in_stock_list, low_stock_list) with MaterialRequest objects.
+    Each request has an available_quantity calculated as: quantity - sum(used_materials.quantity)
+    """
+    # Get all received requests for this branch user
+    received_requests = MaterialRequest.objects.filter(
+        requester=branch_user,
+        status='Received'
+    ).select_related('material').prefetch_related('used_materials')
+    
+    in_stock_list = []
+    low_stock_list = []
+    
+    for request_item in received_requests:
+        # Calculate used quantity
+        used_qty = request_item.used_materials.filter(status='Accepted').aggregate(
+            total=Coalesce(Sum('quantity'), 0)
+        )['total']
+        
+        # Calculate available quantity
+        available = request_item.quantity - used_qty
+        
+        # Add available_quantity as a dynamic attribute
+        request_item.available_quantity = available
+        request_item.serials_display = 'N/A'
+        request_item.is_serialized = False
+        
+        # Separate into in-stock and low-stock
+        if available > 0:
+            in_stock_list.append(request_item)
+        else:
+            low_stock_list.append(request_item)
+    
+    return in_stock_list, low_stock_list
+
 @login_required
 def materials_view(request):
     """Materials management: Admin and Storekeeper can create, edit, delete; others read-only."""
@@ -1095,6 +1132,7 @@ def material_json(request, pk):
         
 #     return render(request, 'inventory/tasks.html', {'tasks': tasks.order_by('-created_at'), 'form': form, 'role': role})
 
+@login_required
 def requests_view(request):
     now = timezone.now()
     base_requests = MaterialRequest.objects.filter(
@@ -3714,6 +3752,29 @@ def refundable_materials_view(request):
                 messages.error(request, "Record not found or access denied.")
                 return redirect('refundable_materials')
 
+        elif action == 'edit_usage':
+            if role != 'Branch':
+                messages.error(request, "Only Branch users can edit Used Materials.")
+                return redirect('refundable_materials')
+
+            usage_id = request.POST.get('usage_id')
+            try:
+                usage = RefundableMaterialUsage.objects.get(pk=usage_id, used_by=request.user)
+                usage_form = RefundableMaterialUsageForm(request.POST, instance=usage, user=request.user)
+                if usage_form.is_valid():
+                    usage_form.save()
+                    messages.success(request, "Used material entry updated successfully!")
+                    return redirect('refundable_materials')
+                else:
+                    for field, errors in usage_form.errors.items():
+                        if errors:
+                            messages.error(request, f"{field}: {errors[0]}")
+                            break
+                    return redirect('refundable_materials')
+            except RefundableMaterialUsage.DoesNotExist:
+                messages.error(request, "Record not found or access denied.")
+                return redirect('refundable_materials')
+
         elif action == 'delete_usage':
             if role != 'Branch':
                 messages.error(request, "Only Branch users can delete Used Materials.")
@@ -3727,6 +3788,9 @@ def refundable_materials_view(request):
             except RefundableMaterialUsage.DoesNotExist:
                 messages.error(request, "Record not found or access denied.")
             return redirect('refundable_materials')
+        
+    #Refundale matertials count
+    refundable_count = RefundableMaterial.objects.count() if role in ['Admin', 'Storekeeper'] else RefundableMaterial.objects.filter(branch_user=request.user).count()
 
     return render(request, 'inventory/refundable_materials.html', {
         'refundable_materials': refundable_page,
@@ -3737,6 +3801,7 @@ def refundable_materials_view(request):
         'page_obj': refundable_page,
         'branch_users': branch_users,
         'search_query': search_query,
+        'refundable_count': refundable_count,
     })
 
 @login_required
@@ -3756,7 +3821,33 @@ def get_refundable_material_api(request, pk):
     data = {
         'id': rf.id,
         'material_name': rf.material_name,
+        'mac_serial': rf.mac_serial,
         'quantity': rf.quantity,
+    }
+    return JsonResponse(data)
+
+@login_required
+def get_refundable_material_usage_api(request, pk):
+    """API endpoint to get refundable material usage (used material) data for editing via AJAX"""
+    profile = ensure_userprofile(request.user)
+    role = profile.role if profile else 'Branch'
+
+    try:
+        if role in ['Admin', 'Storekeeper']:
+            usage = RefundableMaterialUsage.objects.get(pk=pk)
+        else:
+            usage = RefundableMaterialUsage.objects.get(pk=pk, used_by=request.user)
+    except RefundableMaterialUsage.DoesNotExist:
+        return JsonResponse({'error': 'Record not found or access denied'}, status=404)
+
+    data = {
+        'id': usage.id,
+        'refundable_material_id': usage.refundable_material.id,
+        'materials_quantity': usage.materials_quantity,
+        'client_name': usage.client_name,
+        'client_address': usage.client_address,
+        'client_phone': usage.client_phone,
+        'issue': usage.issue,
     }
     return JsonResponse(data)
 
