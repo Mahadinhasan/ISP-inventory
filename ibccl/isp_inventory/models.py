@@ -460,6 +460,8 @@ class UsedMaterial(models.Model):
     # Archive System Fields
     is_archived = models.BooleanField(default=False, help_text="Auto-archived for previous months")
     archived_at = models.DateTimeField(null=True, blank=True, help_text="When the used material was archived")
+    # POP/Server Entry Flag
+    is_pop_entry = models.BooleanField(default=False, help_text="True if this entry was submitted via the POP/Server area usage modal")
     
     class Meta:
         ordering = ['-added_at']

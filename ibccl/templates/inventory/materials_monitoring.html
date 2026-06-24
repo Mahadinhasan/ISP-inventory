@@ -376,7 +376,6 @@
                             <th>Material</th>
                             <th>Category</th>
                             <th>Available Qty</th>
-                            <th>Serial / MAC</th>
                             <th>Status</th>
                             <th>Received</th>
                         </tr>
@@ -475,7 +474,7 @@
         return (parts[0][0] || '?').toUpperCase();
     }
 
-    /* ── WS status UI ───────────────────────────────────────────── */
+    /* ── WS status UI ────── */
     function setWsStatus(state) {
         const map = {
             'connecting':    { dot: '',      txt: 'Connecting…' },
@@ -488,7 +487,7 @@
         wsStatus.textContent = s.txt;
     }
 
-    /* ── Render branch cards ────────────────────────────────────── */
+    /* ── Render branch cards ───────*/
     function renderBranchCards(users) {
         branchUsers = users || [];
         statBranches.textContent = branchUsers.length;
@@ -528,7 +527,7 @@
         }).join('');
     }
 
-    /* ── Select branch user → fetch stock ───────────────────────── */
+    /* ── Select branch user → fetch stock ── */
     window.selectBranchUser = async function(userId, userName) {
         // Highlight selected card
         document.querySelectorAll('.branch-card').forEach(c => c.classList.remove('selected'));
@@ -545,7 +544,7 @@
 
         // Show loading
         loadingInd.classList.remove('hidden');
-        stockBody.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-gray-400"><i class="fas fa-spinner fa-spin text-2xl"></i><br><span class="text-sm mt-2 block">Loading stock data…</span></td></tr>';
+        stockBody.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-gray-400"><i class="fas fa-spinner fa-spin text-2xl"></i><br><span class="text-sm mt-2 block">Loading stock data…</span></td></tr>';
 
         // If cached, use immediately
         if (cachedStockData[userId]) {
@@ -565,7 +564,7 @@
             tabInCount.textContent  = data.in_stock.length;
             tabLowCount.textContent = data.low_stock.length;
         } catch (err) {
-            stockBody.innerHTML = `<tr><td colspan="7" class="text-center py-10 text-red-400"><i class="fas fa-exclamation-circle text-2xl mb-2"></i><br>Failed to load stock data.</td></tr>`;
+            stockBody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-red-400"><i class="fas fa-exclamation-circle text-2xl mb-2"></i><br>Failed to load stock data.</td></tr>`;
             console.error('Branch stock fetch error:', err);
         } finally {
             loadingInd.classList.add('hidden');
@@ -604,12 +603,13 @@
             const emptyMsg = tab === 'in-stock'
                 ? '<i class="fas fa-box-open text-4xl mb-2 block"></i>No in-stock materials found.'
                 : '<i class="fas fa-exclamation-triangle text-4xl mb-2 block text-yellow-400"></i>No low/out-of-stock items found.';
-            stockBody.innerHTML = `<tr><td colspan="7" class="text-center py-12 text-gray-400">${emptyMsg}</td></tr>`;
+            stockBody.innerHTML = `<tr><td colspan="6" class="text-center py-12 text-gray-400">${emptyMsg}</td></tr>`;
             return;
         }
 
         stockBody.innerHTML = items.map((item, idx) => {
-            const qty = item.available_quantity || 0;
+            // Prefer the branch's current available quantity, not the original approved quantity
+            const qty = Math.max(0, item.branch_available_quantity ?? item.available_quantity ?? item.quantity ?? 0);
             let statusBadge = '';
             if (tab === 'in-stock') {
                 statusBadge = `<span class="badge-sm badge-normal">In Stock</span>`;
@@ -618,11 +618,8 @@
                     ? `<span class="badge-sm badge-out">Out of Stock</span>`
                     : `<span class="badge-sm badge-low">Low Stock</span>`;
             }
-            const serialBadge = item.is_serialized
-                ? `<span class="badge-sm badge-serial text-xs">${escHtml(item.serials_display)}</span>`
-                : `<span class="text-gray-400 text-xs">N/A</span>`;
             const dateStr = item.requested_at
-                ? new Date(item.requested_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })
+                ? new Date(item.requested_at).toLocaleDateString('en-GB', { day:'2-digit', month:'numeric', year:'numeric' })
                 : '—';
 
             return `<tr>
@@ -630,7 +627,6 @@
                 <td class="font-medium">${escHtml(item.material_name)}</td>
                 <td class="text-gray-500 dark:text-gray-400 text-xs">${escHtml(item.material_category || '—')}</td>
                 <td class="font-bold text-lg">${qty}</td>
-                <td>${serialBadge}</td>
                 <td>${statusBadge}</td>
                 <td class="text-gray-500 dark:text-gray-400 whitespace-nowrap text-xs">${dateStr}</td>
             </tr>`;

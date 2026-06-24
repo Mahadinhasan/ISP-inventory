@@ -273,7 +273,11 @@ def dashboard(request):
     # Data for dashboard modals - Role-specific
     # all_tasks = Task.objects.all().order_by('-created_at')
     all_requests = MaterialRequest.objects.filter(requester=request.user, is_archived=False).order_by('-requested_at')
-    all_used_materials = UsedMaterial.objects.filter(is_archived=False).select_related('technician', 'material').order_by('-added_at')[:10]  # Limit to 10 most recent
+    today = timezone.localtime(now).date()
+    all_used_materials = UsedMaterial.objects.filter(
+        is_archived=False,
+        added_at__date=today
+    ).select_related('technician', 'material').order_by('-added_at')[:50]  # Today's used materials only, limit 50
     
     # Role-specific material data for the materials modal
     technician_approved_materials = None
@@ -518,7 +522,7 @@ def dashboard(request):
                         'quantity': available_for_this_req,
                         'status': req.material.status,
                         'date': req.requested_at,
-                    })
+                    }) 
 
     # Common stats for all roles: Unread Messages and Report Summaries
     unread_messages_count = InternalMessage.objects.filter(receiver=request.user, is_read=False).count()
@@ -659,10 +663,11 @@ def materials_monitoring_view(request):
         
         for req in approved_qs:
             mat_id = req.material.id
-            available_for_this_req = req.quantity
+            branch_quantity = req.quantity
+            available_for_this_req = branch_quantity
             
             if mat_id in used_totals and used_totals[mat_id] > 0:
-                amount_to_deduct = min(used_totals[mat_id], req.quantity)
+                amount_to_deduct = min(used_totals[mat_id], branch_quantity)
                 available_for_this_req -= amount_to_deduct
                 used_totals[mat_id] -= amount_to_deduct
             
@@ -677,11 +682,11 @@ def materials_monitoring_view(request):
                         'id': req.material.id,
                         'name': req.material.name,
                     },
+                    'branch_quantity': branch_quantity,
                     'quantity': available_for_this_req,
                     'status': req.material.status,
                     'date': req.requested_at.isoformat(),
                 })
-    
     return render(request, 'inventory/materials_monitoring.html', {
         'role': role,
         'ws_url': ws_url,
@@ -706,7 +711,10 @@ def get_branch_stock_api(request, user_id):
         return {
             'material_name': item.material.name if item.material else 'Unknown',
             'material_category': item.material.category if item.material else '',
-            'available_quantity': item.available_quantity,
+            # Branch-specific quantities (calculated server-side)
+            'branch_available_quantity': getattr(item, 'branch_available_quantity', getattr(item, 'available_quantity', None)),
+            'branch_quantity': getattr(item, 'branch_quantity', getattr(item, 'quantity', None)),
+            'available_quantity': getattr(item, 'available_quantity', None),
             'serials_display': getattr(item, 'serials_display', 'N/A'),
             'is_serialized': getattr(item, 'is_serialized', False),
             'requested_at': item.requested_at.isoformat() if item.requested_at else None,
@@ -744,16 +752,19 @@ def get_branch_stock_data(branch_user):
             total=Coalesce(Sum('quantity'), 0)
         )['total']
         
-        # Calculate available quantity
+        # Calculate available quantity from branch-approved request quantity
         available = request_item.quantity - used_qty
+        branch_available = max(0, available)
         
-        # Add available_quantity as a dynamic attribute
-        request_item.available_quantity = available
+        # Add explicit branch-specific quantity attributes
+        request_item.branch_quantity = request_item.quantity
+        request_item.branch_available_quantity = branch_available
+        request_item.available_quantity = branch_available
         request_item.serials_display = 'N/A'
         request_item.is_serialized = False
         
         # Separate into in-stock and low-stock
-        if available > 0:
+        if branch_available > 0:
             in_stock_list.append(request_item)
         else:
             low_stock_list.append(request_item)
@@ -1418,7 +1429,10 @@ def requests_view(request):
                          return redirect('requests')
 
                 elif action == 'reject':
-                    if req.status in ['Approved', 'Dispatched', 'Received']:
+                    if req.status == 'Received':
+                        messages.error(request, "Cannot reject a request after it has been received.")
+                        return redirect('requests')
+                    if req.status in ['Approved', 'Dispatched']:
                         try:
                             with transaction.atomic():
                                 # Return quantity to exactly where it was taken from
@@ -3120,6 +3134,9 @@ def used_materials_view(request):
                 messages.error(request, "Only Branch users can add Used Materials.")
                 return redirect('used_materials')
             
+            # Detect if this was submitted from the POP/Server dashboard modal
+            is_pop = request.POST.get('is_pop_entry') == '1'
+            
             form = UsedMaterialForm(request.POST, user=request.user)
             if form.is_valid():
                 selection = form.cleaned_data.get('material_selection')
@@ -3134,7 +3151,7 @@ def used_materials_view(request):
                         quantity = 1
                     except MacSerialNumber.DoesNotExist:
                         messages.error(request, "Selected Mac/Serial not found or not assigned to you.")
-                        return redirect('used_materials')
+                        return redirect('dashboard' if is_pop else 'used_materials')
                 else:
                     try:
                         material = Material.objects.get(id=pk)
@@ -3142,7 +3159,7 @@ def used_materials_view(request):
                         quantity = form.cleaned_data.get('quantity')
                     except Material.DoesNotExist:
                         messages.error(request, "Selected material not found.")
-                        return redirect('used_materials')
+                        return redirect('dashboard' if is_pop else 'used_materials')
 
                 # Check if material is in approved stock
                 approved_material_ids = MaterialRequest.objects.filter(
@@ -3155,6 +3172,7 @@ def used_materials_view(request):
                     um.material = material
                     um.mac_serial = mac_serial
                     um.quantity = quantity
+                    um.is_pop_entry = is_pop
                     um.save()
                     
                     # Update MacSerial status based on status
@@ -3166,16 +3184,16 @@ def used_materials_view(request):
                         um.mac_serial.save()
                         
                     messages.success(request, "Used Material recorded successfully!")
-                    return redirect('used_materials')
+                    return redirect('dashboard' if is_pop else 'used_materials')
                 else:
                     messages.error(request, "You can only record usage for received materials.")
-                    return redirect('used_materials')
+                    return redirect('dashboard' if is_pop else 'used_materials')
             else:
                 for field, errors in form.errors.items():
                     if errors:
                         messages.error(request, f"{field}: {errors[0]}")
                         break
-                return redirect('used_materials')
+                return redirect('dashboard' if is_pop else 'used_materials')
                 
         elif action == 'edit':
             if role != 'Branch':

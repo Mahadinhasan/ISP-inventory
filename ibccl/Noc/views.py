@@ -446,7 +446,10 @@ def noc_requests(request):
                 else:
                     messages.error(request, f"Insufficient stock for {mat_request.material.name}.")
             elif action == 'reject':
-                if mat_request.status in ['Approved', 'Received']:
+                if mat_request.status == 'Received':
+                    messages.error(request, f"Cannot reject request for {mat_request.material.name} after it has been received.")
+                    return redirect('noc:requests')
+                if mat_request.status == 'Approved':
                     with transaction.atomic():
                         restore_material_stock(mat_request.material, mat_request.quantity)
                         mat_request.status = 'Rejected'
@@ -550,7 +553,9 @@ def approve_request(request, pk):
 def reject_request(request, pk):
     mat_request = get_object_or_404(MaterialRequest, pk=pk, material__category='Internet', material__created_by=request.user)
     if request.method == 'POST':
-        if mat_request.status == 'Approved':
+        if mat_request.status == 'Received':
+            messages.error(request, "Cannot reject a request after it has been received.")
+        elif mat_request.status == 'Approved':
             with transaction.atomic():
                 restore_material_stock(mat_request.material, mat_request.quantity)
                 mat_request.status = 'Rejected'

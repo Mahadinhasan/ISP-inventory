@@ -669,7 +669,14 @@
                     {% for used in all_used_materials %}
                     <tr>
                         <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ used.technician.username }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">{{ used.material.name }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">
+                            {{ used.material.name }}
+                            {% if used.is_pop_entry %}
+                            <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 uppercase tracking-wider">pop</span>
+                            {% else %}
+                            <span class="ml-1 text-xs text-gray-400 italic">(N/A)</span>
+                            {% endif %}
+                        </td>
                         <td class="px-6 py-4 text-sm text-gray-500 font-mono">
                             {{ used.mac_serial.mac_serial|default:"N/A" }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900 font-bold">{{ used.quantity }}</td>
@@ -685,7 +692,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                        <td colspan="6" class="px-6 py-12 text-center text-gray-500">
                             <i class="fas fa-inbox text-4xl mb-3 text-gray-300"></i><br>
                             No used materials found
                         </td>
@@ -1000,17 +1007,35 @@
         <form method="post" action="{% url 'used_materials' %}">
             {% csrf_token %}
             <input type="hidden" name="action" value="create">
+            <input type="hidden" name="is_pop_entry" value="1">
+            <input type="hidden" name="client_name" value="N/A">
+            <input type="hidden" name="client_phone" value="N/A">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="col-span-1">
-                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Material
-                        Name</label>
-                    <select name="material" id="popMaterial" required onchange="updatePopCategory(this)"
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Material Name</label>
+                    <select name="material_selection" id="popMaterial" required onchange="updatePopMaterialInfo(this)"
                         class="w-full px-4 py-2.5 border border-gray-200 dark:border-midnight-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent dark:bg-midnight-950 dark:text-white transition">
                         <option value="">Select Material</option>
                         {% if technician_approved_materials %}
                         {% for req in technician_approved_materials %}
-                        <option value="{{ req.material.id }}" data-category="{{ req.material.category }}">
-                            {{ req.material.name }}</option>
+                            {% if req.is_serialized %}
+                            <option value="s:{{ req.serials_display_id }}"
+                                data-category="{{ req.material.category }}"
+                                data-serialized="1"
+                                data-mac="{{ req.serials_display }}"
+                                data-pop="pop">
+                                {{ req.material.name }}—{{ req.serials_display }}
+                            </option>
+                            {% else %}
+                            {# Non-serialized: show material name, available qty #}
+                            <option value="m:{{ req.material.id }}"
+                                data-category="{{ req.material.category }}"
+                                data-serialized="0"
+                                data-mac="N/A"
+                                data-pop="N/A">
+                                {{ req.material.name }} ({{ req.available_quantity }})
+                            </option>
+                            {% endif %}
                         {% endfor %}
                         {% else %}
                         <option disabled>No approved materials available</option>
@@ -1018,14 +1043,13 @@
                     </select>
                 </div>
                 <div class="col-span-1">
-                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Auto
-                        Category</label>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Auto Category</label>
                     <input type="text" id="popCategory" placeholder="N/A" readonly
                         class="w-full px-4 py-2.5 border border-gray-200 dark:border-midnight-800 rounded-xl bg-gray-50 dark:bg-midnight-950 dark:text-gray-400 focus:outline-none transition">
                 </div>
                 <div class="col-span-1">
                     <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Quantity</label>
-                    <input type="number" name="quantity" value="1" min="1" required
+                    <input type="number" name="quantity" id="popQuantity" value="1" min="1" required
                         class="w-full px-4 py-2.5 border border-gray-200 dark:border-midnight-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent dark:bg-midnight-950 dark:text-white transition">
                 </div>
                 <div class="col-span-1">
@@ -1035,8 +1059,7 @@
                         rows="2"></textarea>
                 </div>
                 <div class="col-span-1">
-                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Issue /
-                        Notes</label>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Issue / Notes</label>
                     <textarea name="issue" placeholder="N/A"
                         class="w-full px-4 py-2.5 border border-gray-200 dark:border-midnight-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent dark:bg-midnight-950 dark:text-white transition"
                         rows="2"></textarea>
@@ -1049,9 +1072,6 @@
                         <option value="Pending">Pending</option>
                         <option value="Rejected">Rejected</option>
                     </select>
-                </div>
-                <div class="hidden">
-                    <input type="text" name="client_name" value="N/A">
                 </div>
             </div>
             <div class="flex justify-end space-x-4 mt-8 border-t pt-6 border-gray-100 dark:border-midnight-800">
@@ -1235,10 +1255,6 @@
         </div>
     </div>
 </div>
-
-<!-- ============================================== -->
-<!-- INNER POPUP MODALS FOR SUBMITTING FORMS -->
-<!-- ============================================== -->
 
 <!-- Refundable Add/Edit Form Modal -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
@@ -1516,7 +1532,7 @@
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-6 py-3 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Date</th>
+                    <th class="px-6 py-3 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Time (Ago)</th>
                     <th class="px-6 py-3 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                         Branch</th>
                     <th class="px-6 py-3 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Material
@@ -1529,8 +1545,8 @@
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for req in all_used_materials %}
                 <tr class="hover:bg-slate-50 dark:hover:bg-midnight-800/40 transition-colors">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {{ req.added_at|date:"d-m-Y" }}
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 timeago-cell" data-timestamp="{{ req.added_at.isoformat }}">
+                        {{ req.added_at|timesince }} ago
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-700">
                         {{ req.technician.username }}
@@ -1653,8 +1669,43 @@
             })
             .catch(error => console.error('Error fetching total users:', error));
     }
-    // Style form fields in the Add Used Material modal
+    // Real-time time display updater for "ago" timestamps
+    function updateTimeAgoDisplay() {
+        const timeAgoCells = document.querySelectorAll('.timeago-cell');
+        timeAgoCells.forEach(cell => {
+            const isoTime = cell.getAttribute('data-timestamp');
+            if (!isoTime) return;
+            
+            const recordTime = new Date(isoTime);
+            const now = new Date();
+            const diffMs = now - recordTime;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+            
+            let timeText = '';
+            if (diffMins < 1) {
+                timeText = 'Just now';
+            } else if (diffMins < 60) {
+                timeText = `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+            } else if (diffHours < 24) {
+                timeText = `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+            } else if (diffDays < 7) {
+                timeText = `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+            } else {
+                timeText = recordTime.toLocaleString();
+            }
+            
+            cell.textContent = timeText;
+        });
+    }
+    
+    // Update time display on page load and every 30 seconds
     document.addEventListener('DOMContentLoaded', () => {
+        updateTimeAgoDisplay();
+        setInterval(updateTimeAgoDisplay, 30000); // Update every 30 seconds
+        
+        // Style form fields in the Add Used Material modal
         const formFields = document.querySelectorAll('#addUsedMaterialModal select, #addUsedMaterialModal input[type="number"], #addUsedMaterialModal input[type="text"], #addUsedMaterialModal textarea');
         formFields.forEach(field => {
             field.classList.add('mt-1', 'block', 'w-full', 'pl-3', 'pr-3', 'py-2', 'text-base', 'border-gray-300', 'focus:outline-none', 'focus:ring-indigo-500', 'focus:border-indigo-500', 'sm:text-sm', 'rounded-md', 'border', 'shadow-sm');
@@ -1671,10 +1722,36 @@
             });
         });
     });
-    function updatePopCategory(select) {
+    function updatePopMaterialInfo(select) {
         const selectedOption = select.options[select.selectedIndex];
-        const category = selectedOption.getAttribute('data-category');
-        document.getElementById('popCategory').value = category || 'N/A';
+        const category = selectedOption.getAttribute('data-category') || 'N/A';
+        const isSerialized = selectedOption.getAttribute('data-serialized') === '1';
+        const mac = selectedOption.getAttribute('data-mac') || 'N/A';
+
+        // Update category field
+        document.getElementById('popCategory').value = category;
+
+        // Show/hide MAC serial row
+        const macRow = document.getElementById('popMacSerialRow');
+        const macDisplay = document.getElementById('popMacSerialDisplay');
+        const qtyInput = document.getElementById('popQuantity');
+
+        if (isSerialized) {
+            macRow.style.display = 'block';
+            macDisplay.textContent = mac;
+            // Lock quantity to 1 for serialized items
+            qtyInput.value = 1;
+            qtyInput.readOnly = true;
+            qtyInput.classList.add('bg-gray-100', 'dark:bg-midnight-800', 'cursor-not-allowed');
+            qtyInput.classList.remove('focus:ring-teal-500');
+        } else {
+            macRow.style.display = 'none';
+            macDisplay.textContent = '—';
+            // Restore quantity input
+            qtyInput.readOnly = false;
+            qtyInput.classList.remove('bg-gray-100', 'dark:bg-midnight-800', 'cursor-not-allowed');
+            qtyInput.classList.add('focus:ring-teal-500');
+        }
     }
 
     // Switch between tabs in Advance Materials Modal

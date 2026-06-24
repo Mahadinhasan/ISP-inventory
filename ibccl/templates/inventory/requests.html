@@ -179,6 +179,8 @@
                     <td class="px-6 py-4 text-sm">
                         {% if req.is_noc_material %}
                         <span class="text-orange-600 font-semibold">NOC Required</span>
+                        {% elif req.status == 'Received' %}
+                        <span class="text-emerald-600 font-semibold">Received</span>
                         {% else %}
                         <button onclick="openAdminModal('{{ req.id }}', '{{ req.admin_note|escapejs }}', '{{ req.quantity }}')"
                             class="text-indigo-600 hover:text-indigo-900 font-medium bg-indigo-50 px-3 py-1 rounded hover:bg-indigo-100 transition">
