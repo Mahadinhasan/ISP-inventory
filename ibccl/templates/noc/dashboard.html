@@ -2,136 +2,147 @@
 {% block title %}ISP-Inventory: NOC Dashboard{% endblock %}
 {% block content %}
 <div class="fade-in">
-    <div class="mb-8">
-        <div>
-            <h1 class="text-4xl font-bold text-gray-900 dark:text-white">NOC Dashboard</h1>
-            <p class="mt-2 text-lg text-gray-600 dark:text-gray-400">Welcome back, {{ user.username }}!</p>
+    <!-- Page header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+        <div class="flex items-center gap-4">
+            <div class="hidden sm:flex h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 items-center justify-center shadow-lg shadow-indigo-200 dark:shadow-indigo-900/40 flex-shrink-0">
+                <i class="fas fa-gauge-high text-white text-2xl"></i>
+            </div>
+            <div>
+                <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">NOC Dashboard</h1>
+                <p class="mt-1 text-base text-gray-500 dark:text-gray-400">Welcome back, <span class="font-semibold text-gray-700 dark:text-gray-300">{{ user.username }}</span>!</p>
+            </div>
         </div>
-    </div>
-    <!--Materials Value-->
-    {% if user.userprofile.role != 'Branch' %}
-    <div class="flex justify-end mb-6">
-        <div class="px-5 py-2.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-xl border border-blue-100 dark:border-blue-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
-            <i class="fas fa-taka-sign"></i> Total Inventory Value: {{ total_price1|floatformat:2 }}৳
-        </div>
-    </div>
-    {% endif %}
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
+        <!-- Total Inventory Value -->
+        {% if user.userprofile.role != 'Branch' %}
+        <div class="inline-flex items-center gap-3 px-5 py-3 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-200 dark:shadow-indigo-900/40">
+            <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
+                <i class="fas fa-taka-sign text-lg"></i>
+            </span>
+            <span class="leading-tight">
+                <span class="block text-[10px] font-semibold uppercase tracking-widest text-indigo-100">Total Inventory Value</span>
+                <span class="block text-xl font-extrabold">{{ total_price1|floatformat:2 }}৳</span>
+            </span>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Dashboard Statistics Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
         <!-- 1. In stock Card -->
         <div onclick="document.getElementById('materialsModal').classList.remove('hidden')"
-            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
-                <div class="p-4 bg-blue-100 dark:bg-blue-900 rounded-full">
-                    <i class="fas fa-box text-3xl mr-2 text-blue-600 dark:text-blue-400"></i>
+                <div class="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                    <i class="fas fa-box text-xl text-blue-600 dark:text-blue-400"></i>
                 </div>
-                <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">In stock</p>
-                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ total_materials }}</p>
+                <div class="ml-4">
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">In Stock</p>
+                    <p class="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{{ total_materials }}</p>
                 </div>
             </div>
         </div>
 
         <!-- 2. Pending Request Card -->
         <div onclick="document.getElementById('requestsModal').classList.remove('hidden')"
-            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
-                <div class="p-4 bg-yellow-100 dark:bg-yellow-900 rounded-full">
-                    <i class="fas fa-clock text-3xl mr-2 text-yellow-600 dark:text-yellow-400"></i>
+                <div class="p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-full">
+                    <i class="fas fa-clock text-xl text-yellow-600 dark:text-yellow-400"></i>
                 </div>
-                <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Pending Request</p>
-                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ pending_requests }}</p>
+                <div class="ml-4">
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Pending Requests</p>
+                    <p class="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{{ pending_requests }}</p>
                 </div>
             </div>
         </div>
 
         <!-- 3. Used Materials Card -->
         <div onclick="document.getElementById('usedMaterialsModal').classList.remove('hidden')"
-            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
-                <div class="p-4 bg-teal-100 dark:bg-teal-900 rounded-full">
-                    <i class="fas fa-warehouse text-3xl mr-2 text-teal-600 dark:text-teal-400"></i>
+                <div class="p-3 bg-teal-100 dark:bg-teal-900/30 rounded-full">
+                    <i class="fas fa-warehouse text-xl text-teal-600 dark:text-teal-400"></i>
                 </div>
-                <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Used Materials</p>
-                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ used_materials_count }}</p>
+                <div class="ml-4">
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Used Materials</p>
+                    <p class="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{{ used_materials_count }}</p>
                 </div>
             </div>
         </div>
 
         <!-- 4. Low Stock Card -->
         <div onclick="document.getElementById('lowStockModal').classList.remove('hidden')"
-            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
-                <div class="p-4 bg-red-100 dark:bg-red-900 rounded-full">
-                    <i class="fas fa-box text-3xl mr-2 text-red-600 dark:text-red-400"></i>
+                <div class="p-3 bg-red-100 dark:bg-red-900/30 rounded-full">
+                    <i class="fas fa-box text-xl text-red-600 dark:text-red-400"></i>
                 </div>
-                <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Low Stock Materials</p>
-                    <p class="text-4xl font-bold text-gray-900 dark:text-white">{{ low_stock_materials }}</p>
+                <div class="ml-4">
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Low Stock</p>
+                    <p class="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{{ low_stock_materials }}</p>
                 </div>
             </div>
         </div>
 
         <!-- 5. Internal Communication Card -->
         <div onclick="document.getElementById('internalCommModal').classList.remove('hidden')"
-            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
-                <div class="p-4 bg-pink-100 dark:bg-pink-900/30 rounded-full">
-                    <i class="fas fa-comments text-3xl mr-2 text-pink-600 dark:text-pink-400"></i>
+                <div class="p-3 bg-pink-100 dark:bg-pink-900/30 rounded-full relative">
+                    <i class="fas fa-comments text-xl text-pink-600 dark:text-pink-400"></i>
+                    {% if unread_messages_count > 0 %}
+                    <span class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-bounce">
+                        {{ unread_messages_count }}
+                    </span>
+                    {% endif %}
                 </div>
-                <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Internal Communication</p>
-                    <p class="text-4xl font-bold text-gray-900 dark:text-white">
-                        {% if unread_messages_count > 0 %}
-                            {{ unread_messages_count }}
-                        {% else %}
-                            <span class="text-lg">View</span>
-                        {% endif %}
-                    </p>
+                <div class="ml-4">
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Messages</p>
+                    <p class="text-base font-bold text-gray-900 dark:text-white">Internal</p>
                 </div>
             </div>
         </div>
 
         <!-- 6. Reports Card -->
         <div onclick="document.getElementById('reportsModal').classList.remove('hidden')"
-            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
-                <div class="p-4 bg-purple-100 dark:bg-purple-900/30 rounded-full">
-                    <i class="fas fa-chart-bar text-3xl mr-2 text-purple-600 dark:text-purple-400"></i>
+                <div class="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-full">
+                    <i class="fas fa-chart-bar text-xl text-purple-600 dark:text-purple-400"></i>
                 </div>
-                <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Reports Summary</p>
-                    <p class="text-lg font-bold text-gray-900 dark:text-white">Monthly Overview</p>
+                <div class="ml-4">
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Reports</p>
+                    <p class="text-base font-bold text-gray-900 dark:text-white">Summary</p>
                 </div>
             </div>
         </div>
 
         <!-- 7. Mac/Serial Numbers Card -->
         <div onclick="document.getElementById('macSerialModal').classList.remove('hidden')"
-            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
-                <div class="p-4 bg-indigo-100 dark:bg-indigo-900 rounded-full">
-                    <i class="fas fa-barcode text-3xl mr-2 text-indigo-600 dark:text-indigo-400"></i>
+                <div class="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-full">
+                    <i class="fas fa-barcode text-xl text-indigo-600 dark:text-indigo-400"></i>
                 </div>
-                <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Mac/Serial Numbers</p>
-                    <p class="text-lg font-bold text-gray-900 dark:text-white">Manage</p>
+                <div class="ml-4">
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Mac/Serial</p>
+                    <p class="text-base font-bold text-gray-900 dark:text-white">Manage</p>
                 </div>
             </div>
         </div>
 
         <!-- 8. Destroy Materials Card -->
         <div onclick="document.getElementById('destroyMaterialsModal').classList.remove('hidden')"
-            class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl p-8 card-hover cursor-pointer transform transition hover:scale-105 active:scale-95">
+            class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
-                <div class="p-4 bg-red-100 dark:bg-red-900/30 rounded-full">
-                    <i class="fas fa-trash-alt text-3xl mr-2 text-red-600 dark:text-red-400"></i>
+                <div class="p-3 bg-red-100 dark:bg-red-900/30 rounded-full">
+                    <i class="fas fa-trash-alt text-xl text-red-600 dark:text-red-400"></i>
                 </div>
-                <div class="ml-6">
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Destroy Materials</p>
-                    <p class="text-lg font-bold text-gray-900 dark:text-white">Log</p>
+                <div class="ml-4">
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Destroy Logs</p>
+                    <p class="text-base font-bold text-gray-900 dark:text-white">Log</p>
                 </div>
             </div>
         </div>
