@@ -1,73 +1,245 @@
-{% extends 'inventory/base.html' %}
-{% block content %}
-<div class="min-h-[80vh] flex items-center justify-center py-12 px-4 bg-transparent select-none">
-    <div class="max-w-md w-full p-10 bg-white/40 dark:bg-midnight-900/40 glass-card rounded-[2.5rem] shadow-2xl border border-gray-100 dark:border-midnight-800 transform transition-all hover:scale-[1.01]">
-        <div class="text-center mb-10">
-            <div class="mx-auto h-20 w-20 bg-indigo-600 dark:bg-indigo-500 rounded-3xl flex items-center justify-center shadow-lg shadow-indigo-200 dark:shadow-indigo-900/40 rotate-12 hover:rotate-0 transition-transform duration-500">
-                <i class="fas fa-network-wired text-white text-3xl"></i>
-            </div>
-            <h2 class="mt-8 text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">ISP Inventory</h2>
-            <p class="mt-3 text-sm font-bold text-gray-500 dark:text-gray-500 uppercase tracking-widest">Sign in to continue</p>
-        </div>
+<!DOCTYPE html>
+<html lang="en">
+{% load static %}
 
-        <form method="post" class="space-y-8">
-            {% csrf_token %}
-            <div class="space-y-6">
-                <div>
-                    <label class="block text-xs font-black text-gray-900 dark:text-gray-700 uppercase tracking-widest ml-1 mb-2">Username</label>
-                    <input name="username" type="text" required autocomplete="username"
-                           class="block w-full px-4 py-3.5 bg-gray-50/50 dark:bg-midnight-950/50 border-2 border-transparent focus:border-indigo-500 dark:focus:border-indigo-500 rounded-xl focus:ring-0 transition-all dark:text-white placeholder:text-gray-600 dark:placeholder:text-gray-600 font-medium"
-                           placeholder="Enter your username">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - ISP Inventory</title>
+    <link rel="icon" type="image" href="{% static 'static/image/favicon.png' %}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: {} }
+        }
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        html, body { transition: background-color 0.3s ease, color 0.3s ease; }
+
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        input:autofill,
+        input:autofill:hover,
+        input:autofill:focus,
+        input:autofill:active {
+            -webkit-box-shadow: 0 0 0 30px #ffffff inset !important;
+            box-shadow: 0 0 0 30px #ffffff inset !important;
+        }
+
+        .float-soft { animation: floatSoft 6s ease-in-out infinite; }
+        @keyframes floatSoft {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-12px); }
+        }
+    </style>
+</head>
+
+<body class="min-h-screen bg-white">
+    <div class="min-h-screen grid grid-cols-1 lg:grid-cols-2">
+
+        <!-- LEFT: form panel -->
+        <div class="flex flex-col px-6 sm:px-12 lg:px-20 py-10 bg-white">
+            <!-- Brand -->
+            <div class="flex items-center gap-3">
+                <div class="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-300/50">
+                    <i class="fas fa-network-wired text-white text-lg"></i>
                 </div>
-                <div>
-                    <label class="block text-xs font-black text-gray-900 dark:text-gray-700 uppercase tracking-widest ml-1 mb-2">Password</label>
-                    <div class="relative group">
-                        <input id="password-input" name="password" type="password" required autocomplete="current-password"
-                               class="block w-full px-4 py-3.5 bg-gray-50/50 dark:bg-midnight-950/50 border-2 border-transparent focus:border-indigo-500 dark:focus:border-indigo-500 rounded-xl focus:ring-0 transition-all dark:text-white placeholder:text-gray-600 dark:placeholder:text-gray-600 pr-14 font-medium"
-                               placeholder="Enter your password">
-                        <button type="button" onclick="togglePassword()" class="absolute inset-y-0 right-0 flex items-center pr-5 group-hover:scale-110 transition-transform">
-                            <i id="toggle-icon" class="fas fa-eye text-gray-400 dark:text-gray-500 hover:text-indigo-600 transition-colors"></i>
-                        </button>
+                <span class="text-xl font-extrabold tracking-tight text-gray-900">ISP <span class="text-indigo-600">Inventory</span></span>
+            </div>
+
+            <!-- Form (vertically centered) -->
+            <div class="flex-1 flex flex-col justify-center max-w-md w-full mx-auto lg:mx-0 fade-in">
+                <h1 class="text-4xl font-black text-gray-900 tracking-tight">Welcome back</h1>
+                <p class="mt-2 text-gray-500">Please enter your details</p>
+
+                <!-- Alert Messages -->
+                {% if messages %}
+                    <div class="mt-6 space-y-3">
+                        {% for message in messages %}
+                            <div class="p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm flex items-center">
+                                <i class="fas fa-exclamation-circle mr-3"></i>
+                                <span>{{ message }}</span>
+                            </div>
+                        {% endfor %}
                     </div>
-                </div>
+                {% endif %}
+
+                <form method="post" class="mt-8 space-y-5" id="loginForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="tab_id" id="tabIdField" value="{{ request.GET.tab_id|default:'' }}">
+
+                    <!-- Username -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1.5">Username</label>
+                        <input name="username" type="text" required autocomplete="username"
+                            class="block w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                            placeholder="Enter your username">
+                    </div>
+
+                    <!-- Password -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1.5">Password</label>
+                        <div class="relative">
+                            <input id="password-input" name="password" type="password" required autocomplete="current-password"
+                                class="block w-full px-4 py-3 pr-12 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                                placeholder="Enter your password">
+                            <button type="button" onclick="togglePassword()"
+                                class="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-400 hover:text-indigo-600 transition-colors">
+                                <i id="toggle-icon" class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Submit -->
+                    <button type="submit"
+                        class="w-full py-3 px-6 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-lg font-bold text-base transition-all shadow-lg shadow-indigo-300/40 active:scale-[0.99] group flex items-center justify-center">
+                        <i class="fas fa-sign-in-alt mr-2 group-hover:translate-x-0.5 transition-transform"></i> Sign in
+                    </button>
+                </form>
+
+                <!-- NOC Login Link -->
+                <p class="mt-8 text-center text-sm text-gray-500">
+                    NOC Team?
+                    <a href="{% url 'noc:login' %}" class="text-indigo-600 hover:text-indigo-700 font-semibold transition-colors">
+                        Use NOC Login
+                    </a>
+                </p>
             </div>
-            <button type="submit" class="w-full flex justify-center items-center py-3.5 px-6 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl font-bold text-base tracking-wide transition-all shadow-lg shadow-indigo-200 dark:shadow-indigo-900/40 active:scale-[0.98] group">
-                <i class="fas fa-sign-in-alt mr-2.5 group-hover:translate-x-0.5 transition-transform"></i> Sign In
-            </button>
-        </form>
 
-        {% if messages %}
-            {% for message in messages %}
-                <script>showToast("{{ message }}", "error");</script>
-            {% endfor %}
-        {% endif %}
-
-        <!-- NOC Login Link -->
-        <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700 text-center">
-            <p class="text-sm text-gray-600 dark:text-gray-400">
-                NOC Team? 
-                <a href="{% url 'noc:login' %}" class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-bold transition-colors">
-                    Use NOC Login
-                </a>
+            <p class="text-center lg:text-left text-xs text-gray-400 mt-6">
+                <i class="fas fa-lock mr-1"></i> Secure sign in — your account is protected
             </p>
         </div>
 
-        <script>
-            function togglePassword() {
-                const passwordInput = document.getElementById('password-input');
-                const toggleIcon = document.getElementById('toggle-icon');
-                
-                if (passwordInput.type === 'password') {
-                    passwordInput.type = 'text';
-                    toggleIcon.classList.remove('fa-eye');
-                    toggleIcon.classList.add('fa-eye-slash');
-                } else {
-                    passwordInput.type = 'password';
-                    toggleIcon.classList.remove('fa-eye-slash');
-                    toggleIcon.classList.add('fa-eye');
-                }
-            }
-        </script>
+        <!-- RIGHT: illustration panel -->
+        <div class="hidden lg:flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-indigo-300 via-violet-300 to-purple-300">
+            <!-- background scattered line icons -->
+            <svg class="absolute inset-0 w-full h-full text-white/40" viewBox="0 0 600 600" fill="none" preserveAspectRatio="xMidYMid slice">
+                <g stroke="currentColor" stroke-width="2">
+                    <path d="M70 70 h70 a8 8 0 0 1 8 8 v34 a8 8 0 0 1 -8 8 h-40 l-18 16 v-16 h-12 a8 8 0 0 1 -8 -8 v-34 a8 8 0 0 1 8 -8 z"/>
+                    <circle cx="120" cy="230" r="34"/>
+                    <ellipse cx="120" cy="230" rx="14" ry="34"/>
+                    <path d="M86 230 h68 M92 210 h56 M92 250 h56"/>
+                    <rect x="70" y="430" width="80" height="56" rx="6"/>
+                    <path d="M70 436 l40 30 l40 -30"/>
+                    <path d="M470 80 a40 40 0 0 1 80 0"/>
+                    <rect x="462" y="78" width="18" height="36" rx="6"/>
+                    <rect x="540" y="78" width="18" height="36" rx="6"/>
+                    <path d="M500 200 h60 a10 10 0 0 1 10 10 v24 a10 10 0 0 1 -10 10 h-30 l-16 14 v-14 h-14 a10 10 0 0 1 -10 -10 v-24 a10 10 0 0 1 10 -10 z"/>
+                    <circle cx="520" cy="222" r="3" fill="currentColor"/>
+                    <circle cx="535" cy="222" r="3" fill="currentColor"/>
+                    <circle cx="550" cy="222" r="3" fill="currentColor"/>
+                </g>
+                <g stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M250 60 l10 10 M260 60 l-10 10"/>
+                    <path d="M330 110 l10 10 M340 110 l-10 10"/>
+                    <path d="M420 160 l10 10 M430 160 l-10 10"/>
+                    <path d="M210 150 l9 9 M219 150 l-9 9"/>
+                    <path d="M300 480 l10 10 M310 480 l-10 10"/>
+                </g>
+                <g fill="currentColor">
+                    <circle cx="380" cy="70" r="4"/>
+                    <circle cx="270" cy="200" r="4"/>
+                    <circle cx="460" cy="300" r="4"/>
+                    <circle cx="180" cy="350" r="4"/>
+                    <circle cx="520" cy="430" r="4"/>
+                </g>
+            </svg>
+
+            <!-- central device illustration -->
+            <div class="relative z-10 float-soft">
+                <svg width="340" height="340" viewBox="0 0 340 340" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="50" y="60" width="240" height="160" rx="14" fill="#312e81"/>
+                    <rect x="62" y="72" width="216" height="136" rx="8" fill="#4338ca"/>
+                    <rect x="80" y="92" width="80" height="10" rx="5" fill="#c7d2fe"/>
+                    <rect x="80" y="112" width="120" height="8" rx="4" fill="#818cf8"/>
+                    <rect x="80" y="130" width="100" height="8" rx="4" fill="#818cf8"/>
+                    <g stroke="#eef2ff" stroke-width="6" stroke-linecap="round" fill="none">
+                        <path d="M200 180 q14 -14 28 0"/>
+                        <path d="M188 192 q26 -26 52 0"/>
+                    </g>
+                    <circle cx="214" cy="196" r="4" fill="#eef2ff"/>
+                    <rect x="150" y="220" width="40" height="26" fill="#312e81"/>
+                    <rect x="110" y="246" width="120" height="14" rx="7" fill="#312e81"/>
+                    <circle cx="78" cy="200" r="26" fill="#ffffff"/>
+                    <path d="M66 200 l9 9 l18 -20" stroke="#4338ca" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    <circle cx="280" cy="90" r="10" fill="#ffffff"/>
+                    <circle cx="280" cy="90" r="4" fill="#4338ca"/>
+                </svg>
+            </div>
+        </div>
     </div>
-</div>
-{% endblock %}
+
+    <!-- Multi-tab Session & Password Toggle Script -->
+    <script>
+        function initializeTabId() {
+            let tabId = sessionStorage.getItem('tab_id');
+            if (!tabId) {
+                tabId = Math.random().toString(36).substring(2, 10);
+                sessionStorage.setItem('tab_id', tabId);
+            }
+
+            const currentUrl = new URL(window.location.href);
+            if (!currentUrl.searchParams.has('tab_id')) {
+                currentUrl.searchParams.set('tab_id', tabId);
+                window.history.replaceState(null, '', currentUrl.toString());
+            }
+
+            const hiddenTabId = document.getElementById('tabIdField');
+            if (hiddenTabId) {
+                hiddenTabId.value = currentUrl.searchParams.get('tab_id') || tabId;
+            }
+
+            document.querySelectorAll('a[href]').forEach(link => {
+                const href = link.getAttribute('href');
+                if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+                try {
+                    const url = new URL(link.href, window.location.origin);
+                    if (!url.searchParams.has('tab_id') && url.origin === window.location.origin) {
+                        url.searchParams.set('tab_id', tabId);
+                        link.href = url.toString();
+                    }
+                } catch (e) {
+                    // ignore invalid URLs
+                }
+            });
+        }
+
+        function togglePassword() {
+            const passwordInput = document.getElementById('password-input');
+            const toggleIcon = document.getElementById('toggle-icon');
+
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            initializeTabId();
+        });
+
+        // Auto-hide messages after 5 seconds
+        setTimeout(() => {
+            const alerts = document.querySelectorAll('[class*="bg-red-50"]');
+            alerts.forEach(alert => {
+                alert.style.transition = 'opacity 0.3s ease';
+                alert.style.opacity = '0';
+                setTimeout(() => alert.remove(), 300);
+            });
+        }, 5000);
+    </script>
+</body>
+
+</html>
