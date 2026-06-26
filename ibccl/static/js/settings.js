@@ -1,7 +1,6 @@
-// =========================================================================
-// JAVASCRIPT SYSTEM ENGINE CONTROLLERS   
-// ========================================================================= 
-// ── Create Modal Actions ───────────────────────────────────────────────────
+// JAVASCRIPT SYSTEM ENGINE CONTROLLERS    
+
+//Create Modal Actions
 function openCreateModal() {
     document.getElementById('createModal').classList.remove('hidden');
 }
@@ -9,7 +8,7 @@ function closeCreateModal() {
     document.getElementById('createModal').classList.add('hidden');
 }
 
-// ── Edit Modal Actions ─────────────────────────────────────────────────────
+//Edit Modal Actions
 function openEditModal(id, username, email, firstName, lastName, role, phone, address, city, zipCode, isActive) {
     document.getElementById('edit_user_id').value = id;
     document.getElementById('edit_username').value = username;
@@ -28,7 +27,7 @@ function closeEditModal() {
     document.getElementById('editModal').classList.add('hidden');
 }
 
-// ── Delete Modal Actions ───────────────────────────────────────────────────
+//Delete Modal Actions
 function openDeleteModal(id, username) {
     document.getElementById('delete_user_id').value = id;
     document.getElementById('delete_username_display').textContent = username;
@@ -38,7 +37,7 @@ function closeDeleteModal() {
     document.getElementById('deleteModal').classList.add('hidden');
 }
 
-// ── Tab Switching Actions ──────────────────────────────────────────────────
+//Tab Switching Actions
 function switchSettingsTab(tab, isInitialLoad = false) {
     const tabs = {
         'users': { tabEl: 'usersTab', btnEl: 'btn-users' },
@@ -98,7 +97,7 @@ function switchSettingsTab(tab, isInitialLoad = false) {
     }
 }
 
-// ── Mobile Back to Menu Action ─────────────────────────────────────────────
+//Mobile Back to Menu Action
 function goBackToMenu() {
     const sidebar = document.getElementById('settings-sidebar');
     const content = document.getElementById('settings-content');
@@ -113,7 +112,7 @@ function goBackToMenu() {
     }
 }
 
-// ── Toggle Restore Input Method ────────────────────────────────────────────
+//Toggle Restore Input Method
 function toggleRestoreInput(restoreType) {
     const fileSection = document.getElementById('file-upload-section');
     const historySection = document.getElementById('history-section');
@@ -127,7 +126,7 @@ function toggleRestoreInput(restoreType) {
     }
 }
 
-// ── Toggle Password Visibility ─────────────────────────────────────────────
+//Toggle Password Visibility
 function togglePassword(inputId, iconId) {
     const passwordInput = document.getElementById(inputId);
     const toggleIcon = document.getElementById(iconId);
@@ -143,7 +142,7 @@ function togglePassword(inputId, iconId) {
     }
 }
 
-// ── Real-time Password Strength Checkers ───────────────────────────────────
+//Real-time Password Strength Checkers
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize default active tab styling
     switchSettingsTab('users', true);
