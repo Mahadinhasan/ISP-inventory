@@ -1100,11 +1100,23 @@
 
         // Click outside listener
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('.group') && !e.target.closest('#notification-bell')) {
-                const pd = document.getElementById('profile-dropdown');
-                const nd = document.getElementById('notification-dropdown');
-                if (pd) pd.classList.add('hidden');
-                if (nd) nd.classList.add('hidden');
+            const bell = document.getElementById('notification-bell');
+            const notifDropdown = document.getElementById('notification-dropdown');
+            const profileDropdown = document.getElementById('profile-dropdown');
+            const profileBtn = e.target.closest('[onclick="toggleProfileMenu()"]');
+
+            // Close notification dropdown if clicking outside it and the bell
+            if (notifDropdown && !notifDropdown.classList.contains('hidden')) {
+                if (!notifDropdown.contains(e.target) && e.target !== bell && !bell.contains(e.target)) {
+                    notifDropdown.classList.add('hidden');
+                }
+            }
+
+            // Close profile dropdown if clicking outside it and profile button
+            if (profileDropdown && !profileDropdown.classList.contains('hidden')) {
+                if (!profileDropdown.contains(e.target) && !profileBtn) {
+                    profileDropdown.classList.add('hidden');
+                }
             }
         });
 

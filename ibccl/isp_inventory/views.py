@@ -277,7 +277,7 @@ def dashboard(request):
     all_used_materials = UsedMaterial.objects.filter(
         is_archived=False,
         added_at__date=today
-    ).select_related('technician', 'material').order_by('-added_at')[:50]  # Today's used materials only, limit 50
+    ).select_related('technician', 'material').order_by('-added_at')[:20]  # Today's used materials only, limit 20
     
     # Role-specific material data for the materials modal
     technician_approved_materials = None
@@ -444,17 +444,20 @@ def dashboard(request):
         # For Branch: split technician_approved_materials into in-stock and out-of-stock.
         # - available_quantity > 0  → stays in technician_approved_materials (shown in table)
         # - available_quantity == 0 → moved to low_stock_material_list (hidden from table)
-        # total_materials reflects only the in-stock count.
+        # total_materials reflects the count of unique in-stock materials, not serialized row duplicates.
         if technician_approved_materials:
             in_stock_list = []
+            in_stock_material_names = []
             for req in technician_approved_materials:
                 if req.available_quantity == 0:
                     low_stock_materials += 1
                     low_stock_material_list.append(req)
                 else:
                     in_stock_list.append(req)
+                    if hasattr(req, 'material') and req.material is not None:
+                        in_stock_material_names.append(req.material.name)
             technician_approved_materials = in_stock_list
-            total_materials = len(in_stock_list)
+            total_materials = len(in_stock_material_names)
     else:
         # For Admin/Storekeeper: Materials with status 'Low Stock' or 'Out of Stock'
         if role == 'Storekeeper':
@@ -590,6 +593,7 @@ def dashboard(request):
         'low_stock_materials': low_stock_materials,
         'low_stock_material_list': low_stock_material_list,
         'pending_requests_list': pending_requests_qs.select_related('requester', 'material').order_by('-requested_at').filter(is_archived=False),
+        'recent_requests': pending_requests_qs.select_related('requester', 'material').order_by('-requested_at').filter(is_archived=False),
         'materials_monitoring': materials_monitoring,
         'unread_messages_count': unread_messages_count,
         'total_qty_issued': total_qty_issued,
@@ -624,16 +628,13 @@ def materials_monitoring_view(request):
     materials_monitoring = []
     branch_users = User.objects.filter(userprofile__role='Branch')
     branch_list = branch_users
-    now = timezone.now()
     for branch_user in branch_users:
-        # Only show materials that completed full workflow
-        # NOTE: NOT affected by monthly reset - materials persist across all months
+        # Only show materials that completed full workflow and are not archived
         approved_qs = MaterialRequest.objects.filter(
             requester=branch_user,
             status='Received',
             received_by__isnull=False,  # Branch must have received it
-            requested_at__year=now.year,
-            requested_at__month=now.month
+            is_archived=False
         ).filter(
             Q(pass_on__isnull=False) |
             Q(material__created_by__userprofile__role='NOC')
@@ -643,15 +644,10 @@ def materials_monitoring_view(request):
         used_qs = UsedMaterial.objects.filter(
             technician=branch_user,
             status='Accepted',
-            added_at__year=now.year,
-            added_at__month=now.month,
             is_archived=False
         ).values('material_id').annotate(total=Sum('quantity'))
         for u in used_qs:
             used_totals[u['material_id']] = u['total'] or 0
-
-        # RefundableMaterial records are free-text material names and are not linked to Material objects.
-        # Therefore this dashboard stock calculation skips direct RefundableMaterial aggregation by material_id.
 
         # Include damaged totals for this branch
         dam_qs = DamageMaterial.objects.filter(
@@ -661,15 +657,27 @@ def materials_monitoring_view(request):
         for d in dam_qs:
             used_totals[d['material_id']] = used_totals.get(d['material_id'], 0) + (d['total'] or 0)
         
+        # Include refundable totals for this branch
+        ref_qs = RefundableMaterial.objects.filter(
+            branch_user=branch_user
+        ).values('material_name').annotate(total=Sum('quantity'))
+        refundable_by_name = {r['material_name']: r['total'] or 0 for r in ref_qs}
+        
+        deductions = {}
         for req in approved_qs:
             mat_id = req.material.id
-            branch_quantity = req.quantity
-            available_for_this_req = branch_quantity
+            mat_name = req.material.name
             
-            if mat_id in used_totals and used_totals[mat_id] > 0:
-                amount_to_deduct = min(used_totals[mat_id], branch_quantity)
-                available_for_this_req -= amount_to_deduct
-                used_totals[mat_id] -= amount_to_deduct
+            if mat_id not in deductions:
+                total_used = used_totals.get(mat_id, 0)
+                total_refundable = refundable_by_name.get(mat_name, 0)
+                deductions[mat_id] = total_used + total_refundable
+                
+            branch_quantity = req.quantity
+            to_deduct = min(deductions[mat_id], branch_quantity)
+            
+            available_for_this_req = branch_quantity - to_deduct
+            deductions[mat_id] -= to_deduct
             
             if available_for_this_req > 0 and req.material.status == 'Normal':
                 materials_monitoring.append({
@@ -731,45 +739,146 @@ def get_branch_stock_api(request, user_id):
     })
 
 
+@login_required
+def get_recent_used_materials_api(request):
+    """JSON API: paginated recent used materials (page size 20) for current month only."""
+    from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+    profile = ensure_userprofile(request.user)
+    role = profile.role if profile else None
+
+    if role not in ['Admin', 'NOC']:
+        return JsonResponse({'error': 'Permission denied.'}, status=403)
+
+    now = timezone.now()
+    # Filter by current month and non-archived
+    queryset = UsedMaterial.objects.filter(
+        is_archived=False,
+        added_at__year=now.year,
+        added_at__month=now.month
+    )
+
+    if role == 'NOC':
+        queryset = queryset.filter(material__created_by=request.user)
+
+    queryset = queryset.select_related('technician', 'material').order_by('-added_at')
+
+    page = request.GET.get('page', 1)
+    page_size = 20
+
+    paginator = Paginator(queryset, page_size)
+    try:
+        page_obj = paginator.page(page)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
+    data = []
+    for um in page_obj:
+        data.append({
+            'id': um.id,
+            'technician_username': um.technician.username,
+            'technician_name': um.technician.get_full_name() or um.technician.username,
+            'material_name': um.material.name if um.material else '',
+            'quantity': um.quantity,
+            'status': um.status,
+            'added_at': um.added_at.isoformat() if um.added_at else None,
+        })
+
+    return JsonResponse({
+        'results': data,
+        'page': page_obj.number,
+        'num_pages': paginator.num_pages,
+        'total_count': paginator.count,
+        'has_next': page_obj.has_next(),
+        'has_previous': page_obj.has_previous(),
+    })
+
+
 def get_branch_stock_data(branch_user):
     """
     Get in-stock and low-stock items for a branch user.
     Returns a tuple of (in_stock_list, low_stock_list) with MaterialRequest objects.
-    Each request has an available_quantity calculated as: quantity - sum(used_materials.quantity)
+    Each request has an available_quantity calculated dynamically (FIFO) after deducting used, damaged, and refundable.
     """
-    # Get all received requests for this branch user
+    from django.db.models import Sum
+    from django.db.models.functions import Coalesce
+
+    # Get all received requests for this branch user that are not archived
     received_requests = MaterialRequest.objects.filter(
         requester=branch_user,
-        status='Received'
-    ).select_related('material').prefetch_related('used_materials')
-    
+        status='Received',
+        is_archived=False
+    ).select_related('material').order_by('requested_at')
+
+    # 1. Total used per material
+    used_totals = {}
+    used_qs = UsedMaterial.objects.filter(
+        technician=branch_user,
+        status='Accepted',
+        is_archived=False
+    ).values('material_id').annotate(total=Sum('quantity'))
+    for u in used_qs:
+        used_totals[u['material_id']] = u['total'] or 0
+
+    # 2. Total damaged per material
+    damaged_totals = {}
+    damaged_qs = DamageMaterial.objects.filter(
+        branch_user=branch_user,
+        status__in=['Pending', 'Confirmed']
+    ).values('material_id').annotate(total=Sum('quantity'))
+    for d in damaged_qs:
+        damaged_totals[d['material_id']] = d['total'] or 0
+
+    # 3. Total refundable per material (by material name)
+    refundable_totals = {}
+    refundable_qs = RefundableMaterial.objects.filter(
+        branch_user=branch_user
+    ).values('material_name').annotate(total=Sum('quantity'))
+    for r in refundable_qs:
+        refundable_totals[r['material_name']] = r['total'] or 0
+
     in_stock_list = []
     low_stock_list = []
-    
+
+    deductions = {}
+
     for request_item in received_requests:
-        # Calculate used quantity
-        used_qty = request_item.used_materials.filter(status='Accepted').aggregate(
-            total=Coalesce(Sum('quantity'), 0)
-        )['total']
-        
-        # Calculate available quantity from branch-approved request quantity
-        available = request_item.quantity - used_qty
+        mat_id = request_item.material.id
+        mat_name = request_item.material.name
+
+        # Initialize deduction tracker if not present
+        if mat_id not in deductions:
+            total_used = used_totals.get(mat_id, 0)
+            total_damaged = damaged_totals.get(mat_id, 0)
+            total_refundable = refundable_totals.get(mat_name, 0)
+            deductions[mat_id] = total_used + total_damaged + total_refundable
+
+        req_qty = request_item.quantity
+        to_deduct = min(deductions[mat_id], req_qty)
+
+        available = req_qty - to_deduct
+        deductions[mat_id] -= to_deduct
+
         branch_available = max(0, available)
-        
+
         # Add explicit branch-specific quantity attributes
-        request_item.branch_quantity = request_item.quantity
+        request_item.branch_quantity = req_qty
         request_item.branch_available_quantity = branch_available
         request_item.available_quantity = branch_available
         request_item.serials_display = 'N/A'
         request_item.is_serialized = False
-        
-        # Separate into in-stock and low-stock
-        if branch_available > 0:
+
+        # Separate into in-stock and low-stock:
+        # If branch_available > 2, it is in-stock.
+        # If branch_available <= 2, it is low-stock.
+        if branch_available > 2:
             in_stock_list.append(request_item)
         else:
             low_stock_list.append(request_item)
-    
+
     return in_stock_list, low_stock_list
+
 
 @login_required
 def materials_view(request):
@@ -3161,33 +3270,53 @@ def used_materials_view(request):
                         messages.error(request, "Selected material not found.")
                         return redirect('dashboard' if is_pop else 'used_materials')
 
-                # Check if material is in approved stock
-                approved_material_ids = MaterialRequest.objects.filter(
-                    requester=request.user, status='Received'
-                ).values_list('material', flat=True)
-                
-                if material.id in approved_material_ids:
-                    um = form.save(commit=False)
-                    um.technician = request.user
-                    um.material = material
-                    um.mac_serial = mac_serial
-                    um.quantity = quantity
-                    um.is_pop_entry = is_pop
-                    um.save()
-                    
-                    # Update MacSerial status based on status
-                    if um.mac_serial:
-                        if um.status == 'Accepted':
-                            um.mac_serial.status = 'Used'
-                        else:
-                            um.mac_serial.status = 'Active'
-                        um.mac_serial.save()
-                        
-                    messages.success(request, "Used Material recorded successfully!")
-                    return redirect('dashboard' if is_pop else 'used_materials')
+                if prefix == 's':
+                    # Serialized items are already filtered by active assignment in the form
+                    available_qty = 1
                 else:
-                    messages.error(request, "You can only record usage for received materials.")
+                    total_approved = MaterialRequest.objects.filter(
+                        requester=request.user,
+                        material=material,
+                        status='Received',
+                        is_archived=False
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
+                    total_used = UsedMaterial.objects.filter(
+                        technician=request.user,
+                        material=material
+                    ).exclude(status='Rejected').aggregate(total=Sum('quantity'))['total'] or 0
+                    total_damaged = DamageMaterial.objects.filter(
+                        branch_user=request.user,
+                        material=material,
+                        status__in=['Pending', 'Confirmed']
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
+                    total_refundable = RefundableMaterial.objects.filter(
+                        branch_user=request.user,
+                        material_name=material.name
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
+                    available_qty = total_approved - total_used - total_damaged - total_refundable
+
+                if available_qty <= 0 or quantity > available_qty:
+                    messages.error(request, f"No approved available stock for {material.name}. Available: {available_qty}.")
                     return redirect('dashboard' if is_pop else 'used_materials')
+
+                um = form.save(commit=False)
+                um.technician = request.user
+                um.material = material
+                um.mac_serial = mac_serial
+                um.quantity = quantity
+                um.is_pop_entry = is_pop
+                um.save()
+                
+                # Update MacSerial status based on status
+                if um.mac_serial:
+                    if um.status == 'Accepted':
+                        um.mac_serial.status = 'Used'
+                    else:
+                        um.mac_serial.status = 'Active'
+                    um.mac_serial.save()
+                    
+                messages.success(request, "Used Material recorded successfully!")
+                return redirect('dashboard' if is_pop else 'used_materials')
             else:
                 for field, errors in form.errors.items():
                     if errors:
@@ -3226,42 +3355,64 @@ def used_materials_view(request):
                             messages.error(request, "Selected material not found.")
                             return redirect('used_materials')
 
-                    approved_material_ids = MaterialRequest.objects.filter(
-                        requester=request.user, status='Received'
-                    ).values_list('material', flat=True).distinct()
-                    
-                    if material.id in approved_material_ids:
-                        old_um = UsedMaterial.objects.get(pk=um.pk)
-                        old_mac = old_um.mac_serial
-                        new_status = form.cleaned_data.get('status')
+                    total_approved = MaterialRequest.objects.filter(
+                        requester=request.user,
+                        material=material,
+                        status='Received',
+                        is_archived=False
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
 
-                        try:
-                            with transaction.atomic():
-                                # Handle MacSerial return/deduction
-                                if old_mac:
-                                    old_mac.status = 'Active'
-                                    old_mac.save()
-                                
-                                if new_mac:
-                                    if new_status == 'Accepted':
-                                        new_mac.status = 'Used'
-                                    else:
-                                        new_mac.status = 'Active'
-                                    new_mac.save()
-                                
-                                um.material = material
-                                um.mac_serial = new_mac
-                                um.quantity = new_qty
-                                um.status = new_status
-                                um.save()
-                                messages.success(request, "Used Material updated successfully.")
-                        except Exception as e:
-                            messages.error(request, f"Update error: {str(e)}")
-                            return redirect('used_materials')
-                        
+                    total_used = UsedMaterial.objects.filter(
+                        technician=request.user,
+                        material=material
+                    ).exclude(pk=um.pk).exclude(status='Rejected').aggregate(total=Sum('quantity'))['total'] or 0
+                    total_damaged = DamageMaterial.objects.filter(
+                        branch_user=request.user,
+                        material=material,
+                        status__in=['Pending', 'Confirmed']
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
+                    total_refundable = RefundableMaterial.objects.filter(
+                        branch_user=request.user,
+                        material_name=material.name
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
+                    available_qty = total_approved - total_used - total_damaged - total_refundable
+
+                    if prefix == 's':
+                        available_qty = 1
+
+                    if available_qty <= 0 or new_qty > available_qty:
+                        messages.error(request, f"No approved available stock for {material.name}. Available: {available_qty}.")
                         return redirect('used_materials')
-                    else:
-                        messages.error(request, "You can only use approved materials.")
+
+                    old_um = UsedMaterial.objects.get(pk=um.pk)
+                    old_mac = old_um.mac_serial
+                    new_status = form.cleaned_data.get('status')
+
+                    try:
+                        with transaction.atomic():
+                            # Handle MacSerial return/deduction
+                            if old_mac:
+                                old_mac.status = 'Active'
+                                old_mac.save()
+                                
+                            if new_mac:
+                                if new_status == 'Accepted':
+                                    new_mac.status = 'Used'
+                                else:
+                                    new_mac.status = 'Active'
+                                new_mac.save()
+                                
+                            um.material = material
+                            um.mac_serial = new_mac
+                            um.quantity = new_qty
+                            um.status = new_status
+                            um.save()
+                            messages.success(request, "Used Material updated successfully.")
+                    except Exception as e:
+                        messages.error(request, f"Update error: {str(e)}")
+                        return redirect('used_materials')
+                        
+                    return redirect('used_materials')
                 else:
                     messages.error(request, "Invalid form data.")
             except UsedMaterial.DoesNotExist:
@@ -4138,7 +4289,12 @@ def report_damage_auto(request):
         status__in=['Pending', 'Confirmed']
     ).aggregate(total=Sum('quantity'))['total'] or 0
 
-    used_qty = refundable_qty + damaged_qty
+    used_material_qty = UsedMaterial.objects.filter(
+        technician=request.user,
+        material=material
+    ).exclude(status='Rejected').aggregate(total=Sum('quantity'))['total'] or 0
+
+    used_qty = refundable_qty + damaged_qty + used_material_qty
     available = total_approved - used_qty
 
     if quantity > available:

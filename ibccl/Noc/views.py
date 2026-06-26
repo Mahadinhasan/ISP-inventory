@@ -4,7 +4,8 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import authenticate, logout
 from rest_framework_simplejwt.tokens import RefreshToken
-from isp_inventory.models import UserProfile, Material, MaterialRequest, UsedMaterial, InternalMessage, MacSerialNumber, MaterialMacSerialImport, RefundableMaterial, DamageMaterial
+from isp_inventory.models import UserProfile, Material, MaterialRequest, UsedMaterial, InternalMessage, MacSerialNumber, MaterialMacSerialImport, RefundableMaterial, RefundableMaterialUsage, DamageMaterial
+
 from isp_inventory.utils import deduct_material_stock, restore_material_stock
 from django.db.models import Sum, Count, Q
 from django.db.models.functions import TruncDate
@@ -608,12 +609,16 @@ def noc_used_materials(request):
     # GET Logic
     search_query = request.GET.get('search', '')
     status_filter = request.GET.get('status', '')
+    user_id = request.GET.get('user_id', '')
     
     used_qs = UsedMaterial.objects.filter(
         material__category='Internet',
         material__created_by=request.user
     ).select_related('technician', 'material', 'mac_serial').order_by('-added_at')
     
+    if user_id:
+        used_qs = used_qs.filter(technician_id=user_id)
+        
     if search_query:
         used_qs = used_qs.filter(
             Q(material__name__icontains=search_query) |
@@ -652,6 +657,7 @@ def noc_used_materials(request):
         'rejected_count': rejected_count,
         'search_query': search_query,
         'status_filter': status_filter,
+        'selected_user_id': user_id,
         'users': users_with_usage,
         'role': 'NOC'
     }
@@ -1303,8 +1309,9 @@ def noc_get_damaged_api(request, pk):
 def noc_refundable_materials_view(request):
     refundable_qs = RefundableMaterial.objects.select_related('branch_user').order_by('-added_at')
     branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
-    
+
     selected_user_id = request.GET.get('user_id')
+    selected_user = None
     if selected_user_id:
         try:
             selected_user = User.objects.select_related('userprofile').get(id=selected_user_id, userprofile__role='Branch')
@@ -1325,13 +1332,43 @@ def noc_refundable_materials_view(request):
     page_number = request.GET.get('page')
     refundable_page = paginator.get_page(page_number)
 
+    # Usage records (Used Materials table) — apply same filters
+    refundable_usages_qs = RefundableMaterialUsage.objects.select_related(
+        'refundable_material', 'refundable_material__branch_user', 'used_by'
+    ).order_by('-used_at')
+
+    # Filter by selected branch user
+    if selected_user:
+        refundable_usages_qs = refundable_usages_qs.filter(
+            refundable_material__branch_user=selected_user
+        )
+
+    # Filter by search query
+    if search_query:
+        refundable_usages_qs = refundable_usages_qs.filter(
+            Q(refundable_material__material_name__icontains=search_query) |
+            Q(refundable_material__branch_user__username__icontains=search_query) |
+            Q(refundable_material__branch_user__first_name__icontains=search_query) |
+            Q(refundable_material__branch_user__last_name__icontains=search_query) |
+            Q(client_name__icontains=search_query)
+        ).distinct()
+
+    usage_paginator = Paginator(refundable_usages_qs, 20)
+    usage_page = usage_paginator.get_page(request.GET.get('usage_page'))
+
+    refundable_count = RefundableMaterial.objects.count()
+
     return render(request, 'noc/refundable_materials.html', {
         'refundable_materials': refundable_page,
         'role': 'NOC',
         'page_obj': refundable_page,
         'branch_users': branch_users,
         'search_query': search_query,
+        'usage_page': usage_page,
+        'refundable_count': refundable_count,
     })
+
+
 
 @login_required
 @noc_role_required

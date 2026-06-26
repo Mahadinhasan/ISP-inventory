@@ -799,7 +799,7 @@ class MaterialMacSerialImport(models.Model):
 class RefundableMaterial(models.Model):
     branch_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='refundable_materials')
     material_name = models.CharField(max_length=200, default='')
-    mac_serial = models.CharField(max_length=200, default='N/A', blank=True, verbose_name='Mac/Serial',unique=True)
+    mac_serial = models.CharField(max_length=200, null=True, blank=True, unique=True, verbose_name='Mac/Serial')
     quantity = models.IntegerField(default=1)
     added_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -16,7 +16,6 @@ class RegisterForm(UserCreationForm):
         ('Admin', 'Admin'),
         ('NOC', 'NOC'),
     ]
-
     # Extra fields that live on UserProfile (not User)
     role = forms.ChoiceField(
         choices=ROLE_CHOICES,
@@ -255,39 +254,67 @@ class UsedMaterialForm(forms.ModelForm):
                 if profile and profile.role == 'Branch':
                     # 1. Add Serialized Items (assigned to this user and Active)
                     active_serials = MacSerialNumber.objects.filter(
-                        assigned_to=user, 
+                        assigned_to=user,
                         status='Active'
                     ).select_related('material')
-                    
                     for s in active_serials:
                         choices.append((f"s:{s.id}", f"{s.material.name} - {s.mac_serial}"))
-                    
+
                     # 2. Add Non-Serialized Items (approved for this branch)
-                    # We exclude materials that are handled via MacSerialNumber
                     serialized_material_ids = MacSerialNumber.objects.filter(
                         assigned_to=user
                     ).values_list('material_id', flat=True).distinct()
-                    
-                    approved_requests = MaterialRequest.objects.filter(
-                        requester=user, 
-                        status='Received'
-                    ).exclude(material_id__in=serialized_material_ids).select_related('material')
-                    
-                    # Group by material to show total available
-                    mats_added = set()
-                    for req in approved_requests:
-                        if req.material.id not in mats_added:
-                            choices.append((f"m:{req.material.id}", f"{req.material.name}"))
-                            mats_added.add(req.material.id)
+
+                    approved_materials = MaterialRequest.objects.filter(
+                        requester=user,
+                        status='Received',
+                        is_archived=False
+                    ).values(
+                        'material_id', 'material__name'
+                    ).annotate(total_received=Sum('quantity'))
+
+                    used_query = UsedMaterial.objects.filter(
+                        technician=user
+                    ).exclude(status='Rejected')
+                    if self.instance and self.instance.pk:
+                        used_query = used_query.exclude(pk=self.instance.pk)
+                    used_totals = used_query.values('material_id').annotate(total_used=Sum('quantity'))
+                    used_by_material = {u['material_id']: u['total_used'] or 0 for u in used_totals}
+
+                    damaged_totals = DamageMaterial.objects.filter(
+                        branch_user=user,
+                        status__in=['Pending', 'Confirmed']
+                    ).values('material_id').annotate(total_damaged=Sum('quantity'))
+                    damaged_by_material = {d['material_id']: d['total_damaged'] or 0 for d in damaged_totals}
+
+                    refundable_totals = RefundableMaterial.objects.filter(
+                        branch_user=user
+                    ).values('material_name').annotate(total_refundable=Sum('quantity'))
+                    refundable_by_name = {r['material_name']: r['total_refundable'] or 0 for r in refundable_totals}
+
+                    for item in approved_materials:
+                        mat_id = item['material_id']
+                        mat_name = item['material__name']
+                        used_qty = used_by_material.get(mat_id, 0)
+                        damaged_qty = damaged_by_material.get(mat_id, 0)
+                        refundable_qty = refundable_by_name.get(mat_name, 0)
+                        available = item['total_received'] - used_qty - damaged_qty - refundable_qty
+                        if available > 0:
+                            choices.append((
+                                f"m:{mat_id}",
+                                f"{mat_name} ({available} available)"
+                            ))
+
+                    if len(choices) == 1:
+                        choices = [('', 'No approved in-stock materials available')]
                 else:
                     # Admin/Storekeeper can see all materials
                     all_mats = Material.objects.all().order_by('name')
                     for m in all_mats:
                         choices.append((f"m:{m.id}", m.name))
-                
+
                 self.fields['material_selection'].choices = choices
             except Exception:
-                # Fallback
                 self.fields['material_selection'].choices = [('', 'No materials available')]
         else:
             self.fields['material_selection'].choices = [('', 'Select User first')]
@@ -296,79 +323,114 @@ class UsedMaterialForm(forms.ModelForm):
     
     def clean(self):
         cleaned_data = super().clean()
-        material = cleaned_data.get('material')
+        selection = cleaned_data.get('material_selection')
         quantity = cleaned_data.get('quantity')
-        
-        if not self.user or not material or not quantity:
+
+        if not self.user or not selection or quantity is None:
             return cleaned_data
-            
+
         try:
             profile = ensure_userprofile(self.user)
             if profile and profile.role == 'Branch':
-                # Calculate total approved for this material
-                from django.db.models import Sum
-                total_approved = MaterialRequest.objects.filter(
-                    requester=self.user,
-                    material=material,
-                    status='Received'
-                ).aggregate(total=Sum('quantity'))['total'] or 0
-                
-                # Calculate total used/pending for this material
-                # We exclude the current instance if we're editing
-                used_query = UsedMaterial.objects.filter(
-                    technician=self.user,
-                    material=material
-                )
-                if self.instance and self.instance.pk:
-                    used_query = used_query.exclude(pk=self.instance.pk)
-                    
-                total_used = used_query.aggregate(total=Sum('quantity'))['total'] or 0
-                
-                available = total_approved - total_used
-                
-                if quantity > available:
-                    raise forms.ValidationError(
-                        f"Insufficient approved stock for {material.name}. "
-                        f"Total Approved: {total_approved}, Already Used: {total_used}, "
-                        f"Available: {available}. You tried to use: {quantity}."
+                prefix, pk = selection.split(':', 1)
+                if prefix == 's':
+                    if quantity != 1:
+                        raise forms.ValidationError(
+                            "Serialized items must be used one at a time. Quantity must be 1."
+                        )
+                elif prefix == 'm':
+                    try:
+                        material = Material.objects.get(id=int(pk))
+                    except (Material.DoesNotExist, ValueError):
+                        raise forms.ValidationError("Selected material not found.")
+
+                    total_approved = MaterialRequest.objects.filter(
+                        requester=self.user,
+                        material=material,
+                        status='Received',
+                        is_archived=False
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
+
+                    used_query = UsedMaterial.objects.filter(
+                        technician=self.user,
+                        material=material
                     )
+                    if self.instance and self.instance.pk:
+                        used_query = used_query.exclude(pk=self.instance.pk)
+
+                    total_used = used_query.exclude(status='Rejected').aggregate(total=Sum('quantity'))['total'] or 0
+
+                    damaged_qty = DamageMaterial.objects.filter(
+                        branch_user=self.user,
+                        material=material,
+                        status__in=['Pending', 'Confirmed']
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
+
+                    refundable_qty = RefundableMaterial.objects.filter(
+                        branch_user=self.user,
+                        material_name=material.name
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
+
+                    available = total_approved - total_used - damaged_qty - refundable_qty
+
+                    if available <= 0:
+                        raise forms.ValidationError(
+                            f"No approved stock available for {material.name}."
+                        )
+                    if quantity > available:
+                        raise forms.ValidationError(
+                            f"Insufficient approved stock for {material.name}. "
+                            f"Total Approved: {total_approved}, Already Used: {total_used}, "
+                            f"Available: {available}. You tried to use: {quantity}."
+                        )
+                else:
+                    raise forms.ValidationError("Invalid material selection type.")
         except forms.ValidationError:
             raise
-        except Exception as e:
-            # For general exceptions, we can log or just let it pass
+        except Exception:
             pass
-            
+
         return cleaned_data
 
-    def clean_material(self):
-        """Validate that Branch only selects approved materials with Normal status"""
-        material = self.cleaned_data.get('material')
-        
-        if not material:
-            raise forms.ValidationError("Material is required.")
-        
-        # Status check removed to allow use of Low Stock materials already in possession
-        # Only validate approval for Branch
-        if self.user:
+    def clean_material_selection(self):
+        selection = self.cleaned_data.get('material_selection')
+        if not selection:
+            raise forms.ValidationError("Material selection is required.")
+
+        try:
+            prefix, pk = selection.split(':', 1)
+        except ValueError:
+            raise forms.ValidationError("Invalid material selection format.")
+
+        if prefix == 's':
             try:
+                MacSerialNumber.objects.get(id=int(pk), assigned_to=self.user, status='Active')
+            except (MacSerialNumber.DoesNotExist, ValueError):
+                raise forms.ValidationError("Selected Mac/Serial is not assigned to you or is not active.")
+            return selection
+
+        if prefix == 'm':
+            try:
+                material = Material.objects.get(id=int(pk))
+            except (Material.DoesNotExist, ValueError):
+                raise forms.ValidationError("Selected material not found.")
+
+            if self.user:
                 profile = ensure_userprofile(self.user)
                 if profile and profile.role == 'Branch':
-                    # Check if the selected material is in approved materials for this Branch
                     approved_material_ids = MaterialRequest.objects.filter(
                         requester=self.user,
-                        status='Received'
+                        status='Received',
+                        is_archived=False
                     ).values_list('material', flat=True).distinct()
-                    
+
                     if material.id not in approved_material_ids:
                         raise forms.ValidationError(
                             "You can only use materials that have been approved for you."
                         )
-            except forms.ValidationError:
-                raise
-            except Exception:
-                pass
-        
-        return material
+            return selection
+
+        raise forms.ValidationError("Invalid material selection type.")
 
 class BackupRestoreForm(forms.ModelForm):
     class Meta:
@@ -560,7 +622,9 @@ class RefundableMaterialForm(forms.ModelForm):
             instance.branch_user = self.user
 
         instance.material_name = self.cleaned_data.get('material_name', '').strip()
-        instance.mac_serial = self.cleaned_data.get('mac_serial', '').strip() or 'N/A'
+        mac = self.cleaned_data.get('mac_serial', '')
+        mac = mac.strip() if mac is not None else ''
+        instance.mac_serial = mac or None
 
         if commit:
             instance.save()
@@ -866,7 +930,13 @@ class DamageMaterialForm(forms.ModelForm):
                 if self.instance and self.instance.pk:
                     damaged_qty -= self.instance.quantity
                 
-                used_qty = refundable_qty + damaged_qty
+                # Deduct UsedMaterial quantity (excluding Rejected)
+                used_material_qty = UsedMaterial.objects.filter(
+                    technician=self.user,
+                    material=material
+                ).exclude(status='Rejected').aggregate(total=Sum('quantity'))['total'] or 0
+                
+                used_qty = refundable_qty + damaged_qty + used_material_qty
                 available = total_approved - used_qty
                 
                 if quantity > available:

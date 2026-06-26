@@ -81,8 +81,9 @@
                     <td class="px-4 py-4">
                         <span class="px-3 py-1 text-xs font-semibold rounded-full border 
                             {% if req.status == 'Pending' %}bg-yellow-100 text-yellow-800 border-yellow-200
-                            {% elif req.status == 'Approved' %}bg-green-100 text-green-800 border-green-200
-                            {% else %}bg-green-500 text-black-800 border-green-200{% endif %}">
+                            {% elif req.status == 'Received' %}bg-green-100 text-green-800 border-green-200
+                            {% elif req.status == 'Approved' %}bg-gray-100 text-gray-800 border-gray-200
+                            {% else %}bg-red-500 text-white border-red-500{% endif %}">
                             {{ req.status }}
                         </span>
                     </td>

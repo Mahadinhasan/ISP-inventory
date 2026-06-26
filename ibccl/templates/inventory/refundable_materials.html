@@ -522,7 +522,15 @@
                 'Accept': 'application/json'
             }
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                return response.text().then(text => {
+                    console.error('API error:', response.status, text);
+                    throw new Error(`Server returned ${response.status}`);
+                });
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.error) {
                 alert(data.error);
@@ -542,29 +550,29 @@
 
             const nameInput = usageForm.querySelector('input[name="client_name"]');
             if (nameInput) {
-                nameInput.value = data.client_name === 'N/A' ? '' : data.client_name;
+                nameInput.value = data.client_name === 'N/A' ? '' : (data.client_name || '');
             }
 
             const phoneInput = usageForm.querySelector('input[name="client_phone"]');
             if (phoneInput) {
-                phoneInput.value = data.client_phone === 'N/A' ? '' : data.client_phone;
+                phoneInput.value = data.client_phone === 'N/A' ? '' : (data.client_phone || '');
             }
 
             const addressInput = usageForm.querySelector('textarea[name="client_address"]');
             if (addressInput) {
-                addressInput.value = data.client_address === 'N/A' ? '' : data.client_address;
+                addressInput.value = data.client_address === 'N/A' ? '' : (data.client_address || '');
             }
 
             const issueInput = usageForm.querySelector('textarea[name="issue"]');
             if (issueInput) {
-                issueInput.value = data.issue === 'N/A' ? '' : data.issue;
+                issueInput.value = data.issue === 'N/A' ? '' : (data.issue || '');
             }
 
             document.getElementById('usageModal').classList.remove('hidden');
         })
         .catch(err => {
-            console.error(err);
-            alert('Failed to load used material details.');
+            console.error('openUsageEditModal error:', err);
+            alert('Failed to load used material details: ' + err.message);
         });
     }
 

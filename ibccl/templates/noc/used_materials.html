@@ -12,12 +12,6 @@
             <p class="text-gray-500 dark:text-gray-400 font-medium text-sm">Monitor and verify branch material
                 consumption</p>
         </div>
-        {% if role == 'Branch' %}
-        <button onclick="openAddModal()"
-            class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition-all inline-flex items-center gap-2 shadow-lg">
-            <i class="fas fa-plus"></i>Add Used Material
-        </button>
-        {% endif %}
     </div>
 
     <!-- Filter & Search Row -->
@@ -33,19 +27,11 @@
                 class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white text-sm font-medium min-w-[160px] w-full sm:w-auto appearance-none cursor-pointer">
                 <option value="">All Branches</option>
                 {% for branch_user in users %}
-                <option value="{{ branch_user.id }}" {% if request.GET.user_id == branch_user.id|stringformat:"d" %}selected{% endif %}>
+                <option value="{{ branch_user.id }}" {% if selected_user_id == branch_user.id|stringformat:"d" %}selected{% endif %}>
                     {{ branch_user.username }}</option>
                 {% endfor %}
             </select>
             {% endif %}
-
-            <select name="status" onchange="submitFilterForm()"
-                class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white text-sm font-medium min-w-[140px] w-full sm:w-auto appearance-none cursor-pointer">
-                <option value="">All Statuses</option>
-                <option value="Pending" {% if status_filter == 'Pending' %}selected{% endif %}>Pending</option>
-                <option value="Accepted" {% if status_filter == 'Accepted' %}selected{% endif %}>Accepted</option>
-                <option value="Rejected" {% if status_filter == 'Rejected' %}selected{% endif %}>Rejected</option>
-            </select>
 
             <div class="flex items-center w-full sm:w-auto">
                 <input type="text" name="search" placeholder="Search materials, clients..." value="{{ search_query }}"
@@ -59,89 +45,85 @@
     </div>
 
     <!-- Used Materials List -->
-    <div
-        class="bg-white dark:bg-midnight-900/40 glass-card rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-midnight-800 mx-4">
+    <div class="bg-white dark:bg-midnight-900/40 glass-card rounded-[0.6rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-midnight-800 mx-4">
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-900 dark:divide-midnight-800">
                 <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
                     <tr>
-                        {% if role != 'Branch' %}
                         <th scope="col"
-                            class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
+                            class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
                             Branch</th>
-                        {% endif %}
                         <th scope="col"
-                            class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-white uppercase tracking-wider">
                             Material Name</th>
                         <th scope="col"
-                            class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
-                            Mac/Serial</th>
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-white uppercase tracking-wider">
+                            MAC/Serial</th>
                         <th scope="col"
-                            class="px-6 py-4 text-center text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
-                            Qty</th>
+                            class="px-4 py-3 text-center text-xs font-medium text-gray-900 dark:text-white uppercase tracking-wider">
+                            Quantity</th>
                         <th scope="col"
-                            class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-white uppercase tracking-wider">
                             Client Name</th>
                         <th scope="col"
-                            class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-white uppercase tracking-wider">
                             Address</th>
                         <th scope="col"
-                            class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-white uppercase tracking-wider">
                             Phone</th>
                         <th scope="col"
-                            class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-white uppercase tracking-wider">
                             Issue</th>
                         <th scope="col"
-                            class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
-                            Status</th>
-                        <th scope="col"
-                            class="px-6 py-4 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-white uppercase tracking-wider">
                             Date</th>
+                        <th scope="col"
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-900 dark:text-white uppercase tracking-wider">
+                            Status</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
                     {% for item in used_materials %}
                     <tr class="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition duration-300">
-                        {% if role != 'Branch' %}
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
-                            {{ item.technician.username }}</td>
-                        {% endif %}
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
-                            {{ item.material.name }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
-                            {{ item.mac_serial.mac_serial|default:"N/A" }}</td>
-                        <td
-                            class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-black text-center">
-                            {{ item.quantity }}
+                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ item.technician.username }}</td>
+                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="truncate">{{ item.material.name }}</span>
+                                {% if item.is_pop_entry %}
+                                <span class="text-[9px] font-bold text-white bg-teal-600 px-1.5 py-0.5 rounded-full flex-shrink-0">POP</span>
+                                {% endif %}
+                            </div>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                            {{ item.client_name|default:"Maintenance" }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 truncate max-w-[150px]">
-                            {{ item.client_address|default:"N/A" }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                            {{ item.client_phone|default:"N/A" }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 truncate max-w-[150px]">
-                            {{ item.issue|default:"N/A" }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider
-                                {% if item.status == 'Pending' %}bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400
-                                {% elif item.status == 'Accepted' %}bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400
-                                {% elif item.status == 'Rejected' %}bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400
-                                {% else %}bg-gray-50 text-gray-700 dark:bg-gray-800 dark:text-gray-400{% endif %}">
+                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono">
+                            {% if item.mac_serial %}
+                                {{ item.mac_serial.mac_serial }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-bold bg-gray-50 dark:bg-midnight-950 rounded-lg text-center">
+                            {{ item.quantity }}</td>
+                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{{ item.client_name|default:"N/A" }}</td>
+                        <td class="px-4 py-4 text-sm text-gray-700 dark:text-gray-300">{{ item.client_address|default:"N/A"|truncatewords:10 }}</td>
+                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{{ item.client_phone|default:"N/A" }}</td>
+                        <td class="px-4 py-4 text-sm text-gray-700 dark:text-gray-300">{{ item.issue|default:"N/A"|truncatewords:8 }}</td>
+                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{item.added_at|date:"d-m-Y"}}</td>
+                        <td class="px-4 py-4 whitespace-nowrap">
+                            <span class="px-3 py-1 rounded-full text-xs font-semibold
+                                {% if item.status == 'Pending' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200
+                                {% elif item.status == 'Accepted' %}bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200
+                                {% elif item.status == 'Rejected' %}bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200
+                                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400{% endif %}">
                                 {{ item.status }}
                             </span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-[11px] font-bold text-gray-400">
-                            {{item.added_at|date:"d-m-Y"}}</td>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="{% if role != 'Branch' %}11{% else %}10{% endif %}" class="px-6 py-20 text-center">
+                        <td colspan="10" class="px-6 py-20 text-center">
                             <div class="flex flex-col items-center">
                                 <i class="fas fa-box-open text-gray-200 dark:text-gray-800 text-6xl mb-4"></i>
-                                <p class="text-gray-500 dark:text-gray-400 font-bold text-lg">No consumption records
-                                    found</p>
+                                <p class="text-gray-500 dark:text-gray-400 font-bold text-lg">No consumption records found</p>
                                 <p class="text-gray-400 dark:text-gray-500 text-sm">Waiting for branch reports...</p>
                             </div>
                         </td>
@@ -153,160 +135,12 @@
     </div>
 </div>
 
-<!--pagination-->
-<div class="flex justify-end mt-8">
-    <nav class="flex items-center space-x-2">
-        {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode }}"
-            class="px-4 py-2 rounded-xl bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 text-gray-600 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition font-bold text-sm">
-            Previous
-        </a>
-        {% endif %}
-        {% for num in page_obj.paginator.page_range %}
-        {% if page_obj.number == num %}
-        <span class="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-sm">
-            {{ num }}
-        </span>
-        {% else %}
-        <a href="?page={{ num }}&{{ request.GET.urlencode }}"
-            class="px-4 py-2 rounded-xl bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 text-gray-600 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition font-bold text-sm">
-            {{ num }}
-        </a>
-        {% endif %}
-        {% endfor %}
-        {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode }}"
-            class="px-4 py-2 rounded-xl bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 text-gray-600 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition font-bold text-sm">
-            Next
-        </a>
-        {% endif %}
-    </nav>
-</div>
-
-<!-- Add/Edit Modal (Branch Only) -->
-{% if role == 'Branch' %}
-<div id="addEditModal"
-    class="hidden fixed inset-0 bg-midnight-950/80 flex items-center justify-center z-50 backdrop-blur-md p-4"
-    onclick="if(event.target === this) closeModal()">
-    <div
-        class="bg-white dark:bg-midnight-900 rounded-[2rem] shadow-2xl max-w-lg w-full max-h-[90vh] border border-gray-100 dark:border-midnight-800 overflow-hidden">
-        <div
-            class="px-8 py-6 border-b border-gray-100 dark:border-midnight-800 flex justify-between items-center bg-gray-50/50 dark:bg-midnight-950/50">
-            <h2 class="text-2xl font-black text-gray-900 dark:text-white tracking-tight" id="modalTitle">
-                Used Material
-            </h2>
-            <button onclick="closeModal()"
-                class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition">
-                <i class="fas fa-times text-xl"></i>
-            </button>
-        </div>
-
-        <form method="POST" action="{% url 'noc:used_materials' %}"
-            class="p-8 space-y-5 overflow-y-auto max-h-[calc(90vh-140px)]">
-            {% csrf_token %}
-            <input type="hidden" name="action" id="modalAction" value="create">
-            <input type="hidden" name="um_id" id="modalUmId" value="">
-
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label
-                        class="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">Material
-                        *</label>
-                    {{ form.material }}
-                </div>
-                <div>
-                    <label
-                        class="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">Category</label>
-                    <div id="categoryDisplay"
-                        class="w-full px-4 py-3 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl bg-gray-50 dark:bg-midnight-950 text-gray-400 text-sm font-bold">
-                        -</div>
-                </div>
-            </div>
-
-            <div>
-                <label
-                    class="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">Quantity
-                    *</label>
-                {{ form.quantity }}
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label
-                        class="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">Client
-                        Name</label>
-                    {{ form.client_name }}
-                </div>
-                <div>
-                    <label
-                        class="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">Phone</label>
-                    {{ form.client_phone }}
-                </div>
-            </div>
-
-            <div>
-                <label
-                    class="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">Address</label>
-                {{ form.client_address }}
-            </div>
-
-            <div>
-                <label
-                    class="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">Notes
-                    / Issue</label>
-                {{ form.issue }}
-            </div>
-
-            <div class="flex gap-3 pt-4">
-                <button type="button" onclick="closeModal()"
-                    class="flex-1 px-6 py-4 border-2 border-gray-100 dark:border-midnight-800 text-gray-500 dark:text-gray-400 font-bold rounded-2xl hover:bg-gray-50 dark:hover:bg-midnight-950 transition-all">
-                    Cancel
-                </button>
-                <button type="submit"
-                    class="flex-1 px-6 py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 dark:shadow-none transition-all">
-                    Save Record
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Delete Confirmation Modal -->
-<div id="deleteModal"
-    class="hidden fixed inset-0 bg-midnight-950/80 flex items-center justify-center z-50 backdrop-blur-md p-4">
-    <div
-        class="bg-white dark:bg-midnight-900 rounded-[2rem] shadow-2xl max-w-sm w-full p-8 border border-gray-100 dark:border-midnight-800 text-center">
-        <div class="w-16 h-16 bg-red-50 dark:bg-red-900/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <i class="fas fa-trash-alt text-2xl text-red-600 dark:text-red-400"></i>
-        </div>
-        <h3 class="text-2xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">Delete Report?</h3>
-        <p class="text-gray-500 dark:text-gray-400 text-sm mb-8 font-medium">This action is irreversible. The
-            consumption log will be permanently removed.</p>
-
-        <form method="POST" action="{% url 'noc:used_materials' %}" class="flex gap-3">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="delete">
-            <input type="hidden" name="um_id" id="deleteUmId" value="">
-
-            <button type="button" onclick="closeDeleteModal()"
-                class="flex-1 px-6 py-3 border-2 border-gray-100 dark:border-midnight-800 text-gray-500 dark:text-gray-400 font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-midnight-950 transition">
-                No, Keep it
-            </button>
-            <button type="submit"
-                class="flex-1 px-6 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-100 dark:shadow-none transition">
-                Yes, Delete
-            </button>
-        </form>
-    </div>
-</div>
-{% endif %}
-
 <!-- Pagination Controls -->
 {% if page_obj.has_other_pages %}
 <div class="flex justify-end mt-8 items-center px-4 mb-20">
     <nav class="inline-flex gap-2">
         {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+        <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if selected_user_id %}&user_id={{ selected_user_id }}{% endif %}"
             class="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-midnight-950 border-2 border-gray-50 dark:border-midnight-800 text-gray-400 hover:text-indigo-600 transition shadow-sm">
             <i class="fas fa-chevron-left"></i>
         </a>
@@ -315,160 +149,48 @@
         {% for num in page_obj.paginator.page_range %}
         {% if page_obj.number == num %}
         <span
-            class="w-10 h-10 flex items-center justify-center rounded-xl bg-indigo-600 text-white font-bold shadow-lg shadow-indigo-100 dark:shadow-none">{{
-            num }}</span>
-        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %} <a
-            href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+            class="w-10 h-10 flex items-center justify-center rounded-xl bg-indigo-600 text-white font-bold shadow-lg shadow-indigo-100 dark:shadow-none">{{ num }}</span>
+        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+        <a href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if selected_user_id %}&user_id={{ selected_user_id }}{% endif %}"
             class="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-midnight-950 border-2 border-gray-50 dark:border-midnight-800 text-gray-500 hover:text-indigo-600 font-bold transition shadow-sm">
             {{ num }}</a>
-            {% endif %}
-            {% endfor %}
+        {% endif %}
+        {% endfor %}
 
-            {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}"
-                class="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-midnight-950 border-2 border-gray-50 dark:border-midnight-800 text-gray-400 hover:text-indigo-600 transition shadow-sm">
-                <i class="fas fa-chevron-right"></i>
-            </a>
-            {% endif %}
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if selected_user_id %}&user_id={{ selected_user_id }}{% endif %}"
+            class="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-midnight-950 border-2 border-gray-50 dark:border-midnight-800 text-gray-400 hover:text-indigo-600 transition shadow-sm">
+            <i class="fas fa-chevron-right"></i>
+        </a>
+        {% endif %}
     </nav>
 </div>
 {% endif %}
 
-
 <script>
-    // Category options based on material selection
-    const materialCategories = {
-        {% for item in form.material.field.queryset %}
-    '{{ item.id }}': '{{ item.category }}',
-        {% endfor %}
-    };
-
-    function openAddModal() {
-        if ('{{ role }}' !== 'Branch') return;
-        document.getElementById('modalTitle').textContent = 'Add Used Material';
-        document.getElementById('modalAction').value = 'create';
-        document.getElementById('modalUmId').value = '';
-        resetForm();
-        document.getElementById('addEditModal').classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
-    }
-
-    function openEditModal(umId) {
-        if ('{{ role }}' !== 'Branch') return;
-        document.getElementById('modalTitle').textContent = 'Edit Used Material';
-        document.getElementById('modalAction').value = 'edit';
-        document.getElementById('modalUmId').value = umId;
-        loadFormData(umId);
-        document.getElementById('addEditModal').classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
-    }
-
-    function resetForm() {
-        const form = document.querySelector('form[method="POST"]');
-        if (form) {
-            form.reset();
-            updateCategory();
+    // Helper function to ensure tab_id is always in the form before submission
+    function submitFilterForm() {
+        const form = document.getElementById('filter-form');
+        const tabIdInput = form.querySelector('input[name="tab_id"]');
+        
+        let tabId = sessionStorage.getItem('tab_id');
+        if (!tabId) {
+            tabId = Math.random().toString(36).substring(2, 10);
+            sessionStorage.setItem('tab_id', tabId);
         }
-    }
-
-    function loadFormData(umId) {
-        let fetchUrl = `/api/used-materials/${umId}/`;
-        const tabId = sessionStorage.getItem('tab_id');
-        if (tabId) fetchUrl += `?tab_id=${tabId}`;
-
-        fetch(fetchUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('id_material').value = data.material;
-                document.getElementById('id_client_name').value = data.client_name || '';
-                document.getElementById('id_client_phone').value = data.client_phone || '';
-                document.getElementById('id_client_address').value = data.client_address || '';
-                document.getElementById('id_quantity').value = data.quantity;
-                document.getElementById('id_issue').value = data.issue || '';
-                updateCategory();
-            });
-    }
-
-    function updateCategory() {
-        const materialSelect = document.getElementById('id_material');
-        if (!materialSelect) return;
-        const selectedOption = materialSelect.options[materialSelect.selectedIndex];
-        const categoryDisplay = document.getElementById('categoryDisplay');
-
-        if (selectedOption && selectedOption.value) {
-            let category = materialCategories[selectedOption.value];
-            categoryDisplay.textContent = category || '-';
-            categoryDisplay.classList.toggle('text-indigo-600', !!category);
-            categoryDisplay.classList.toggle('text-gray-400', !category);
+        
+        if (tabIdInput) {
+            tabIdInput.value = tabId;
         } else {
-            categoryDisplay.textContent = '-';
-            categoryDisplay.classList.add('text-gray-400');
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'tab_id';
+            input.value = tabId;
+            form.appendChild(input);
         }
+        form.submit();
     }
-
-    function closeModal() {
-        document.getElementById('addEditModal').classList.add('hidden');
-        document.body.style.overflow = 'auto';
-    }
-
-    function confirmDelete(umId) {
-        if ('{{ role }}' !== 'Branch') return;
-        document.getElementById('deleteUmId').value = umId;
-        document.getElementById('deleteModal').classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
-    }
-
-    function closeDeleteModal() {
-        document.getElementById('deleteModal').classList.add('hidden');
-        document.body.style.overflow = 'auto';
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-        const materialSelect = document.getElementById('id_material');
-        if (materialSelect) {
-            materialSelect.addEventListener('change', updateCategory);
-            updateCategory();
-        }
-
-        // Auto-style django inputs
-        const inputs = document.querySelectorAll('select, input[type="text"], input[type="tel"], input[type="number"], textarea');
-        inputs.forEach(input => {
-            if (!input.id.startsWith('id_search')) {
-                input.classList.add('w-full', 'px-6', 'py-4', 'border-2', 'border-gray-50', 'dark:border-midnight-800', 'rounded-2xl', 'focus:outline-none', 'focus:border-indigo-600', 'dark:bg-midnight-950', 'dark:text-white', 'transition-all', 'text-sm', 'font-medium');
-            }
-        });
-    });
 </script>
-
-
-    <script>
-        // Helper function to ensure tab_id is always in the form before submission
-        function submitFilterForm() {
-            const form = document.getElementById('filter-form');
-            const tabIdInput = form.querySelector('input[name="tab_id"]');
-            
-            // Get tab_id from sessionStorage
-            let tabId = sessionStorage.getItem('tab_id');
-            if (!tabId) {
-                tabId = Math.random().toString(36).substring(2, 10);
-                sessionStorage.setItem('tab_id', tabId);
-            }
-            
-            // Add or update tab_id in the form
-            if (tabIdInput) {
-                tabIdInput.value = tabId;
-            } else {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'tab_id';
-                input.value = tabId;
-                form.appendChild(input);
-            }
-            
-            // Submit the form
-            form.submit();
-        }
-    </script>
 
 <style>
     .glass-card {

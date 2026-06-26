@@ -19,8 +19,10 @@ def _get_user_role(user):
 
 def _get_initial_monitoring_data(user=None):
     from django.db.models import Count, Sum, Q
+    from django.utils import timezone
     from .models import UserProfile, UsedMaterial
 
+    now = timezone.now()
     branch_profiles = UserProfile.objects.filter(role='Branch').select_related('user')
     result = {
         'branch_users': [],
@@ -32,7 +34,13 @@ def _get_initial_monitoring_data(user=None):
 
     for profile in branch_profiles:
         u = profile.user
-        used_filter = Q(technician=u, status='Accepted')
+        used_filter = Q(
+            technician=u,
+            status='Accepted',
+            is_archived=False,
+            added_at__year=now.year,
+            added_at__month=now.month
+        )
         if is_noc:
             used_filter &= Q(material__created_by=user)
             
@@ -50,8 +58,12 @@ def _get_initial_monitoring_data(user=None):
                 'used_quantity_total': used_qty,
             })
             
-    # Recent used materials (last 20) for live feed
-    recent = UsedMaterial.objects.select_related('technician', 'material')
+    # Recent used materials (last 20) for live feed - current month, non-archived only
+    recent = UsedMaterial.objects.filter(
+        is_archived=False,
+        added_at__year=now.year,
+        added_at__month=now.month
+    ).select_related('technician', 'material')
     if is_noc:
         recent = recent.filter(material__created_by=user)
     

@@ -500,7 +500,18 @@
 </script>
 
 <style>
-    #addEditModal.hidden, #deleteModal.hidden, #approvalModal.hidden {
+    /* Custom scrollbar for the table */
+    .overflow-x-auto::-webkit-scrollbar {
+        height: 8px;
+    }
+    .overflow-x-auto::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .overflow-x-auto::-webkit-scrollbar-thumb {
+        background-color: rgba(107, 114, 128, 0.5); /* Gray-500 */
+        border-radius: 4px;
+    }
+     #addEditModal.hidden, #deleteModal.hidden, #approvalModal.hidden {
         display: none !important;
     }
 </style>

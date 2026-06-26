@@ -106,6 +106,7 @@ def material_stock_notifications(sender, instance, **kwargs):
             _notify_users(admin_store_users, payload)
 
 
+
 @receiver(post_save, sender=UsedMaterial)
 def subtract_used_material_from_inventory(sender, instance, created, **kwargs):
     """
@@ -132,6 +133,43 @@ def subtract_used_material_from_inventory(sender, instance, created, **kwargs):
                 "message": f"Your personal remaining stock is {status_text} (Remaining total: {branch_stock}). Please request more materials if needed.",
             }
             _notify_user(instance.technician, payload)
+
+        # Notify the NOC user who created the material when a branch user reports using it
+        if instance.material and instance.material.created_by:
+            noc_user = instance.material.created_by
+            try:
+                if hasattr(noc_user, 'userprofile') and noc_user.userprofile.role == 'NOC':
+                    technician_name = (instance.technician.get_full_name() or instance.technician.username) if instance.technician else 'Unknown'
+                    material_name = instance.material.name if instance.material else 'Unknown'
+                    noc_payload = {
+                        "category": "request",
+                        "event": "used_material",
+                        "title": "New Used Material Report",
+                        "message": f"{technician_name} reported using {instance.quantity}x {material_name}.",
+                    }
+                    _notify_user(noc_user, noc_payload)
+            except Exception:
+                pass
+
+    # Also notify NOC when status changes (Accepted/Rejected by NOC)
+    if not created and instance.status in ('Accepted', 'Rejected') and instance.material and instance.material.created_by:
+        try:
+            noc_user = instance.material.created_by
+            if hasattr(noc_user, 'userprofile') and noc_user.userprofile.role == 'NOC':
+                technician_name = (instance.technician.get_full_name() or instance.technician.username) if instance.technician else 'Unknown'
+                material_name = instance.material.name if instance.material else 'Unknown'
+                # Notify technician (branch user) of the NOC decision
+                if instance.technician:
+                    branch_payload = {
+                        "category": "request",
+                        "event": instance.status.lower(),
+                        "title": f"Material Report {instance.status}",
+                        "message": f"Your used material report for {material_name} was {instance.status} by NOC.",
+                    }
+                    _notify_user(instance.technician, branch_payload)
+        except Exception:
+            pass
+
 
 
 @receiver(post_delete, sender=UsedMaterial)
