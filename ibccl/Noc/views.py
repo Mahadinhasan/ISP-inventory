@@ -172,13 +172,20 @@ def noc_dashboard(request):
 
     # Report Shortcuts: Current month stats
     month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    total_qty_issued = MaterialRequest.objects.filter(
+    total_qty_issued = DamageMaterial.objects.filter(
+        status='Confirmed',
         material__category='Internet',
         material__created_by=request.user,
-        status='Approved',
-        requested_at__gte=month_start
-    ).aggregate(total=Sum('quantity'))['total'] or 0
+        confirmed_at__gte=month_start
+    ).count()
     
+    total_req_count = MaterialRequest.objects.filter(
+        material__category='Internet',
+        material__created_by=request.user,
+        is_archived=False,
+        requested_at__gte=month_start
+    ).count()
+
     advance_count = MaterialRequest.objects.filter(
         material__category='Internet',
         material__created_by=request.user,
@@ -192,7 +199,7 @@ def noc_dashboard(request):
         material__created_by=request.user,
         status='Accepted',
         added_at__gte=month_start
-    ).aggregate(total=Sum('quantity'))['total'] or 0
+    ).count()
 
     # Context for modals
     total_users = UserProfile.objects.count()
@@ -281,6 +288,7 @@ def noc_dashboard(request):
         'mac_serial_count': mac_serial_count,
         'unread_messages_count': unread_messages_count,
         'total_qty_issued': total_qty_issued,
+        'total_req_count': total_req_count,
         'advance_count': advance_count,
         'total_used_qty': total_used_qty,
         'total_users': total_users,
@@ -1257,6 +1265,12 @@ def noc_process_damaged(request, pk):
     if request.method == 'POST':
         action = request.POST.get('action')
         admin_note = request.POST.get('admin_note', '').strip()
+
+        # Rejected records are permanently locked — cannot be changed
+        if dm.status == 'Rejected':
+            messages.error(request, "This damage record has already been Rejected and is permanently locked. No further changes are allowed.")
+            return redirect('noc:dashboard')
+
         if action == 'confirm':
             dm.status = 'Confirmed'
             dm.confirmed_by = request.user

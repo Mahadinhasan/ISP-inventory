@@ -93,15 +93,16 @@
                                     <span class="text-xs text-gray-400 italic">Confirmed</span>
                                     {% endif %}
                                 {% elif role == 'Admin' or role == 'Storekeeper' %}
-                                    {% if item.status == 'Pending' %}
-                                    <!-- <button onclick="openEditModal('{{ item.id }}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 font-semibold" title="Edit">
-                                        <i class="fas fa-edit"></i>
-                                    </button> -->
+                                    {% if item.status == 'Rejected' %}
+                                        <span class="px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-600 italic cursor-not-allowed" title="This record is rejected and cannot be changed.">
+                                            <i class="fas fa-lock mr-1"></i>Locked
+                                        </span>
+                                    {% else %}
+                                        <button onclick="openApprovalModal('{{ item.id }}', '{{ item.material_name }}', '{{ item.quantity }}', '{{ item.branch_user_name }}', '{{ item.damage_reason }}', '{{ item.mac_serial.mac_serial|default:"N/A" }}', '{{ item.status }}', '{{ item.admin_note }}')" 
+                                                class="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 dark:bg-midnight-800 dark:hover:bg-midnight-700 dark:text-red-300 text-xs font-bold rounded-lg border border-red-100 dark:border-midnight-800 transition">
+                                            <i class="fas fa-check-double mr-1"></i>Review
+                                        </button>
                                     {% endif %}
-                                    <button onclick="openApprovalModal('{{ item.id }}', '{{ item.material_name }}', '{{ item.quantity }}', '{{ item.branch_user_name }}', '{{ item.damage_reason }}', '{{ item.mac_serial.mac_serial|default:"N/A" }}', '{{ item.status }}', '{{ item.admin_note }}')" 
-                                            class="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 dark:bg-midnight-800 dark:hover:bg-midnight-700 dark:text-red-300 text-xs font-bold rounded-lg border border-red-100 dark:border-midnight-800 transition">
-                                        <i class="fas fa-check-double mr-1"></i>Review
-                                    </button>
                                 {% endif %}
                             </div>
                         </td>
@@ -284,16 +285,21 @@
                         class="w-full px-3 py-2 border-2 border-gray-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-slate-900 dark:text-white text-sm"></textarea>
                 </div>
 
-                <div class="flex gap-2 pt-4 border-t border-gray-200 dark:border-slate-700">
+                <div id="reviewActions" class="flex gap-2 pt-4 border-t border-gray-200 dark:border-slate-700">
                     <button type="button" onclick="closeApprovalModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 font-semibold transition text-sm">
                         Cancel
                     </button>
-                    <button type="submit" onclick="document.getElementById('reviewAction').value='reject'" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition text-sm">
+                    <button type="submit" id="reviewRejectBtn" onclick="document.getElementById('reviewAction').value='reject'" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition text-sm">
                         <i class="fas fa-times-circle mr-1"></i>Reject Report
                     </button>
-                    <button type="submit" onclick="document.getElementById('reviewAction').value='confirm'" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition text-sm">
+                    <button type="submit" id="reviewConfirmBtn" onclick="document.getElementById('reviewAction').value='confirm'" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition text-sm">
                         <i class="fas fa-check-circle mr-1"></i>Confirm Damage
                     </button>
+                </div>
+                <div id="reviewLockedNotice" class="hidden pt-4 border-t border-gray-200 dark:border-slate-700 flex items-center gap-2 text-red-600 dark:text-red-400 text-sm font-semibold">
+                    <i class="fas fa-lock"></i>
+                    <span>This record has been Rejected and is permanently locked. No further changes are allowed.</span>
+                    <button type="button" onclick="closeApprovalModal()" class="ml-auto px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 font-semibold transition text-sm">Close</button>
                 </div>
             </form>
         </div>

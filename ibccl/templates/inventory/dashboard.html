@@ -738,9 +738,9 @@
                 </div>
                 <!-- Stat 2 -->
                 <div class="bg-amber-50 dark:bg-amber-950/30 p-6 rounded-2xl text-center border border-amber-100 dark:border-amber-900/50">
-                    <p class="text-xs font-bold text-amber-600 uppercase tracking-widest mb-2">Advance Req</p>
-                    <p class="text-3xl font-black text-amber-900 dark:text-amber-300">{{ advance_count }}</p>
-                    <p class="text-[10px] text-amber-500 mt-1">Pending/Processed</p>
+                    <p class="text-xs font-bold text-amber-600 uppercase tracking-widest mb-2">Total Request</p>
+                    <p class="text-3xl font-black text-amber-900 dark:text-amber-300">{{ total_req_count }}</p>
+                    <p class="text-[10px] text-amber-500 mt-1">This Month</p>
                 </div>
                 <!-- Stat 3 -->
                 <div class="bg-teal-50 dark:bg-teal-950/30 p-6 rounded-2xl text-center border border-teal-100 dark:border-teal-900/50">
@@ -1226,10 +1226,16 @@
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <div class="flex gap-2">
                                         {% if role == 'Admin' or role == 'Storekeeper' %}
-                                            <button onclick="openTabApprovalModal('damaged', '{{ item.id }}', '{{ item.material.name }}', '{{ item.quantity }}', '{{ item.branch_user.username }}', '{{ item.damage_reason }}', '{{ item.status }}', '{{ item.admin_note }}', '{{ item.mac_serial }}')" 
-                                                    class="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 dark:bg-midnight-800 dark:hover:bg-midnight-700 dark:text-red-300 text-xs font-bold rounded border border-red-100 dark:border-midnight-800 transition">
-                                                <i class="fas fa-check-double mr-1"></i>Review
-                                            </button>
+                                            {% if item.status == 'Rejected' %}
+                                                <span class="px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-600 italic cursor-not-allowed" title="This record is rejected and cannot be changed.">
+                                                    <i class="fas fa-lock mr-1"></i>Locked
+                                                </span>
+                                            {% else %}
+                                                <button onclick="openTabApprovalModal('damaged', '{{ item.id }}', '{{ item.material.name }}', '{{ item.quantity }}', '{{ item.branch_user.username }}', '{{ item.damage_reason }}', '{{ item.status }}', '{{ item.admin_note }}', '{{ item.mac_serial }}')"
+                                                        class="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 dark:bg-midnight-800 dark:hover:bg-midnight-700 dark:text-red-300 text-xs font-bold rounded border border-red-100 dark:border-midnight-800 transition">
+                                                    <i class="fas fa-check-double mr-1"></i>Review
+                                                </button>
+                                            {% endif %}
                                         {% endif %}
                                     </div>
                                 </td>
@@ -1430,16 +1436,21 @@
                         class="w-full px-3 py-2 border border-gray-300 dark:border-midnight-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-midnight-950 dark:text-white text-sm"></textarea>
                 </div>
 
-                <div class="flex gap-2 pt-4 border-t border-gray-200 dark:border-midnight-800">
+                <div id="tabApprovalActions" class="flex gap-2 pt-4 border-t border-gray-200 dark:border-midnight-800">
                     <button type="button" onclick="closeTabApprovalModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-midnight-800 text-gray-700 dark:text-gray-300 rounded-lg font-semibold hover:bg-gray-100 dark:hover:bg-midnight-800 transition text-sm">
                         Cancel
                     </button>
-                    <button type="submit" onclick="setTabApprovalAction('reject')" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition text-sm">
+                    <button type="submit" id="tabApprovalRejectBtn" onclick="setTabApprovalAction('reject')" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition text-sm">
                         Reject
                     </button>
                     <button type="submit" onclick="setTabApprovalAction('confirm')" id="tabApprovalConfirmBtn" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition text-sm">
                         Confirm
                     </button>
+                </div>
+                <div id="tabApprovalLockedNotice" class="hidden pt-4 border-t border-gray-200 dark:border-midnight-800 flex items-center gap-2 text-red-600 dark:text-red-400 text-sm font-semibold">
+                    <i class="fas fa-lock"></i>
+                    <span>This record has been Rejected and is permanently locked. No further changes are allowed.</span>
+                    <button type="button" onclick="closeTabApprovalModal()" class="ml-auto px-4 py-2 border border-gray-300 dark:border-midnight-800 text-gray-700 dark:text-gray-300 rounded-lg font-semibold hover:bg-gray-100 dark:hover:bg-midnight-800 transition text-sm">Close</button>
                 </div>
             </form>
         </div>
@@ -1449,10 +1460,8 @@
 <!-- 📝 Description: Admin monitoring dashboard for branch stocks. -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 {% if role == 'Admin' %}
-<div id="materialsMonitoringModal" 
-                class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
-                onclick="if(event.target === this) this.classList.add('hidden')">
-                <div id="materialsMonitoringModalContent" class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4 transform transition-all duration-300">
+<div id="materialsMonitoringModal"class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"onclick="if(event.target === this) this.classList.add('hidden')">
+    <div id="materialsMonitoringModalContent" class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4 transform transition-all duration-300">
                     <div class="p-6 border-b flex justify-between items-center">
                         <h3 class="text-xl font-bold text-gray-900">Materials Monitoring - Branch Users</h3>
                         <div class="flex items-center gap-3 ml-auto">
@@ -2053,10 +2062,13 @@
     }
 
     // Admin Process Approval Modal
-    function openTabApprovalModal(type, id, matName, qty, branchUser, reason, status, adminNote, materialId) {
+    function openTabApprovalModal(type, id, matName, qty, branchUser, reason, status, adminNote, mac_serial) {
         const form = document.getElementById('tabApprovalForm');
         const idField = document.getElementById('tabApprovalIdField');
         const confirmBtn = document.getElementById('tabApprovalConfirmBtn');
+        const rejectBtn = document.getElementById('tabApprovalRejectBtn');
+        const formActionsArea = document.getElementById('tabApprovalActions');
+        const lockedNotice = document.getElementById('tabApprovalLockedNotice');
 
         if (type === 'refundable') {
             form.action = "{% url 'refundable_materials' %}";
@@ -2084,10 +2096,25 @@
         statusSpan.className = 'px-2 py-0.5 rounded text-xs font-semibold ';
         if (status === 'Pending') {
             statusSpan.className += 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200';
-        } else if (status === 'Accepted' || status === 'Confirmed') {
+            // Pending: show both Reject and Confirm buttons
+            rejectBtn.classList.remove('hidden');
+            confirmBtn.classList.remove('hidden');
+            lockedNotice.classList.add('hidden');
+            formActionsArea.classList.remove('hidden');
+        } else if (status === 'Confirmed') {
             statusSpan.className += 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200';
+            // Confirmed: can be changed — show both buttons
+            rejectBtn.classList.remove('hidden');
+            confirmBtn.classList.remove('hidden');
+            lockedNotice.classList.add('hidden');
+            formActionsArea.classList.remove('hidden');
         } else {
+            // Rejected: locked — hide action buttons, show locked notice
             statusSpan.className += 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200';
+            rejectBtn.classList.add('hidden');
+            confirmBtn.classList.add('hidden');
+            lockedNotice.classList.remove('hidden');
+            formActionsArea.classList.add('hidden');
         }
 
         document.getElementById('tabApprovalModal').classList.remove('hidden');

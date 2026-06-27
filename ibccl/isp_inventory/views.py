@@ -533,20 +533,31 @@ def dashboard(request):
     month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     
     if role == 'Branch':
-        total_qty_issued = MaterialRequest.objects.filter(
-            requester=request.user, status='Received', requested_at__gte=month_start
-        ).aggregate(total=Sum('quantity'))['total'] or 0
+        total_qty_issued = DamageMaterial.objects.filter(
+            branch_user=request.user,
+            status='Confirmed',
+            confirmed_at__gte=month_start
+        ).count()
+        total_req_count = MaterialRequest.objects.filter(
+            requester=request.user, is_archived=False, requested_at__gte=month_start
+        ).count()
         advance_count = MaterialRequest.objects.filter(
             requester=request.user, request_type='Advance', requested_at__gte=month_start
         ).count()
         total_used_qty = UsedMaterial.objects.filter(
             technician=request.user, status='Accepted', added_at__gte=month_start
-        ).aggregate(total=Sum('quantity'))['total'] or 0
+        ).count()
     else:
         # Admin/Storekeeper
-        total_qty_issued = MaterialRequest.objects.filter(
-            status='Received', requested_at__gte=month_start
-        ).aggregate(total=Sum('quantity'))['total'] or 0
+        total_qty_issued = DamageMaterial.objects.filter(
+            status='Confirmed',
+            confirmed_by__userprofile__role__in=['Admin', 'Storekeeper'],
+            confirmed_at__gte=month_start
+        ).count()
+        total_req_count = MaterialRequest.objects.filter(
+            is_archived=False,
+            requested_at__gte=month_start
+        ).count()
         advance_count = MaterialRequest.objects.filter(
             request_type='Advance',
             is_archived=False,
@@ -554,7 +565,7 @@ def dashboard(request):
         ).count()
         total_used_qty = UsedMaterial.objects.filter(
             status='Accepted', added_at__gte=month_start
-        ).aggregate(total=Sum('quantity'))['total'] or 0
+        ).count()
         
         #Total price
         total_price_agg1 = Material.objects.aggregate(total=Sum('total_price'))['total']
@@ -597,6 +608,7 @@ def dashboard(request):
         'materials_monitoring': materials_monitoring,
         'unread_messages_count': unread_messages_count,
         'total_qty_issued': total_qty_issued,
+        'total_req_count': total_req_count,
         'advance_count': advance_count,
         'total_used_qty': total_used_qty,
         'total_price1': total_price1,
@@ -2656,7 +2668,7 @@ def settings_view(request):
                 messages.error(request, f"Error updating user: {str(e)}")
             return redirect('settings')
 
-        # ── Toggle Active Status ───────────────────────────────────────────
+        # ── Toggle Active Status ───
         elif action == 'toggle_status':
             user_id = request.POST.get('user_id')
             if user_id:
@@ -4201,6 +4213,10 @@ def damaged_materials_view(request):
                 else:
                     dm = DamageMaterial.objects.get(pk=dm_id)
                 
+                # Rejected records are permanently locked — cannot be changed
+                if dm.status == 'Rejected':
+                    messages.error(request, "This damage record has already been Rejected and is permanently locked. No further changes are allowed.")
+                    return redirect('damaged_materials')
                 try:
                     with transaction.atomic():
                         dm.status = 'Confirmed' if action == 'confirm' else 'Rejected'
