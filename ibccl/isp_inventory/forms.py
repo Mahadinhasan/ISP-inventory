@@ -313,6 +313,23 @@ class UsedMaterialForm(forms.ModelForm):
                     for m in all_mats:
                         choices.append((f"m:{m.id}", m.name))
 
+                # When EDITING an existing record, pre-select the current material/serial
+                if self.instance and self.instance.pk:
+                    if self.instance.mac_serial_id:
+                        # Serialized item — the current serial may be Retired, inject it back
+                        try:
+                            current_serial = MacSerialNumber.objects.select_related('material').get(pk=self.instance.mac_serial_id)
+                            serial_key = f"s:{current_serial.id}"
+                            existing_keys = [c[0] for c in choices]
+                            if serial_key not in existing_keys:
+                                choices.insert(1, (serial_key, f"{current_serial.material.name} - {current_serial.mac_serial} (current)"))
+                            self.fields['material_selection'].initial = serial_key
+                        except Exception:
+                            pass
+                    elif self.instance.material_id:
+                        # Non-serialized — pre-select by material ID
+                        self.fields['material_selection'].initial = f"m:{self.instance.material_id}"
+
                 self.fields['material_selection'].choices = choices
             except Exception:
                 self.fields['material_selection'].choices = [('', 'No materials available')]
@@ -404,9 +421,19 @@ class UsedMaterialForm(forms.ModelForm):
 
         if prefix == 's':
             try:
-                MacSerialNumber.objects.get(id=int(pk), assigned_to=self.user, status='Active')
+                serial = MacSerialNumber.objects.get(id=int(pk), assigned_to=self.user)
+                # When creating: only allow Active serials.
+                # When editing the SAME record: allow the serial regardless of status
+                # (it may be Used/Retired but still legitimately belongs to this record).
+                is_editing_same = (
+                    self.instance and
+                    self.instance.pk and
+                    self.instance.mac_serial_id == serial.id
+                )
+                if not is_editing_same and serial.status != 'Active':
+                    raise forms.ValidationError("Selected Mac/Serial is not active.")
             except (MacSerialNumber.DoesNotExist, ValueError):
-                raise forms.ValidationError("Selected Mac/Serial is not assigned to you or is not active.")
+                raise forms.ValidationError("Selected Mac/Serial is not assigned to you or does not exist.")
             return selection
 
         if prefix == 'm':
@@ -603,6 +630,22 @@ class RefundableMaterialForm(forms.ModelForm):
             raise forms.ValidationError('Material name is required.')
         return material_name
 
+    def clean_mac_serial(self):
+        mac = self.cleaned_data.get('mac_serial', '')
+        if mac:
+            mac = mac.strip()
+            if mac.upper() in ['N/A', 'NA', 'NONE', 'NIL', '']:
+                return None
+            
+            # Check unique constraint manually
+            qs = RefundableMaterial.objects.filter(mac_serial__iexact=mac)
+            if self.instance and self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise forms.ValidationError('This MAC/Serial is already logged for a refundable material.')
+            return mac
+        return None
+
     def clean_quantity(self):
         quantity = self.cleaned_data.get('quantity')
         if quantity is None or quantity < 1:
@@ -691,7 +734,11 @@ class RefundableMaterialUsageForm(forms.ModelForm):
                     used_total = rf.usages.aggregate(total=Sum('materials_quantity'))['total'] or 0
                     available = rf.quantity - used_total
                     if available > 0 or (self.instance and self.instance.pk and self.instance.refundable_material_id == rf.id):
-                        choices.append((f"r:{rf.id}", f"{rf.material_name} (Available: {available})"))
+                        if rf.mac_serial:
+                            label = f"{rf.material_name} - {rf.mac_serial} (Available: {available})"
+                        else:
+                            label = f"{rf.material_name} (Available: {available})"
+                        choices.append((f"r:{rf.id}", label))
         except Exception:
             pass
         self.fields['material_selection'].choices = choices

@@ -8,7 +8,7 @@ from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from .forms import RegisterForm, MaterialForm, RequestForm, SystemSettingForm, NotificationSettingForm, UsedMaterialForm, LogSettingsForm, RefundableMaterialForm, RefundableMaterialUsageForm, DamageMaterialForm
 from .models import Material, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial, MaterialMonthlyCount, InternalMessage, ActivityLog, LogSettings, MacSerialNumber, RefundableMaterial, RefundableMaterialUsage, DamageMaterial
 from .utils import ensure_userprofile
-from django.db.models import Sum, Q, F, Case, When, IntegerField, Count
+from django.db.models import Sum, Q, F, Case, When, IntegerField, Count, FloatField
 from django.db.models.functions import Coalesce
 from django.db import transaction
 from django.utils import timezone
@@ -298,8 +298,6 @@ def dashboard(request):
             requester=request.user,
             status='Received',  # Only received status (workflow complete)
             received_by__isnull=False,  # Branch must have received it
-            requested_at__year=now.year,
-            requested_at__month=now.month
         ).filter(
             Q(pass_on__isnull=False) |
             Q(material__created_by__userprofile__role='NOC')
@@ -314,8 +312,11 @@ def dashboard(request):
         for u in used_qs:
             used_totals[u['material_id']] = u['total'] or 0
 
-        # RefundableMaterial records are stored as free-text material names and are not linked to Material objects.
-        # Therefore this dashboard stock calculation skips direct RefundableMaterial aggregation by material_id.
+        # Include RefundableMaterial (all-time) totals for this branch
+        ref_qs = RefundableMaterial.objects.filter(
+            branch_user=request.user
+        ).values('material_name').annotate(total=Sum('quantity'))
+        refundable_totals = {r['material_name']: r['total'] or 0 for r in ref_qs}
 
         # Include DamageMaterial (Pending/Confirmed) totals for this branch
         dam_qs = DamageMaterial.objects.filter(
@@ -338,36 +339,62 @@ def dashboard(request):
 
         # Process requests and handle serialized materials
         technician_approved_materials = []
+        added_serial_ids = set()
         for req in approved_qs:
             mat_id = req.material.id
+            mat_name = req.material.name
             available_for_this_req = req.quantity
             
-            # Deduct used quantity (FIFO)
-            if mat_id in used_totals and used_totals[mat_id] > 0:
-                amount_to_deduct = min(used_totals[mat_id], req.quantity)
+            # Deduct used / damaged / refundable (FIFO)
+            used_qty = used_totals.get(mat_id, 0)
+            ref_qty = refundable_totals.get(mat_name, 0)
+            
+            total_to_deduct = used_qty + ref_qty
+            if total_to_deduct > 0:
+                amount_to_deduct = min(total_to_deduct, req.quantity)
                 available_for_this_req -= amount_to_deduct
-                used_totals[mat_id] -= amount_to_deduct
+                
+                # Update totals for subsequent FIFO rows of this material
+                if used_qty > 0:
+                    used_deduct = min(used_qty, amount_to_deduct)
+                    used_totals[mat_id] -= used_deduct
+                    amount_to_deduct -= used_deduct
+                if amount_to_deduct > 0 and ref_qty > 0:
+                    ref_deduct = min(ref_qty, amount_to_deduct)
+                    refundable_totals[mat_name] -= ref_deduct
             
             # Get serials for this specific material
             serials = serials_by_material.get(mat_id, [])
             
-            if serials:
-                # Split into individual rows for each serial
+            if available_for_this_req > 0 and serials:
+                # Split into individual rows for each serial up to the available quantity.
                 from types import SimpleNamespace
+                serials_added = 0
                 for serial_obj in serials:
-                    # Create a "virtual" request object for display
-                    virtual_req = SimpleNamespace(
-                        id=req.id,
-                        material=req.material,
-                        requested_at=req.requested_at,
-                        available_quantity=1,
-                        serials_display=serial_obj['mac_serial'],
-                        serials_display_id=serial_obj['id'],
-                        is_serialized=True
-                    )
-                    technician_approved_materials.append(virtual_req)
-            else:
-                # If no serials, show as a single aggregate row
+                    if serials_added >= available_for_this_req:
+                        break
+                    if serial_obj['id'] not in added_serial_ids:
+                        added_serial_ids.add(serial_obj['id'])
+                        serials_added += 1
+                        virtual_req = SimpleNamespace(
+                            id=req.id,
+                            material=req.material,
+                            requested_at=req.requested_at,
+                            available_quantity=1,
+                            serials_display=serial_obj['mac_serial'],
+                            serials_display_id=serial_obj['id'],
+                            is_serialized=True
+                        )
+                        technician_approved_materials.append(virtual_req)
+
+                remaining_qty = available_for_this_req - serials_added
+                if remaining_qty > 0:
+                    req.available_quantity = remaining_qty
+                    req.serials_display = "N/A"
+                    req.is_serialized = False
+                    technician_approved_materials.append(req)
+            elif available_for_this_req > 0:
+                # If no serials, or no remaining serials to attach, show as a single aggregate row.
                 req.available_quantity = available_for_this_req
                 req.serials_display = "N/A"
                 req.is_serialized = False
@@ -375,6 +402,10 @@ def dashboard(request):
         
         # Sort by date (newest first)
         technician_approved_materials.reverse()
+        #total_materials pagination count for branch user and storkeeper
+        paginated_materials = Paginator(technician_approved_materials, 20)  # 20 per page
+        page_number = request.GET.get('page')
+        page_obj = paginated_materials.get_page(page_number)
 
         # Get current-month Advance requests for branch user.
         # Status is kept visible so approved/rejected rows remain stable in the modal.
@@ -457,7 +488,10 @@ def dashboard(request):
                     if hasattr(req, 'material') and req.material is not None:
                         in_stock_material_names.append(req.material.name)
             technician_approved_materials = in_stock_list
-            total_materials = len(in_stock_material_names)
+
+            # Count unique in-stock materials by material id/name, not by available quantity.
+            # Count every in-stock request row, even if the same material appears multiple times.
+            total_materials = len(in_stock_list)
     else:
         # For Admin/Storekeeper: Materials with status 'Low Stock' or 'Out of Stock'
         if role == 'Storekeeper':
@@ -473,51 +507,57 @@ def dashboard(request):
     if role == 'Admin':
         branch_users = User.objects.filter(userprofile__role='Branch')
         for branch_user in branch_users:
-            # Only monitor materials that completed full workflow
-            # NOTE: NOT affected by monthly reset - materials persist across all months
+            # Only monitor materials that completed full workflow (all-time, not month-limited)
             approved_qs = MaterialRequest.objects.filter(
                 requester=branch_user,
                 status='Received',
-                received_by__isnull=False,  # Branch must have received it
-                requested_at__year=now.year,
-                requested_at__month=now.month
+                received_by__isnull=False,
             ).filter(
                 Q(pass_on__isnull=False) |
                 Q(material__created_by__userprofile__role='NOC')
             ).select_related('material').order_by('requested_at')
-            
+
             used_totals = {}
             used_qs = UsedMaterial.objects.filter(
                 technician=branch_user,
                 status='Accepted',
-                added_at__year=now.year,
-                added_at__month=now.month,
                 is_archived=False
             ).values('material_id').annotate(total=Sum('quantity'))
             for u in used_qs:
                 used_totals[u['material_id']] = u['total'] or 0
 
-            # Include refundable totals for this branch
-            # RefundableMaterial records are free-text and not linked to Material objects,
-            # so skip this aggregation here to avoid invalid queries.
+            # Include refundable totals (by material name) for this branch
+            ref_qs = RefundableMaterial.objects.filter(
+                branch_user=branch_user
+            ).values('material_name').annotate(total=Sum('quantity'))
+            refundable_totals_mon = {r['material_name']: r['total'] or 0 for r in ref_qs}
 
-            # Include damaged totals for this branch
+            # Include damaged (Pending/Confirmed) totals for this branch
             dam_qs = DamageMaterial.objects.filter(
                 branch_user=branch_user,
                 status__in=['Pending', 'Confirmed']
             ).values('material_id').annotate(total=Sum('quantity'))
             for d in dam_qs:
                 used_totals[d['material_id']] = used_totals.get(d['material_id'], 0) + (d['total'] or 0)
-            
+
             for req in approved_qs:
                 mat_id = req.material.id
+                mat_name = req.material.name
                 available_for_this_req = req.quantity
-                
-                if mat_id in used_totals and used_totals[mat_id] > 0:
-                    amount_to_deduct = min(used_totals[mat_id], req.quantity)
+
+                used_qty = used_totals.get(mat_id, 0)
+                ref_qty = refundable_totals_mon.get(mat_name, 0)
+                total_to_deduct = used_qty + ref_qty
+                if total_to_deduct > 0:
+                    amount_to_deduct = min(total_to_deduct, req.quantity)
                     available_for_this_req -= amount_to_deduct
-                    used_totals[mat_id] -= amount_to_deduct
-                
+                    if used_qty > 0:
+                        used_deduct = min(used_qty, amount_to_deduct)
+                        used_totals[mat_id] -= used_deduct
+                        amount_to_deduct -= used_deduct
+                    if amount_to_deduct > 0 and ref_qty > 0:
+                        refundable_totals_mon[mat_name] -= min(ref_qty, amount_to_deduct)
+
                 if available_for_this_req > 0 and req.material.status == 'Normal':
                     materials_monitoring.append({
                         'branch': branch_user,
@@ -525,7 +565,7 @@ def dashboard(request):
                         'quantity': available_for_this_req,
                         'status': req.material.status,
                         'date': req.requested_at,
-                    }) 
+                    })
 
     # Common stats for all roles: Unread Messages and Report Summaries
     unread_messages_count = InternalMessage.objects.filter(receiver=request.user, is_read=False).count()
@@ -617,6 +657,7 @@ def dashboard(request):
         'refundable_form': refundable_form,
         'damaged_form': damaged_form,
         'branch_users': branch_users,
+        'page_obj': page_obj if role == 'Branch' else None,  # For pagination of branch materials
     })
 
 @login_required
@@ -1147,7 +1188,6 @@ def materials_export_excel(request):
         ws_summary.column_dimensions[get_column_letter(col_idx)].width = 18
 
     # Summary data by category
-    from django.db.models import Count, Case, When, IntegerField
     category_summary = materials.values('category').annotate(
         total_materials=Count('id'),
         in_stock=Count(Case(When(status='Normal', then=1), output_field=IntegerField())),
@@ -1503,8 +1543,8 @@ def requests_view(request):
                     if req.status in ['Approved', 'Dispatched', 'Received']:
                         messages.warning(request, "Request already approved.")
                         return redirect('requests')
-                    
-                    # Get the quantity to approve (admin can override)
+
+                    # Get the quantity to approve (admin can override from modal)
                     try:
                         if admin_quantity:
                             approved_qty = int(admin_quantity)
@@ -1517,37 +1557,59 @@ def requests_view(request):
                     except ValueError:
                         messages.error(request, "Invalid quantity value.")
                         return redirect('requests')
-                    
+
                     try:
                         with transaction.atomic():
-                            # Refresh material to be safe
                             mat = Material.objects.select_for_update().get(pk=req.material.id)
-                            total_available = mat.quantity + mat.Remaining_stock
-                            
-                            # Check if sufficient stock available
-                            if approved_qty > total_available:
-                                messages.error(request, f"Insufficient stock for {mat.name}. Available In Stock: {mat.quantity}, Remaining Stock: {mat.Remaining_stock}, Requested: {approved_qty}")
+
+                            in_stock    = mat.quantity          # current in-stock quantity
+                            remaining   = mat.Remaining_stock   # carryover / remaining stock
+                            total_avail = in_stock + remaining
+
+
+                            if total_avail < approved_qty:
+                                messages.error(
+                                    request,
+                                    f"Insufficient stock for '{mat.name}'. "
+                                    f"In Stock: {in_stock}, Remaining Stock: {remaining}, "
+                                    f"Total Available: {total_avail}, Requested: {approved_qty}."
+                                )
                                 return redirect('requests')
-                            
-                            # Deduct the approved quantity (Prioritize In Stock / Quantity)
-                            take_from_qty = min(approved_qty, mat.quantity)
-                            take_from_rem = approved_qty - take_from_qty
-                            
-                            mat.quantity -= take_from_qty
+
+                            if in_stock >= approved_qty:
+                                # Enough in primary stock — take entirely from quantity
+                                take_from_qty = approved_qty
+                                take_from_rem = 0
+                                stock_msg = f"{approved_qty} units taken from In Stock."
+                            else:
+                                # Primary stock short — take all of in_stock, rest from Remaining
+                                take_from_qty = in_stock
+                                take_from_rem = approved_qty - take_from_qty
+                                stock_msg = (
+                                    f"{take_from_qty} units taken from In Stock + "
+                                    f"{take_from_rem} units taken from Remaining Stock."
+                                )
+
+                            mat.quantity        -= take_from_qty
                             mat.Remaining_stock -= take_from_rem
                             mat.save()
-                            
-                            # Update request with tracking info
-                            req.quantity = approved_qty
-                            req.deducted_from_quantity = take_from_qty
+
+                            # Save tracking info on the request record
+                            req.quantity                = approved_qty
+                            req.deducted_from_quantity  = take_from_qty
                             req.deducted_from_remaining = take_from_rem
-                            req.status = 'Approved'
-                            req.admin_note = note
+                            req.status                  = 'Approved'
+                            req.admin_note              = note
                             req.save()
-                            messages.success(request, f"Request approved. {approved_qty} units deducted (In Stock: {take_from_qty}, Remaining: {take_from_rem}).")
+
+                            messages.success(
+                                request,
+                                f"Request approved for {req.requester.get_full_name() or req.requester.username}. "
+                                f"{stock_msg}"
+                            )
                     except Exception as e:
-                         messages.error(request, f"Transaction failed: {str(e)}")
-                         return redirect('requests')
+                        messages.error(request, f"Transaction failed: {str(e)}")
+                        return redirect('requests')
 
                 elif action == 'reject':
                     if req.status == 'Received':
@@ -1753,6 +1815,7 @@ def reports_view(request):
         )
 
     # ── Chart data ──
+    # Daily activity for Material Requests (for compatibility)
     daily_data = (
         requests_qs
         .annotate(day=TruncDate('requested_at'))
@@ -1769,6 +1832,58 @@ def reports_view(request):
     chart_pending  = [d['pending']  for d in daily_data]
     chart_rejected = [d['rejected'] for d in daily_data]
 
+    # Daily activity for UsedMaterial (preferred for "Daily Used Materials Activity")
+    used_daily_data = (
+        used_qs
+        .annotate(day=TruncDate('added_at'))
+        .values('day')
+        .annotate(
+            accepted=Count('id', filter=Q(status='Accepted')),
+            pending=Count('id', filter=Q(status='Pending')),
+            rejected=Count('id', filter=Q(status='Rejected')),
+        )
+        .order_by('day')
+    )
+    used_chart_labels   = [str(d['day']) for d in used_daily_data]
+    used_chart_accepted = [d['accepted'] for d in used_daily_data]
+    used_chart_pending  = [d['pending']  for d in used_daily_data]
+    used_chart_rejected = [d['rejected'] for d in used_daily_data]
+
+    # Confirmed / Accepted Damaged Materials calculations
+    daily_damaged_qs = damaged_qs.filter(status='Confirmed')
+    if selected_user:
+        daily_damaged_summary = (
+            daily_damaged_qs
+            .values('material__name')
+            .annotate(total=Sum('quantity'))
+            .order_by('-total')
+        )
+        daily_damaged_materials = [
+            {'branch_name': item['material__name'], 'damaged_materials': item['total']}
+            for item in daily_damaged_summary
+        ]
+    else:
+        daily_damaged_summary = (
+            daily_damaged_qs
+            .values('branch_user__username')
+            .annotate(total=Sum('quantity'))
+            .order_by('-total')
+        )
+        daily_damaged_materials = [
+            {'branch_name': item['branch_user__username'], 'damaged_materials': item['total']}
+            for item in daily_damaged_summary
+        ]
+
+    damaged_daily_data = (
+        daily_damaged_qs
+        .annotate(day=TruncDate('added_at'))
+        .values('day')
+        .annotate(total=Sum('quantity'))
+        .order_by('day')
+    )
+    damaged_chart_labels = [str(d['day']) for d in damaged_daily_data]
+    damaged_chart_values = [d['total'] for d in damaged_daily_data]
+
     # Material category breakdown
     category_data = (
         requests_qs.filter(status='Received')
@@ -1779,15 +1894,70 @@ def reports_view(request):
     cat_labels = [d['material__category'] or 'Unknown' for d in category_data]
     cat_values = [d['qty'] or 0 for d in category_data]
 
-    recent_requests = requests_qs.order_by('-requested_at')[:20]
+    # ── Estimated amounts per-branch (Approved/Received requests) ──
+    est_amounts = []
+    est_labels = []
+    est_values = []
+    if role in ['Admin', 'Storekeeper', 'NOC']:
+        est_qs = (
+            requests_qs.filter(status='Received')
+            .values('requester__id', 'requester__username')
+            .annotate(amount=Sum(F('quantity') * F('material__rate'), output_field=FloatField()))
+            .order_by('-amount')
+        )
+        for e in est_qs:
+            branch_name = e.get('requester__username') or f"User {e.get('requester__id')}"
+            amount = e.get('amount') or 0
+            est_amounts.append({'branch_name': branch_name, 'amount': amount})
+            est_labels.append(branch_name)
+            est_values.append(round(float(amount), 2))
+
+
+    recent_requests_qs = requests_qs.order_by('-requested_at')
+    paginator = Paginator(recent_requests_qs, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    recent_requests = page_obj.object_list
+
+    get_params = request.GET.copy()
+    if 'page' in get_params:
+        del get_params['page']
+    query_string = get_params.urlencode()
 
     # Low stock alert table content
+    low_stock_display_items = []
     if selected_user:
-        low_stock_list_display = low_stock_list[:20]
+        for item in low_stock_list:
+            material = getattr(item, 'material', None)
+            available_quantity = getattr(item, 'available_quantity', None)
+            low_stock_display_items.append({
+                'name': getattr(material, 'name', None) or getattr(item, 'name', ''),
+                'category': getattr(material, 'category', None) or getattr(item, 'category', ''),
+                'quantity': available_quantity if available_quantity is not None else getattr(item, 'quantity', 0),
+                'date_added': getattr(material, 'added_at', None) or getattr(item, 'added_at', None) or getattr(item, 'date_added', None),
+                'status': 'Out of Stock' if (available_quantity is not None and available_quantity == 0) else 'Low Stock',
+            })
     else:
-        low_stock_list_display = Material.objects.filter(
-            status__in=['Low Stock', 'Out of Stock']
-        ).order_by('status', 'name')[:20]
+        low_stock_display_items = [
+            {
+                'name': item.name,
+                'category': item.category,
+                'quantity': item.quantity,
+                'date_added': getattr(item, 'added_at', None) or getattr(item, 'date_added', None),
+                'status': item.status,
+            }
+            for item in Material.objects.filter(status__in=['Low Stock', 'Out of Stock']).order_by('status', 'name')
+        ]
+
+    low_stock_paginator = Paginator(low_stock_display_items, 10)
+    low_stock_page_number = request.GET.get('low_stock_page')
+    low_stock_page_obj = low_stock_paginator.get_page(low_stock_page_number)
+    low_stock_list_display = low_stock_page_obj.object_list
+
+    low_stock_get_params = request.GET.copy()
+    if 'low_stock_page' in low_stock_get_params:
+        del low_stock_get_params['low_stock_page']
+    low_stock_query_string = low_stock_get_params.urlencode()
 
     # ── Branch-specific detailed data ──
     branch_req_pending  = []
@@ -1835,7 +2005,11 @@ def reports_view(request):
         'top_materials':    top_materials,
         'user_breakdown':   user_breakdown,
         'recent_requests':  recent_requests,
+        'page_obj':         page_obj,
+        'query_string':     query_string,
         'low_stock_list':   low_stock_list_display,
+        'low_stock_page_obj': low_stock_page_obj,
+        'low_stock_query_string': low_stock_query_string,
         # Branch-specific data
         'in_stock_list': in_stock_list,
         'damaged_materials': damaged_qs,
@@ -1848,13 +2022,24 @@ def reports_view(request):
         'branch_um_pending':   branch_um_pending,
         'branch_um_accepted':  branch_um_accepted,
         'branch_um_rejected':  branch_um_rejected,
+        # Daily Damaged Materials summary
+        'daily_damaged_materials': daily_damaged_materials,
         # Chart data (serialised for JS)
         'chart_labels_json':   _json.dumps(chart_labels),
         'chart_approved_json': _json.dumps(chart_approved),
         'chart_pending_json':  _json.dumps(chart_pending),
         'chart_rejected_json': _json.dumps(chart_rejected),
+        'used_chart_labels_json':   _json.dumps(used_chart_labels),
+        'used_chart_accepted_json': _json.dumps(used_chart_accepted),
+        'used_chart_pending_json':  _json.dumps(used_chart_pending),
+        'used_chart_rejected_json': _json.dumps(used_chart_rejected),
+        'damaged_chart_labels_json': _json.dumps(damaged_chart_labels),
+        'damaged_chart_values_json': _json.dumps(damaged_chart_values),
         'cat_labels_json':     _json.dumps(cat_labels),
         'cat_values_json':     _json.dumps(cat_values),
+        'est_amounts':         est_amounts,
+        'est_labels_json':     _json.dumps(est_labels),
+        'est_values_json':     _json.dumps(est_values),
     }
     return render(request, 'inventory/reports.html', context)
 
@@ -2004,7 +2189,7 @@ def _generate_branch_excel_report(request, requests_qs, start, end, from_date, t
         row[6].fill = red
         row[6].font = Font(bold=True, color='991B1B')
     
-    # ── USED MATERIALS SHEETS ─────────────────────────────────────────────────
+    # ── USED MATERIALS SHEETS ────
     
     # Sheet 4: Pending Used Materials
     ws_um_pending = wb.create_sheet('Used Materials - Pending')
@@ -2094,6 +2279,43 @@ def _generate_branch_excel_report(request, requests_qs, start, end, from_date, t
     for row in ws_um_rejected.iter_rows(min_row=4, max_row=ws_um_rejected.max_row):
         row[5].fill = red
         row[5].font = Font(bold=True, color='991B1B')
+
+    # Sheet 7: Damaged Materials
+    ws_damaged = wb.create_sheet('Damaged Materials')
+    ws_damaged.row_dimensions[1].height = 22
+    ws_damaged.merge_cells('A1:F1')
+    title = ws_damaged['A1']
+    title.value = f'Confirmed Damaged Materials ({from_date} → {to_date})'
+    title.font = Font(bold=True, size=13, color='1E1B4B')
+    title.alignment = Alignment(horizontal='center', vertical='center')
+    ws_damaged.row_dimensions[1].height = 28
+    ws_damaged.append([])
+    
+    dmg_headers = ['Date', 'Material', 'Category', 'Qty', 'Reason', 'Status']
+    dmg_widths  = [14, 28, 16, 12, 30, 12]
+    style_header_row(ws_damaged, dmg_headers, dmg_widths)
+    
+    branch_dmg = DamageMaterial.objects.filter(
+        branch_user=request.user,
+        added_at__date__gte=start,
+        added_at__date__lte=end,
+        status='Confirmed'
+    ).select_related('material').order_by('-added_at')
+    
+    for dmg in branch_dmg:
+        ws_damaged.append([
+            dmg.added_at.strftime('%Y-%m-%d'),
+            dmg.material.name,
+            dmg.material.category,
+            dmg.quantity,
+            dmg.damage_reason or '',
+            'Confirmed',
+        ])
+    style_data_rows(ws_damaged, start_row=4)
+    
+    for row in ws_damaged.iter_rows(min_row=4, max_row=ws_damaged.max_row):
+        row[5].fill = green
+        row[5].font = Font(bold=True, color='065F46')
     
     # ── Summary Sheet ─────────────────────────────────────────────────────────
     ws_summary = wb.create_sheet('Summary', 0)  # Insert at beginning
@@ -2113,9 +2335,11 @@ def _generate_branch_excel_report(request, requests_qs, start, end, from_date, t
     um_pending_count = um_pending.count()
     um_accepted_count = um_accepted.count()
     um_rejected_count = um_rejected.count()
+    dmg_count = branch_dmg.count()
     
     req_approved_qty = approved_requests.aggregate(total=Sum('quantity'))['total'] or 0
     um_accepted_qty = um_accepted.aggregate(total=Sum('quantity'))['total'] or 0
+    dmg_qty = branch_dmg.aggregate(total=Sum('quantity'))['total'] or 0
     
     summary_data = [
         [],
@@ -2130,6 +2354,10 @@ def _generate_branch_excel_report(request, requests_qs, start, end, from_date, t
         ['Pending', um_pending_count, '-'],
         ['Accepted', um_accepted_count, um_accepted_qty],
         ['Rejected', um_rejected_count, '-'],
+        [],
+        ['Damaged Materials', ''],
+        ['Status', 'Count', 'Qty'],
+        ['Confirmed', dmg_count, dmg_qty],
     ]
     
     for row_data in summary_data:
@@ -2151,9 +2379,15 @@ def _generate_branch_excel_report(request, requests_qs, start, end, from_date, t
             cell.fill = PatternFill('solid', fgColor='E0E7FF')
             cell.font = Font(bold=True)
             cell.border = thin
+
+    for row in ws_summary.iter_rows(min_row=14, max_row=16):
+        for cell in row:
+            cell.fill = PatternFill('solid', fgColor='E0E7FF')
+            cell.font = Font(bold=True)
+            cell.border = thin
     
     # Freeze panes
-    for ws in [ws_summary, ws_req_pending, ws_req_approved, ws_req_rejected, ws_um_pending, ws_um_accepted, ws_um_rejected]:
+    for ws in [ws_summary, ws_req_pending, ws_req_approved, ws_req_rejected, ws_um_pending, ws_um_accepted, ws_um_rejected, ws_damaged]:
         ws.freeze_panes = 'A4'
     
     # Save and return
@@ -2175,9 +2409,6 @@ def reports_export_excel(request):
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
 
-    if role == 'NOC':
-        return redirect('noc:dashboard')
-
     from_date = request.GET.get('from_date', (timezone.now() - timezone.timedelta(days=30)).strftime('%Y-%m-%d'))
     to_date   = request.GET.get('to_date',   timezone.now().strftime('%Y-%m-%d'))
     try:
@@ -2187,18 +2418,60 @@ def reports_export_excel(request):
         start = (timezone.now() - timezone.timedelta(days=30)).date()
         end   = timezone.now().date()
 
-    requests_qs = MaterialRequest.objects.filter(
-        requested_at__date__gte=start,
-        requested_at__date__lte=end
-    ).select_related('material', 'requester').order_by('-requested_at')
+    # Determine querysets based on role
     if role == 'Branch':
-        requests_qs = requests_qs.filter(requester=request.user)
-
-    # ── Branch Role: Specialized Report with Separated Status Sheets ──
-    if role == 'Branch':
+        requests_qs = MaterialRequest.objects.filter(
+            requested_at__date__gte=start,
+            requested_at__date__lte=end,
+            requester=request.user
+        ).select_related('material', 'requester').order_by('-requested_at')
         return _generate_branch_excel_report(request, requests_qs, start, end, from_date, to_date)
 
+    elif role == 'NOC':
+        noc_materials_qs = Material.objects.filter(category='Internet', created_by=request.user)
+        requests_qs = MaterialRequest.objects.filter(
+            material__in=noc_materials_qs,
+            requested_at__date__gte=start,
+            requested_at__date__lte=end,
+            is_hidden_by_noc=False
+        ).select_related('material', 'requester').order_by('-requested_at')
+
+        used_qs = UsedMaterial.objects.filter(
+            material__in=noc_materials_qs,
+            added_at__date__gte=start,
+            added_at__date__lte=end
+        ).select_related('material', 'technician').order_by('-added_at')
+
+        damaged_qs = DamageMaterial.objects.filter(
+            material__in=noc_materials_qs,
+            added_at__date__gte=start,
+            added_at__date__lte=end
+        ).select_related('material', 'branch_user', 'confirmed_by').order_by('-added_at')
+
+        stock_qs = noc_materials_qs.order_by('status', 'name')
+
+    else:  # Admin or Storekeeper
+        requests_qs = MaterialRequest.objects.filter(
+            requested_at__date__gte=start,
+            requested_at__date__lte=end
+        ).select_related('material', 'requester').order_by('-requested_at')
+
+        used_qs = UsedMaterial.objects.filter(
+            added_at__date__gte=start,
+            added_at__date__lte=end
+        ).select_related('material', 'technician').order_by('-added_at')
+
+        damaged_qs = DamageMaterial.objects.filter(
+            added_at__date__gte=start,
+            added_at__date__lte=end
+        ).select_related('material', 'branch_user', 'confirmed_by').order_by('-added_at')
+
+        stock_qs = Material.objects.order_by('status', 'name')
+
     wb = openpyxl.Workbook()
+    # Remove the default active sheet if it exists
+    if wb.active:
+        wb.remove(wb.active)
 
     # ── Helper styles ─────────────────────────────────────────────────────────
     h_fill   = PatternFill('solid', fgColor='4F46E5')
@@ -2210,7 +2483,9 @@ def reports_export_excel(request):
         top=Side(style='thin', color='D1D5DB'),
         bottom=Side(style='thin', color='D1D5DB'),
     )
-    alt_fill = PatternFill('solid', fgColor='F5F3FF')
+    green  = PatternFill('solid', fgColor='D1FAE5')
+    yellow = PatternFill('solid', fgColor='FEF9C3')
+    red    = PatternFill('solid', fgColor='FEE2E2')
 
     def style_header_row(ws, headers, col_widths):
         ws.append(headers)
@@ -2230,19 +2505,88 @@ def reports_export_excel(request):
                 cell.fill      = fill
                 cell.alignment = Alignment(vertical='center')
 
-    # ── Sheet 1: Material Requests ────────────────────────────────────────────
-    ws1 = wb.active
-    ws1.title = 'Material Requests'
-    ws1.row_dimensions[1].height = 22
+    # ── Sheet 1: Summary ──────────────────────────────────────────────────────
+    ws_summary = wb.create_sheet('Summary')
+    ws_summary.row_dimensions[1].height = 28
+    ws_summary.merge_cells('A1:D1')
+    title = ws_summary['A1']
+    title.value = f'Report Summary ({from_date} → {to_date})'
+    title.font = Font(bold=True, size=14, color='1E1B4B')
+    title.alignment = Alignment(horizontal='center', vertical='center')
 
-    # Title row
+    ws_summary.append([])
+
+    # Metrics calculation
+    req_total_count = requests_qs.count()
+    req_approved_count = requests_qs.filter(status__in=['Received', 'Approved']).count()
+    req_pending_count = requests_qs.filter(status='Pending').count()
+    req_rejected_count = requests_qs.filter(status='Rejected').count()
+    req_approved_qty = requests_qs.filter(status__in=['Received', 'Approved']).aggregate(total=Sum('quantity'))['total'] or 0
+
+    um_total_count = used_qs.count()
+    um_accepted_count = used_qs.filter(status='Accepted').count()
+    um_pending_count = used_qs.filter(status='Pending').count()
+    um_rejected_count = used_qs.filter(status='Rejected').count()
+    um_accepted_qty = used_qs.filter(status='Accepted').aggregate(total=Sum('quantity'))['total'] or 0
+
+    branch_dmg = damaged_qs.filter(status='Confirmed')
+    dmg_count = branch_dmg.count()
+    dmg_qty = branch_dmg.aggregate(total=Sum('quantity'))['total'] or 0
+
+    stock_normal = stock_qs.filter(status='Normal').count()
+    stock_low = stock_qs.filter(status='Low Stock').count()
+    stock_out = stock_qs.filter(status='Out of Stock').count()
+
+    summary_data = [
+        [],
+        ['Material Requests', ''],
+        ['Status', 'Count', 'Qty'],
+        ['Pending', req_pending_count, '-'],
+        ['Approved/Received', req_approved_count, req_approved_qty],
+        ['Rejected', req_rejected_count, '-'],
+        [],
+        ['Used Materials', ''],
+        ['Status', 'Count', 'Qty'],
+        ['Pending', um_pending_count, '-'],
+        ['Accepted', um_accepted_count, um_accepted_qty],
+        ['Rejected', um_rejected_count, '-'],
+        [],
+        ['Damaged Materials', ''],
+        ['Status', 'Count', 'Qty'],
+        ['Confirmed', dmg_count, dmg_qty],
+        [],
+        ['Stock status', ''],
+        ['Status', 'Items count', ''],
+        ['Normal', stock_normal, ''],
+        ['Low Stock', stock_low, ''],
+        ['Out of Stock', stock_out, ''],
+    ]
+
+    for row_data in summary_data:
+        ws_summary.append(row_data)
+
+    # Style summary sheet
+    ws_summary.column_dimensions['A'].width = 20
+    ws_summary.column_dimensions['B'].width = 15
+    ws_summary.column_dimensions['C'].width = 15
+
+    for min_r, max_r in [(3, 5), (8, 11), (14, 16), (19, 21)]:
+        for row in ws_summary.iter_rows(min_row=min_r, max_row=max_r):
+            for cell in row:
+                cell.fill = PatternFill('solid', fgColor='E0E7FF')
+                cell.font = Font(bold=True)
+                cell.border = thin
+
+    # ── Sheet 2: Material Requests Log ────────────────────────────────────────
+    ws1 = wb.create_sheet('Material Requests')
+    ws1.row_dimensions[1].height = 22
     ws1.merge_cells('A1:G1')
     title_cell = ws1['A1']
-    title_cell.value     = f'ISP Inventory — Material Requests Report  ({from_date}  →  {to_date})'
+    title_cell.value     = f'Material Requests Report ({from_date} → {to_date})'
     title_cell.font      = Font(bold=True, size=13, color='1E1B4B')
     title_cell.alignment = Alignment(horizontal='center', vertical='center')
     ws1.row_dimensions[1].height = 28
-    ws1.append([])  # blank
+    ws1.append([])
 
     headers = ['Date', 'Requester', 'Material', 'Category', 'Qty', 'Type', 'Status']
     widths  = [14, 22, 28, 16, 8, 12, 12]
@@ -2259,72 +2603,76 @@ def reports_export_excel(request):
             req.status,
         ])
     style_data_rows(ws1, start_row=4)
-
-    # Status colour coding
-    green  = PatternFill('solid', fgColor='D1FAE5')
-    yellow = PatternFill('solid', fgColor='FEF9C3')
-    red    = PatternFill('solid', fgColor='FEE2E2')
     for row in ws1.iter_rows(min_row=4, max_row=ws1.max_row):
         status_cell = row[6]
-        if status_cell.value == 'Approved':
-            status_cell.fill = green
-            status_cell.font = Font(bold=True, color='065F46')
+        if status_cell.value in ['Approved', 'Received']:
+            status_cell.fill = green; status_cell.font = Font(bold=True, color='065F46')
         elif status_cell.value == 'Pending':
-            status_cell.fill = yellow
-            status_cell.font = Font(bold=True, color='78350F')
+            status_cell.fill = yellow; status_cell.font = Font(bold=True, color='78350F')
         elif status_cell.value == 'Rejected':
-            status_cell.fill = red
-            status_cell.font = Font(bold=True, color='991B1B')
+            status_cell.fill = red; status_cell.font = Font(bold=True, color='991B1B')
 
-    # ── Sheet 2: Top Materials ────────────────────────────────────────────────
-    ws2 = wb.create_sheet('Top Materials')
-    ws2.merge_cells('A1:C1')
-    ws2['A1'].value = 'Top Materials by Approved Qty'
-    ws2['A1'].font  = Font(bold=True, size=12, color='1E1B4B')
-    ws2['A1'].alignment = Alignment(horizontal='center')
-    ws2.row_dimensions[1].height = 24
+    # ── Sheet 3: Used Materials Log ───────────────────────────────────────────
+    ws2 = wb.create_sheet('Used Materials')
+    ws2.row_dimensions[1].height = 22
+    ws2.merge_cells('A1:F1')
+    title_cell = ws2['A1']
+    title_cell.value     = f'Used Materials Report ({from_date} → {to_date})'
+    title_cell.font      = Font(bold=True, size=13, color='1E1B4B')
+    title_cell.alignment = Alignment(horizontal='center', vertical='center')
+    ws2.row_dimensions[1].height = 28
     ws2.append([])
-    style_header_row(ws2, ['Material', 'Category', 'Total Approved Qty'], [30, 18, 22])
-    top = (
-        requests_qs.filter(status='Approved')
-        .values('material__name', 'material__category')
-        .annotate(total_qty=Sum('quantity'))
-        .order_by('-total_qty')[:20]
-    )
-    for item in top:
-        ws2.append([item['material__name'], item['material__category'], item['total_qty']])
-    style_data_rows(ws2, start_row=4)
 
-    # ── Sheet 3: User Summary ─────────────────────────────────────────────────
-    ws3 = wb.create_sheet('User Summary')
+    headers_um = ['Date', 'Technician', 'Material', 'Category', 'Qty Used', 'Status']
+    widths_um  = [14, 22, 28, 16, 12, 12]
+    style_header_row(ws2, headers_um, widths_um)
+
+    for um in used_qs:
+        ws2.append([
+            um.added_at.strftime('%Y-%m-%d'),
+            um.technician.get_full_name() or um.technician.username,
+            um.material.name,
+            um.material.category,
+            um.quantity,
+            um.status,
+        ])
+    style_data_rows(ws2, start_row=4)
+    for row in ws2.iter_rows(min_row=4, max_row=ws2.max_row):
+        sc = row[5]
+        if sc.value == 'Accepted':
+            sc.fill = green; sc.font = Font(bold=True, color='065F46')
+        elif sc.value == 'Pending':
+            sc.fill = yellow; sc.font = Font(bold=True, color='78350F')
+        elif sc.value == 'Rejected':
+            sc.fill = red; sc.font = Font(bold=True, color='991B1B')
+
+    # ── Sheet 4: Damaged Materials Log ────────────────────────────────────────
+    ws3 = wb.create_sheet('Damaged Materials')
+    ws3.row_dimensions[1].height = 22
     ws3.merge_cells('A1:F1')
-    ws3['A1'].value = 'Per-User Request Summary'
-    ws3['A1'].font  = Font(bold=True, size=12, color='1E1B4B')
-    ws3['A1'].alignment = Alignment(horizontal='center')
-    ws3.row_dimensions[1].height = 24
+    title_cell = ws3['A1']
+    title_cell.value     = f'Damaged Materials Report ({from_date} → {to_date})'
+    title_cell.font      = Font(bold=True, size=13, color='1E1B4B')
+    title_cell.alignment = Alignment(horizontal='center', vertical='center')
+    ws3.row_dimensions[1].height = 28
     ws3.append([])
-    style_header_row(ws3, ['Username', 'Full Name', 'Total Requests', 'Approved', 'Pending', 'Qty Issued'], [18, 24, 16, 12, 12, 14])
-    user_data = (
-        requests_qs
-        .values('requester__username', 'requester__first_name', 'requester__last_name')
-        .annotate(
-            total_req=Count('id'),
-            approved=Count('id', filter=Q(status='Approved')),
-            pending=Count('id', filter=Q(status='Pending')),
-            qty_issued=Sum('quantity', filter=Q(status='Approved'))
-        )
-        .order_by('-approved')
-    )
-    for u in user_data:
-        fn = f"{u['requester__first_name']} {u['requester__last_name']}".strip() or u['requester__username']
+
+    headers_dmg = ['Date', 'Branch User', 'Material', 'Category', 'Qty', 'Reason']
+    widths_dmg  = [14, 22, 28, 16, 10, 30]
+    style_header_row(ws3, headers_dmg, widths_dmg)
+
+    for dmg in branch_dmg:
         ws3.append([
-            u['requester__username'], fn,
-            u['total_req'], u['approved'], u['pending'],
-            u['qty_issued'] or 0,
+            dmg.added_at.strftime('%Y-%m-%d'),
+            dmg.branch_user.get_full_name() or dmg.branch_user.username,
+            dmg.material.name,
+            dmg.material.category,
+            dmg.quantity,
+            dmg.damage_reason or '',
         ])
     style_data_rows(ws3, start_row=4)
 
-    # ── Sheet 4: Stock Status ─────────────────────────────────────────────────
+    # ── Sheet 5: Stock Status ─────────────────────────────────────────────────
     ws4 = wb.create_sheet('Stock Status')
     ws4.merge_cells('A1:D1')
     ws4['A1'].value = 'Current Stock Status'
@@ -2333,7 +2681,8 @@ def reports_export_excel(request):
     ws4.row_dimensions[1].height = 24
     ws4.append([])
     style_header_row(ws4, ['Material', 'Category', 'Quantity', 'Status'], [30, 18, 12, 14])
-    for mat in Material.objects.order_by('status', 'name'):
+
+    for mat in stock_qs:
         ws4.append([mat.name, mat.category, mat.quantity, mat.status])
     style_data_rows(ws4, start_row=4)
     for row in ws4.iter_rows(min_row=4, max_row=ws4.max_row):
@@ -2346,14 +2695,14 @@ def reports_export_excel(request):
             sc.fill = red;    sc.font = Font(bold=True, color='991B1B')
 
     # ── Freeze top rows & return ──────────────────────────────────────────────
-    for ws in [ws1, ws2, ws3, ws4]:
+    for ws in [ws_summary, ws1, ws2, ws3, ws4]:
         ws.freeze_panes = 'A4'
 
     buffer = io.BytesIO()
     wb.save(buffer)
     buffer.seek(0)
 
-    filename = f"isp_report_{from_date}_to_{to_date}.xlsx"
+    filename = f"{role.lower()}_report_{from_date}_to_{to_date}.xlsx"
     response = HttpResponse(
         buffer.read(),
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -2363,7 +2712,7 @@ def reports_export_excel(request):
 
 
 def _generate_branch_pdf_report(request, requests_qs, start, end, from_date, to_date):
-    """Generate PDF report for Branch users with requests and used materials."""
+    """Generate PDF report for Branch users with requests, used materials, and damaged materials."""
     from xhtml2pdf import pisa
     from io import BytesIO
     
@@ -2373,10 +2722,18 @@ def _generate_branch_pdf_report(request, requests_qs, start, end, from_date, to_
         added_at__date__gte=start,
         added_at__date__lte=end
     ).select_related('material', 'technician').order_by('-added_at')
+
+    # Get confirmed damaged materials
+    damaged_qs = DamageMaterial.objects.filter(
+        branch_user=request.user,
+        added_at__date__gte=start,
+        added_at__date__lte=end,
+        status='Confirmed'
+    ).select_related('material').order_by('-added_at')
     
     # Calculate statistics
     req_pending = requests_qs.filter(status='Pending')
-    req_approved = requests_qs.filter(status='Approved')
+    req_approved = requests_qs.filter(status__in=['Received', 'Approved'])
     req_rejected = requests_qs.filter(status='Rejected')
     
     um_pending = used_qs.filter(status='Pending')
@@ -2401,6 +2758,9 @@ def _generate_branch_pdf_report(request, requests_qs, start, end, from_date, to_
         'um_rejected_count': um_rejected.count(),
         'um_total_count': used_qs.count(),
         'um_accepted_qty': um_accepted.aggregate(total=Sum('quantity'))['total'] or 0,
+        # Damaged Materials Statistics
+        'dmg_total_count': damaged_qs.count(),
+        'dmg_total_qty': damaged_qs.aggregate(total=Sum('quantity'))['total'] or 0,
         # Detailed data
         'req_pending_list': req_pending[:50],
         'req_approved_list': req_approved[:50],
@@ -2408,6 +2768,7 @@ def _generate_branch_pdf_report(request, requests_qs, start, end, from_date, to_
         'um_pending_list': um_pending[:50],
         'um_accepted_list': um_accepted[:50],
         'um_rejected_list': um_rejected[:50],
+        'dmg_list': damaged_qs[:50],
     }
     
     html_string = render(request, 'inventory/branch_report_pdf.html', context).content.decode('utf-8')
@@ -2432,9 +2793,6 @@ def reports_export_pdf(request):
     profile = ensure_userprofile(request.user)
     role    = profile.role if profile else 'Branch'
 
-    if role == 'NOC':
-        return redirect('noc:dashboard')
-
     from_date = request.GET.get('from_date', (timezone.now() - timezone.timedelta(days=30)).strftime('%Y-%m-%d'))
     to_date   = request.GET.get('to_date',   timezone.now().strftime('%Y-%m-%d'))
     try:
@@ -2444,27 +2802,73 @@ def reports_export_pdf(request):
         start = (timezone.now() - timezone.timedelta(days=30)).date()
         end   = timezone.now().date()
 
-    requests_qs = MaterialRequest.objects.filter(
-        requested_at__date__gte=start,
-        requested_at__date__lte=end
-    ).select_related('material', 'requester').order_by('-requested_at')
     if role == 'Branch':
-        requests_qs = requests_qs.filter(requester=request.user)
+        requests_qs = MaterialRequest.objects.filter(
+            requested_at__date__gte=start,
+            requested_at__date__lte=end,
+            requester=request.user
+        ).select_related('material', 'requester').order_by('-requested_at')
         return _generate_branch_pdf_report(request, requests_qs, start, end, from_date, to_date)
 
-    # ── Admin/Storekeeper Report ──
+    # Determine querysets based on role (NOC vs Admin/Storekeeper)
+    if role == 'NOC':
+        noc_materials_qs = Material.objects.filter(category='Internet', created_by=request.user)
+        requests_qs = MaterialRequest.objects.filter(
+            material__in=noc_materials_qs,
+            requested_at__date__gte=start,
+            requested_at__date__lte=end,
+            is_hidden_by_noc=False
+        ).select_related('material', 'requester').order_by('-requested_at')
+
+        used_qs = UsedMaterial.objects.filter(
+            material__in=noc_materials_qs,
+            added_at__date__gte=start,
+            added_at__date__lte=end
+        ).select_related('material', 'technician').order_by('-added_at')
+
+        damaged_qs = DamageMaterial.objects.filter(
+            material__in=noc_materials_qs,
+            added_at__date__gte=start,
+            added_at__date__lte=end
+        ).select_related('material', 'branch_user', 'confirmed_by').order_by('-added_at')
+
+        low_stock_list = noc_materials_qs.filter(status__in=['Low Stock', 'Out of Stock']).order_by('status', 'name')
+
+    else:  # Admin or Storekeeper
+        requests_qs = MaterialRequest.objects.filter(
+            requested_at__date__gte=start,
+            requested_at__date__lte=end
+        ).select_related('material', 'requester').order_by('-requested_at')
+
+        used_qs = UsedMaterial.objects.filter(
+            added_at__date__gte=start,
+            added_at__date__lte=end
+        ).select_related('material', 'technician').order_by('-added_at')
+
+        damaged_qs = DamageMaterial.objects.filter(
+            added_at__date__gte=start,
+            added_at__date__lte=end
+        ).select_related('material', 'branch_user', 'confirmed_by').order_by('-added_at')
+
+        low_stock_list = Material.objects.filter(status__in=['Low Stock', 'Out of Stock']).order_by('status', 'name')
+
     total_requests   = requests_qs.count()
-    approved_count   = requests_qs.filter(status='Approved').count()
+    approved_count   = requests_qs.filter(status__in=['Approved', 'Received']).count()
     pending_count    = requests_qs.filter(status='Pending').count()
     rejected_count   = requests_qs.filter(status='Rejected').count()
-    total_qty_issued = requests_qs.filter(status='Approved').aggregate(total=Sum('quantity'))['total'] or 0
+    total_qty_issued = requests_qs.filter(status__in=['Approved', 'Received']).aggregate(total=Sum('quantity'))['total'] or 0
 
     top_materials = (
-        requests_qs.filter(status='Approved')
+        requests_qs.filter(status__in=['Approved', 'Received'])
         .values('material__name', 'material__category')
         .annotate(total_qty=Sum('quantity'))
         .order_by('-total_qty')[:15]
     )
+
+    # Calculate Used and Confirmed Damaged Statistics
+    total_used_qty = used_qs.filter(status='Accepted').aggregate(total=Sum('quantity'))['total'] or 0
+    confirmed_dmg_qs = damaged_qs.filter(status='Confirmed')
+    total_damaged_qty = confirmed_dmg_qs.aggregate(total=Sum('quantity'))['total'] or 0
 
     context = {
         'from_date': from_date, 'to_date': to_date,
@@ -2475,7 +2879,15 @@ def reports_export_pdf(request):
         'total_qty_issued': total_qty_issued,
         'requests_qs': requests_qs[:100],
         'top_materials': top_materials,
-        'low_stock_list': Material.objects.filter(status__in=['Low Stock', 'Out of Stock']).order_by('status', 'name'),
+        'low_stock_list': low_stock_list,
+        # Used Materials
+        'used_list': used_qs[:100],
+        'total_used_qty': total_used_qty,
+        'total_used_records': used_qs.count(),
+        # Damaged Materials (Confirmed)
+        'damaged_list': confirmed_dmg_qs[:100],
+        'total_damaged_qty': total_damaged_qty,
+        'total_damaged_records': confirmed_dmg_qs.count(),
     }
 
     html_string = render(request, 'inventory/report_pdf.html', context).content.decode('utf-8')
@@ -2484,7 +2896,7 @@ def reports_export_pdf(request):
     if pisa_status.err:
         return HttpResponse('PDF generation error', status=500)
     buffer.seek(0)
-    filename = f"isp_report_{from_date}_to_{to_date}.pdf"
+    filename = f"{role.lower()}_report_{from_date}_to_{to_date}.pdf"
     response = HttpResponse(buffer.read(), content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
@@ -3418,6 +3830,10 @@ def used_materials_view(request):
                             um.mac_serial = new_mac
                             um.quantity = new_qty
                             um.status = new_status
+                            um.client_name = form.cleaned_data.get('client_name', '') or ''
+                            um.client_phone = form.cleaned_data.get('client_phone', '') or ''
+                            um.client_address = form.cleaned_data.get('client_address', '') or ''
+                            um.issue = form.cleaned_data.get('issue', '') or ''
                             um.save()
                             messages.success(request, "Used Material updated successfully.")
                     except Exception as e:
@@ -3525,6 +3941,9 @@ def used_materials_view(request):
         if s.material_id not in serials_by_material:
             serials_by_material[s.material_id] = []
         serials_by_material[s.material_id].append({'id': s.id, 'serial': s.mac_serial})
+    
+    # Total used materials count should reflect the filtered list for the current page and role
+    total_used = used_materials_qs.count()
 
     return render(request, 'inventory/used_materials.html', {
         'used_materials': used_materials_page,
@@ -3536,6 +3955,7 @@ def used_materials_view(request):
         'branch_users': branch_users,
         'search_query': search_query,
         'serials_by_material_json': _json.dumps(serials_by_material),
+        'total_used':total_used,
     })
 
 @login_required
@@ -3549,17 +3969,25 @@ def get_used_material_api(request, pk):
 
     try:
         if role in ['Admin', 'Storekeeper']:
-            used_material = UsedMaterial.objects.get(pk=pk)
+            used_material = UsedMaterial.objects.select_related('material', 'mac_serial__material').get(pk=pk)
         else:
-            used_material = UsedMaterial.objects.get(pk=pk, technician=request.user)
+            used_material = UsedMaterial.objects.select_related('material', 'mac_serial__material').get(pk=pk, technician=request.user)
     except UsedMaterial.DoesNotExist:
         return JsonResponse({'error': 'Record not found or access denied'}, status=404)
 
-    selection = f"s:{used_material.mac_serial.id}" if used_material.mac_serial else f"m:{used_material.material.id}"
-    
+    if used_material.mac_serial:
+        selection = f"s:{used_material.mac_serial.id}"
+        display_label = f"{used_material.material.name} - {used_material.mac_serial.mac_serial} (current)"
+    else:
+        selection = f"m:{used_material.material.id}"
+        display_label = f"{used_material.material.name} (current)"
+
     data = {
         'id': used_material.id,
         'material_selection': selection,
+        'material_display_name': display_label,
+        'material_name': used_material.material.name,
+        'material_category': used_material.material.category,
         'client_name': used_material.client_name or '',
         'client_phone': used_material.client_phone or '',
         'client_address': used_material.client_address or '',
@@ -3788,34 +4216,17 @@ def refundable_materials_view(request):
             available_quantity=F('quantity') - F('used_total')
         )
 
-    # Get refundable materials list
+    # Get refundable materials list base querysets
     if role in ['Admin', 'Storekeeper']:
         refundable_qs = annotate_refundable_qs(
             RefundableMaterial.objects.select_related('branch_user')
         ).filter(available_quantity__gt=0).order_by('-added_at')
         branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
-        
-        # Handle user dropdown filter
-        selected_user_id = request.GET.get('user_id')
-        if selected_user_id:
-            try:
-                selected_user = User.objects.select_related('userprofile').get(id=selected_user_id, userprofile__role='Branch')
-                refundable_qs = refundable_qs.filter(branch_user=selected_user)
-            except User.DoesNotExist:
-                messages.error(request, "Selected user not found.")
     elif role == 'NOC':
         refundable_qs = annotate_refundable_qs(
             RefundableMaterial.objects.filter(branch_user__userprofile__role='Branch').select_related('branch_user')
         ).filter(available_quantity__gt=0).order_by('-added_at')
         branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
-
-        selected_user_id = request.GET.get('user_id')
-        if selected_user_id:
-            try:
-                selected_user = User.objects.select_related('userprofile').get(id=selected_user_id, userprofile__role='Branch')
-                refundable_qs = refundable_qs.filter(branch_user=selected_user)
-            except User.DoesNotExist:
-                messages.error(request, "Selected user not found.")
     else:
         # Branch user
         refundable_qs = annotate_refundable_qs(
@@ -3823,38 +4234,65 @@ def refundable_materials_view(request):
         ).filter(available_quantity__gt=0).order_by('-added_at')
         branch_users = None
 
-    # Search functionality
-    search_query = request.GET.get('search', '').strip()
-    if search_query:
-        if role in ['Admin', 'Storekeeper', 'NOC']:
-            refundable_qs = refundable_qs.filter(
-                Q(material_name__icontains=search_query) |
-                Q(branch_user__username__icontains=search_query) |
-                Q(branch_user__first_name__icontains=search_query) |
-                Q(branch_user__last_name__icontains=search_query)
-            ).distinct()
-        else:
-            refundable_qs = refundable_qs.filter(
-                Q(material_name__icontains=search_query)
-            ).distinct()
-
-    # Pagination
-    paginator = Paginator(refundable_qs, 20)
-    page_number = request.GET.get('page')
-    refundable_page = paginator.get_page(page_number)
-
-    # Forms and usage list
-    form = RefundableMaterialForm(user=request.user)
-    usage_form = RefundableMaterialUsageForm(user=request.user)
-
     refundable_usages_qs = RefundableMaterialUsage.objects.select_related('refundable_material', 'used_by').order_by('-used_at')
     if role == 'Branch':
         refundable_usages_qs = refundable_usages_qs.filter(used_by=request.user)
     elif role == 'NOC':
         refundable_usages_qs = refundable_usages_qs.filter(refundable_material__branch_user__userprofile__role='Branch')
 
-    usage_paginator = Paginator(refundable_usages_qs, 20)
-    usage_page = usage_paginator.get_page(request.GET.get('usage_page'))
+    # Handle user dropdown filter for both querysets
+    selected_user_id = request.GET.get('user_id') or request.POST.get('user_id')
+    selected_user = None
+    if selected_user_id and role in ['Admin', 'Storekeeper', 'NOC']:
+        try:
+            selected_user = User.objects.select_related('userprofile').get(id=selected_user_id, userprofile__role='Branch')
+            refundable_qs = refundable_qs.filter(branch_user=selected_user)
+            refundable_usages_qs = refundable_usages_qs.filter(used_by=selected_user)
+        except User.DoesNotExist:
+            messages.error(request, "Selected user not found.")
+
+    # Search functionality for both querysets (Point 2 & Point 7)
+    search_query = request.GET.get('search', '').strip()
+    if search_query:
+        if role in ['Admin', 'Storekeeper', 'NOC']:
+            # Search Returnable Materials
+            refundable_qs = refundable_qs.filter(
+                Q(material_name__icontains=search_query) |
+                Q(mac_serial__icontains=search_query) |
+                Q(branch_user__username__icontains=search_query) |
+                Q(branch_user__first_name__icontains=search_query) |
+                Q(branch_user__last_name__icontains=search_query)
+            ).distinct()
+            # Search Used Materials
+            refundable_usages_qs = refundable_usages_qs.filter(
+                Q(refundable_material__material_name__icontains=search_query) |
+                Q(refundable_material__mac_serial__icontains=search_query) |
+                Q(client_name__icontains=search_query) |
+                Q(client_address__icontains=search_query) |
+                Q(client_phone__icontains=search_query) |
+                Q(used_by__username__icontains=search_query)
+            ).distinct()
+        else:
+            # Branch user search
+            refundable_qs = refundable_qs.filter(
+                Q(material_name__icontains=search_query) |
+                Q(mac_serial__icontains=search_query)
+            ).distinct()
+            # Branch user search Used Materials
+            refundable_usages_qs = refundable_usages_qs.filter(
+                Q(refundable_material__material_name__icontains=search_query) |
+                Q(refundable_material__mac_serial__icontains=search_query) |
+                Q(client_name__icontains=search_query) |
+                Q(client_address__icontains=search_query) |
+                Q(client_phone__icontains=search_query)
+            ).distinct()
+
+    # Redirection helper preserving the modal state
+    modal_redirect_url = '/refundable-materials/?open_return_modal=1'
+    if selected_user_id:
+        modal_redirect_url += f'&user_id={selected_user_id}'
+    if search_query:
+        modal_redirect_url += f'&search={search_query}'
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -3862,7 +4300,7 @@ def refundable_materials_view(request):
         if action == 'create':
             if role != 'Branch':
                 messages.error(request, "Only Branch users can add Refundable Materials.")
-                return redirect('refundable_materials')
+                return redirect(modal_redirect_url)
 
             form = RefundableMaterialForm(request.POST, user=request.user)
             if form.is_valid():
@@ -3870,13 +4308,13 @@ def refundable_materials_view(request):
                 rf.branch_user = request.user
                 rf.save()
                 messages.success(request, "Refundable Material logged successfully!")
-                return redirect('refundable_materials')
+                return redirect(modal_redirect_url)
             else:
                 for field, errors in form.errors.items():
                     if errors:
                         messages.error(request, f"{field}: {errors[0]}")
                         break
-                return redirect('refundable_materials')
+                return redirect(modal_redirect_url)
 
         elif action == 'create_usage':
             if role != 'Branch':
@@ -3898,7 +4336,7 @@ def refundable_materials_view(request):
         elif action == 'edit':
             if role != 'Branch':
                 messages.error(request, "Only Branch users can edit Refundable Materials.")
-                return redirect('refundable_materials')
+                return redirect(modal_redirect_url)
 
             rf_id = request.POST.get('rf_id')
             try:
@@ -3907,31 +4345,31 @@ def refundable_materials_view(request):
                 if form.is_valid():
                     form.save()
                     messages.success(request, "Refundable Material updated successfully!")
-                    return redirect('refundable_materials')
+                    return redirect(modal_redirect_url)
                 else:
                     for field, errors in form.errors.items():
                         if errors:
                             messages.error(request, f"{field}: {errors[0]}")
                             break
-                    return redirect('refundable_materials')
+                    return redirect(modal_redirect_url)
             except RefundableMaterial.DoesNotExist:
                 messages.error(request, "Record not found or access denied.")
-                return redirect('refundable_materials')
+                return redirect(modal_redirect_url)
 
         elif action == 'delete':
             if role != 'Branch':
                 messages.error(request, "Only Branch users can delete Refundable Materials.")
-                return redirect('refundable_materials')
+                return redirect(modal_redirect_url)
 
             rf_id = request.POST.get('rf_id')
             try:
                 rf = RefundableMaterial.objects.get(pk=rf_id, branch_user=request.user)
                 rf.delete()
                 messages.success(request, "Refundable Material record deleted.")
-                return redirect('refundable_materials')
+                return redirect(modal_redirect_url)
             except RefundableMaterial.DoesNotExist:
                 messages.error(request, "Record not found or access denied.")
-                return redirect('refundable_materials')
+                return redirect(modal_redirect_url)
 
         elif action == 'edit_usage':
             if role != 'Branch':
@@ -3970,8 +4408,21 @@ def refundable_materials_view(request):
                 messages.error(request, "Record not found or access denied.")
             return redirect('refundable_materials')
         
-    #Refundale matertials count
-    refundable_count = RefundableMaterial.objects.count() if role in ['Admin', 'Storekeeper'] else RefundableMaterial.objects.filter(branch_user=request.user).count()
+    # Returnable materials (inside modal) pagination: 10 (Point 9)
+    paginator = Paginator(refundable_qs, 10)
+    page_number = request.GET.get('page')
+    refundable_page = paginator.get_page(page_number)
+
+    # Used materials pagination: 20 (Point 5)
+    usage_paginator = Paginator(refundable_usages_qs, 20)
+    usage_page = usage_paginator.get_page(request.GET.get('usage_page'))
+
+    # Forms setup
+    form = RefundableMaterialForm(user=request.user)
+    usage_form = RefundableMaterialUsageForm(user=request.user)
+
+    # Count matching filters (Point 6 count)
+    refundable_count = refundable_qs.count()
 
     return render(request, 'inventory/refundable_materials.html', {
         'refundable_materials': refundable_page,
@@ -3985,9 +4436,11 @@ def refundable_materials_view(request):
         'refundable_count': refundable_count,
     })
 
-@login_required
 def get_refundable_material_api(request, pk):
     """API endpoint to get refundable material data for editing via AJAX"""
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentication required. Please refresh and log in again.'}, status=401)
+
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
 
@@ -4007,23 +4460,27 @@ def get_refundable_material_api(request, pk):
     }
     return JsonResponse(data)
 
-@login_required
 def get_refundable_material_usage_api(request, pk):
     """API endpoint to get refundable material usage (used material) data for editing via AJAX"""
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentication required. Please refresh and log in again.'}, status=401)
+
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
 
     try:
-        if role in ['Admin', 'Storekeeper']:
-            usage = RefundableMaterialUsage.objects.get(pk=pk)
+        if role in ['Admin', 'Storekeeper', 'NOC']:
+            usage = RefundableMaterialUsage.objects.select_related('refundable_material').get(pk=pk)
         else:
-            usage = RefundableMaterialUsage.objects.get(pk=pk, used_by=request.user)
+            usage = RefundableMaterialUsage.objects.select_related('refundable_material').get(pk=pk, used_by=request.user)
     except RefundableMaterialUsage.DoesNotExist:
         return JsonResponse({'error': 'Record not found or access denied'}, status=404)
 
     data = {
         'id': usage.id,
         'refundable_material_id': usage.refundable_material.id,
+        'material_name': usage.refundable_material.material_name,
+        'mac_serial': usage.refundable_material.mac_serial,
         'materials_quantity': usage.materials_quantity,
         'client_name': usage.client_name,
         'client_address': usage.client_address,

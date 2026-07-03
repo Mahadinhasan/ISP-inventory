@@ -6,6 +6,7 @@ from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from django.db.models import Sum
 from django.core.validators import FileExtensionValidator
+from django.core.exceptions import ValidationError
 
 class UserProfile(models.Model):
     ROLE_CHOICES = [
@@ -115,7 +116,7 @@ class Material(models.Model):
         ('Common item', 'Common item'),
         ('Work shop', 'Work shop'),
     ]
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, unique=True)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
     TYPE_CHOICES = [
         ('Meter', 'Meter'),
@@ -144,10 +145,7 @@ class Material(models.Model):
         stock_indicator = " (in stock)" if self.quantity > 0 else ""
         return f"{self.name}{stock_indicator}"
 
-    def save(self, *args, **kwargs):
-        if self.created_by and hasattr(self.created_by, 'userprofile') and self.created_by.userprofile.role == 'NOC':
-            self.Remaining_stock = 0
-        super().save(*args, **kwargs)
+
 
     def soft_delete(self):
         self.is_deleted = True
@@ -223,6 +221,17 @@ class Material(models.Model):
         except MaterialMonthlyCount.DoesNotExist:
             return 0
 
+    def clean(self):
+        # Normalize and validate name uniqueness (case-insensitive)
+        if getattr(self, 'name', None):
+            normalized = self.name.strip()
+            qs = Material.objects.filter(name__iexact=normalized)
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            if qs.exists():
+                raise ValidationError({'name': 'Material with this name already exists.'})
+            self.name = normalized
+
     def save(self, *args, **kwargs):
         """Synchronize `status` with `quantity` vs `min_stock_level`.
 
@@ -230,11 +239,15 @@ class Material(models.Model):
         - quantity <= 0 -> 'Out of Stock'
         - 0 < quantity < min_stock_level -> 'Low Stock'
         - quantity >= min_stock_level -> 'Normal' (unless status is Reserved/Deprecated)
+
+        NOC-specific rules:
+        - Remaining_stock is always forced to 0 for NOC-created materials.
+        - Monthly reset logic does NOT apply to NOC materials.
         """
         try:
             if self.quantity is None:
                 self.quantity = 0
-            
+
             # Calculate total price
             if self.rate is None:
                 self.rate = 0
@@ -249,6 +262,23 @@ class Material(models.Model):
                     self.status = 'Normal'
         except Exception:
             pass
+
+        # NOC role: Remaining_stock always stays 0 (no carryover, no monthly reset)
+        try:
+            if self.created_by and hasattr(self.created_by, 'userprofile') and self.created_by.userprofile.role == 'NOC':
+                self.Remaining_stock = 0
+        except Exception:
+            pass
+
+        # Normalize name and validate before saving
+        if getattr(self, 'name', None):
+            self.name = self.name.strip()
+        # Run full_clean to trigger model validation (including our clean())
+        try:
+            self.full_clean()
+        except ValidationError:
+            # Propagate validation error up to caller
+            raise
         super().save(*args, **kwargs)
 
 # class Task(models.Model):

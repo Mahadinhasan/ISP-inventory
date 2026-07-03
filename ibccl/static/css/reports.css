@@ -18,6 +18,13 @@
         color: #fff;
         position: relative;
         overflow: hidden;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .stat-card:hover {
+        transform: translateY(-4px) scale(1.02);
+        box-shadow: 0 12px 25px rgba(0, 0, 0, 0.2);
     }
 
     .stat-card .big-num {
@@ -39,6 +46,37 @@
         font-size: 4.5rem;
         opacity: .15;
         line-height: 1;
+    }
+
+    /* Secondary Stat Cards */
+    .secondary-card {
+        background: #fff;
+        border-radius: 1.1rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+        border: 1px solid rgba(0, 0, 0, 0.04);
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .secondary-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 25px rgba(79, 70, 229, 0.08);
+        border-color: rgba(79, 70, 229, 0.2);
+    }
+    
+    .dark .secondary-card {
+        background: #1e1b3a;
+        border-color: rgba(255, 255, 255, 0.05);
+    }
+    
+    .dark .secondary-card:hover {
+        border-color: rgba(167, 139, 250, 0.2);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
     }
 
     /* Preset buttons */
@@ -121,17 +159,22 @@
     }
 
     .badge-approved {
-        background: #d1fae5;
-        color: #065f46;
+        background: #e5e7eb;
+        color: #111827;
+    }
+
+    .badge-received {
+        background: #dcfce7;
+        color: #14532d;
     }
 
     .badge-pending {
-        background: #fef9c3;
-        color: #78350f;
+        background: #fde68a;
+        color: #92400e;
     }
 
     .badge-rejected {
-        background: #fee2e2;
+        background: #fecaca;
         color: #991b1b;
     }
 

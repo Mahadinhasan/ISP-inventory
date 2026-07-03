@@ -3,12 +3,11 @@
         const gridColor = isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.06)';
         const labelColor = isDark ? '#94a3b8' : '#6b7280';
 
-        /* Daily activity line/bar chart */
-        const labels = {{ chart_labels_json| safe
-    }};
-    const approved = {{ chart_approved_json| safe }};
-    const pending = {{ chart_pending_json| safe }};
-    const rejected = {{ chart_rejected_json| safe }};
+        /* Daily Used Materials activity chart (UsedMaterial) */
+        const labels = (window.REPORTS_DATA && window.REPORTS_DATA.used_chart_labels) || [];
+    const approved = (window.REPORTS_DATA && window.REPORTS_DATA.used_chart_accepted) || [];
+    const pending = (window.REPORTS_DATA && window.REPORTS_DATA.used_chart_pending) || [];
+    const rejected = (window.REPORTS_DATA && window.REPORTS_DATA.used_chart_rejected) || [];
 
     const dailyCtx = document.getElementById('dailyChart');
     if (dailyCtx) {
@@ -18,7 +17,7 @@
                 labels,
                 datasets: [
                     {
-                        label: 'Approved',
+                        label: 'Accepted',
                         data: approved,
                         backgroundColor: 'rgba(16,185,129,.75)',
                         borderColor: '#10b981',
@@ -66,52 +65,86 @@
         });
     }
 
-    /* Category doughnut */
-    const catLabels = {{ cat_labels_json| safe }};
-    const catValues = {{ cat_values_json| safe }};
-    const palette = ['#4f46e5', '#7c3aed', '#059669', '#d97706', '#dc2626',
-        '#0891b2', '#c026d3', '#16a34a', '#ea580c', '#6366f1'];
+    /* Estimated amount per-branch chart */
+    const estLabels = (window.REPORTS_DATA && window.REPORTS_DATA.est_labels) || [];
+    const estValues = (window.REPORTS_DATA && window.REPORTS_DATA.est_values) || [];
 
-    const catCtx = document.getElementById('catChart');
-    if (catCtx && catValues.length > 0) {
-        new Chart(catCtx, {
-            type: 'doughnut',
+    const estCtx = document.getElementById('estChart');
+    if (estCtx && estValues.length > 0) {
+        new Chart(estCtx, {
+            type: 'bar',
             data: {
-                labels: catLabels,
+                labels: estLabels,
                 datasets: [{
-                    data: catValues,
-                    backgroundColor: palette.slice(0, catValues.length),
-                    borderColor: isDark ? '#1e1b3a' : '#fff',
+                    label: 'Amount (৳)',
+                    data: estValues,
+                    backgroundColor: 'rgba(79,70,229,0.85)',
+                    borderColor: '#4f46e5',
+                    borderWidth: 1.5,
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: ctx => `৳ ${ctx.parsed}` } }
+                },
+                scales: {
+                    x: { grid: { color: gridColor }, ticks: { color: labelColor } },
+                    y: { grid: { display: false }, ticks: { color: labelColor } }
+                }
+            }
+        });
+    } else if (estCtx) {
+        estCtx.closest('div').innerHTML = '<p style="text-align:center;color:#9ca3af;padding:3rem 0;font-size:.85rem;">No amount data available for the selected period</p>';
+    }
+
+    /* Daily Damaged Materials Activity Chart */
+    const dmgLabels = (window.REPORTS_DATA && window.REPORTS_DATA.damaged_chart_labels) || [];
+    const dmgValues = (window.REPORTS_DATA && window.REPORTS_DATA.damaged_chart_values) || [];
+
+    const dmgCtx = document.getElementById('dailyDamagedMaterialsChart');
+    if (dmgCtx && dmgValues.length > 0) {
+        new Chart(dmgCtx, {
+            type: 'line',
+            data: {
+                labels: dmgLabels,
+                datasets: [{
+                    label: 'Damaged Qty',
+                    data: dmgValues,
+                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                    borderColor: '#ef4444',
                     borderWidth: 2,
-                    hoverOffset: 6,
+                    fill: true,
+                    tension: 0.35,
+                    pointBackgroundColor: '#ef4444',
+                    pointBorderColor: '#fff',
+                    pointHoverRadius: 6,
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                cutout: '62%',
                 plugins: {
                     legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => ` ${ctx.label}: ${ctx.parsed} units`
-                        }
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: {
+                    x: {
+                        grid: { color: gridColor },
+                        ticks: { color: labelColor }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: gridColor },
+                        ticks: { color: labelColor, precision: 0 }
                     }
                 }
             }
         });
-
-        // Custom legend
-        const legend = document.getElementById('cat-legend');
-        catLabels.forEach((lbl, i) => {
-            legend.innerHTML += `
-                <div style="display:flex;align-items:center;gap:.4rem;font-size:.72rem;">
-                    <span style="width:10px;height:10px;border-radius:2px;background:${palette[i]};flex-shrink:0;"></span>
-                    <span style="color:${labelColor};">${lbl}</span>
-                    <span style="margin-left:auto;font-weight:700;color:#4f46e5;">${catValues[i]}</span>
-                </div>`;
-        });
-    } else if (catCtx) {
-        catCtx.closest('div').innerHTML = '<p style="text-align:center;color:#9ca3af;padding:3rem 0;font-size:.85rem;">No approved requests in period</p>';
+    } else if (dmgCtx) {
+        dmgCtx.closest('div').innerHTML = '<p style="text-align:center;color:#9ca3af;padding:3rem 0;font-size:.85rem;">No damaged materials data available in this period</p>';
     }
 }) ();

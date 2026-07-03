@@ -13,6 +13,7 @@ from django.utils import timezone
 from django.db import transaction
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from datetime import datetime
+from django.core.exceptions import ValidationError
 # pyrefly: ignore [missing-import]
 from django.contrib.auth.models import User
 # pyrefly: ignore [missing-import]
@@ -233,7 +234,7 @@ def noc_dashboard(request):
     all_used_materials = UsedMaterial.objects.filter(
         material__category='Internet',
         material__created_by=request.user
-    ).select_related('technician', 'material').order_by('-added_at')[:100]
+    ).select_related('technician', 'material').order_by('-added_at')
     
     technician_approved_materials = MaterialRequest.objects.filter(
         status='Approved',
@@ -382,19 +383,33 @@ def add_material(request):
         rate = int(request.POST.get('rate', 0))
         min_stock = int(request.POST.get('min_stock_level', 0))
         total_price = quantity * rate
-        
-        Material.objects.create(
+        material = Material(
             name=name,
             category='Internet',
             quantity=quantity,
-            rate = rate,
-            total_price = total_price,
+            rate=rate,
+            total_price=total_price,
             Remaining_stock=quantity,
             min_stock_level=min_stock,
             created_by=request.user
         )
-        messages.success(request, "Material added successfully.")
-        return redirect('noc:materials')
+        try:
+            # validate and save; Material.clean() will enforce unique name
+            material.full_clean()
+            material.save()
+            messages.success(request, "Material added successfully.")
+            return redirect('noc:materials')
+        except ValidationError as ve:
+            # Show field-specific validation errors to the user
+            errs = []
+            if hasattr(ve, 'message_dict'):
+                for field, msgs in ve.message_dict.items():
+                    for m in msgs:
+                        errs.append(f"{field}: {m}")
+            else:
+                errs = ve.messages
+            messages.error(request, ' '.join(errs))
+            # fall through to render form with previous values
     return render(request, 'noc/add_material.html')
 
 @login_required
@@ -489,45 +504,83 @@ def noc_requests(request):
                     messages.success(request, "Request permanently deleted.")
         return redirect('noc:requests')
 
-    # GET logic: searching and filtering
+    # ── Month-end archive logic ─────────────────────────────────────────────
+    # When a new month starts, archive all previous months' NOC requests for
+    # this NOC user's Internet materials (is_archived=True).
+    # Monthly reset does NOT apply to NOC materials/stock — only the requests
+    # are archived for historical reference.
+    now = timezone.now()
+    noc_archive_key = f"noc_requests_archive_{request.user.id}_{now.year}_{now.month}"
+    archived_count = 0
+    from isp_inventory.models import SystemSetting as _SysSetting
+    already_archived = _SysSetting.objects.filter(key=noc_archive_key).exists()
+    if not already_archived:
+        with transaction.atomic():
+            # Archive all requests from months BEFORE the current month
+            old_requests_qs = MaterialRequest.objects.filter(
+                material__category='Internet',
+                material__created_by=request.user,
+                is_archived=False,
+            ).exclude(
+                requested_at__year=now.year,
+                requested_at__month=now.month,
+            )
+            archived_count = old_requests_qs.count()
+            if archived_count:
+                old_requests_qs.update(is_archived=True, archived_at=now)
+            # Mark this month's archive pass as done
+            _SysSetting.objects.update_or_create(
+                key=noc_archive_key,
+                defaults={
+                    'value': str(now),
+                    'description': (
+                        f"NOC month-end archive for user {request.user.id} "
+                        f"processed for {now.strftime('%B %Y')} — "
+                        f"{archived_count} request(s) archived."
+                    )
+                }
+            )
+    # ── GET logic: searching and filtering ─────────────────────────────────
     search_query = request.GET.get('search', '')
     user_filter = request.GET.get('user', '')
-    
+    show_archived = request.GET.get('archived', '') == '1'
+
     requests_qs = MaterialRequest.objects.filter(
-        material__category='Internet', 
+        material__category='Internet',
         material__created_by=request.user,
-        is_hidden_by_noc=False
+        is_hidden_by_noc=False,
+        is_archived=show_archived,  # Default: show current month (not archived)
     )
-    
+
     if search_query:
         requests_qs = requests_qs.filter(
-            Q(material__name__icontains=search_query) | 
+            Q(material__name__icontains=search_query) |
             Q(requester__username__icontains=search_query) |
             Q(send_by__icontains=search_query)
         )
-    
+
     if user_filter:
         requests_qs = requests_qs.filter(requester_id=user_filter)
-        
+
     requests_qs = requests_qs.select_related('material', 'requester').order_by('-requested_at')
-    
+
     # Summary counts for the top cards
     pending_count = requests_qs.filter(status='Pending').count()
     approved_count = requests_qs.filter(status='Approved').count()
     rejected_count = requests_qs.filter(status='Rejected').count()
     received_count = requests_qs.filter(status='Received').count()
-    
+
     # Pagination
     paginator = Paginator(requests_qs, 20)
     page = request.GET.get('page')
     page_obj = paginator.get_page(page)
-    
+
     # Unique list of branches who have made requests for NOC materials
     users_with_requests = User.objects.filter(
-        material_requests__material__category='Internet', 
+        material_requests__material__category='Internet',
         material_requests__material__created_by=request.user
     ).distinct()
-    
+
     context = {
         'requests': page_obj,
         'page_obj': page_obj,
@@ -536,7 +589,9 @@ def noc_requests(request):
         'rejected_count': rejected_count,
         'received_count': received_count,
         'users': users_with_requests,
-        'role': 'NOC'
+        'show_archived': show_archived,
+        'archived_count': archived_count,  # > 0 means archiving just happened this session
+        'role': 'NOC',
     }
     return render(request, 'noc/requests.html', context)
 
@@ -785,6 +840,52 @@ def noc_reports(request):
     chart_pending  = [d['pending']  for d in daily_data]
     chart_rejected = [d['rejected'] for d in daily_data]
 
+    # Daily activity for UsedMaterial (preferred for "Daily Used Materials Activity")
+    used_daily_data = (
+        used_qs
+        .annotate(day=TruncDate('added_at'))
+        .values('day')
+        .annotate(
+            accepted=Count('id', filter=Q(status='Accepted')),
+            pending=Count('id', filter=Q(status='Pending')),
+            rejected=Count('id', filter=Q(status='Rejected')),
+        )
+        .order_by('day')
+    )
+    used_chart_labels   = [str(d['day']) for d in used_daily_data]
+    used_chart_accepted = [d['accepted'] for d in used_daily_data]
+    used_chart_pending  = [d['pending']  for d in used_daily_data]
+    used_chart_rejected = [d['rejected'] for d in used_daily_data]
+
+    # Confirmed / Accepted Damaged Materials calculations (NOC Specific)
+    damaged_qs = DamageMaterial.objects.filter(
+        material__in=noc_materials_qs,
+        added_at__date__gte=start,
+        added_at__date__lte=end
+    ).select_related('material', 'branch_user', 'confirmed_by')
+
+    daily_damaged_qs = damaged_qs.filter(status='Confirmed')
+    daily_damaged_summary = (
+        daily_damaged_qs
+        .values('branch_user__username')
+        .annotate(total=Sum('quantity'))
+        .order_by('-total')
+    )
+    daily_damaged_materials = [
+        {'branch_name': item['branch_user__username'], 'damaged_materials': item['total']}
+        for item in daily_damaged_summary
+    ]
+
+    damaged_daily_data = (
+        daily_damaged_qs
+        .annotate(day=TruncDate('added_at'))
+        .values('day')
+        .annotate(total=Sum('quantity'))
+        .order_by('day')
+    )
+    damaged_chart_labels = [str(d['day']) for d in damaged_daily_data]
+    damaged_chart_values = [d['total'] for d in damaged_daily_data]
+
     # Material category breakdown (For NOC, usually all Internet, but we show by individual material names for better visualization)
     category_data = (
         requests_qs.filter(status='Approved')
@@ -828,11 +929,19 @@ def noc_reports(request):
         'top_materials':    top_materials,
         'recent_requests':  recent_requests,
         'low_stock_list':   low_stock_list,
+        # Damaged materials
+        'daily_damaged_materials': daily_damaged_materials,
         # Chart data (serialised for JS)
         'chart_labels_json':   _json.dumps(chart_labels),
         'chart_approved_json': _json.dumps(chart_approved),
         'chart_pending_json':  _json.dumps(chart_pending),
         'chart_rejected_json': _json.dumps(chart_rejected),
+        'used_chart_labels_json':   _json.dumps(used_chart_labels),
+        'used_chart_accepted_json': _json.dumps(used_chart_accepted),
+        'used_chart_pending_json':  _json.dumps(used_chart_pending),
+        'used_chart_rejected_json': _json.dumps(used_chart_rejected),
+        'damaged_chart_labels_json': _json.dumps(damaged_chart_labels),
+        'damaged_chart_values_json': _json.dumps(damaged_chart_values),
         'cat_labels_json':     _json.dumps(cat_labels),
         'cat_values_json':     _json.dumps(cat_values),
     }

@@ -149,6 +149,104 @@
         </tbody>
     </table>
 
+    <!-- Used Materials Section -->
+    <div class="page-break"></div>
+    <div class="section-head">Used Materials Summary</div>
+    <table class="summary-grid">
+        <tr>
+            <td>
+                <div class="stat-box">
+                    <div class="num">{{ total_used_records }}</div>
+                    <div class="lbl">Used Records</div>
+                </div>
+            </td>
+            <td>
+                <div class="stat-box green">
+                    <div class="num">{{ total_used_qty }}</div>
+                    <div class="lbl">Total Units Used</div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="section-head">Used Materials Log (up to 100 records)</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Technician</th>
+                <th>Material</th>
+                <th>Qty Used</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for um in used_list %}
+            <tr>
+                <td>{{ um.added_at|date:"d M Y" }}</td>
+                <td>{{ um.technician.get_full_name|default:um.technician.username }}</td>
+                <td>{{ um.material.name }}</td>
+                <td>{{ um.quantity }}</td>
+                <td>{{ um.status }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" style="text-align:center;color:#9ca3af;padding:12px;">No used materials recorded in this period.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Damaged Materials Section -->
+    <div class="page-break"></div>
+    <div class="section-head">Damaged Materials Summary</div>
+    <table class="summary-grid">
+        <tr>
+            <td>
+                <div class="stat-box red">
+                    <div class="num">{{ total_damaged_records }}</div>
+                    <div class="lbl">Damaged Records</div>
+                </div>
+            </td>
+            <td>
+                <div class="stat-box red">
+                    <div class="num">{{ total_damaged_qty }}</div>
+                    <div class="lbl">Total Units Confirmed Damaged</div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="section-head">Confirmed Damaged Materials Log (up to 100 records)</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Branch User</th>
+                <th>Material</th>
+                <th>Qty</th>
+                <th>Reason</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for dmg in damaged_list %}
+            <tr>
+                <td>{{ dmg.added_at|date:"d M Y" }}</td>
+                <td>{{ dmg.branch_user.get_full_name|default:dmg.branch_user.username }}</td>
+                <td>{{ dmg.material.name }}</td>
+                <td>{{ dmg.quantity }}</td>
+                <td>{{ dmg.damage_reason|default:"—" }}</td>
+                <td>Confirmed</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="text-align:center;color:#9ca3af;padding:12px;">No confirmed damaged materials recorded in this period.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
     <!-- Footer -->
     <div id="footer-content">
         ISP Inventory System &nbsp;|&nbsp; Report generated on {{ generated_at }} by {{ generated_by }}

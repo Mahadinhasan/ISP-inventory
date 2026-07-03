@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="space-y-6">
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-4">
+    <div class="flex flex-col lg:flex-row justify-between items-center gap-4 px-4">
         <div>
             <h1
                 class="text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent dark:from-indigo-400 dark:via-purple-400 dark:to-pink-400">
@@ -12,36 +12,39 @@
             <p class="text-gray-500 dark:text-gray-400 font-medium text-sm">Monitor and verify branch material
                 consumption</p>
         </div>
-    </div>
 
-    <!-- Filter & Search Row -->
-    <div class="flex flex-col md:flex-row justify-end items-start md:items-center gap-3 mb-4 px-4">
-        <form method="get" id="filter-form" class="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
-            <!-- Preserve tab_id for session consistency -->
-            {% if request.GET.tab_id %}
-            <input type="hidden" name="tab_id" value="{{ request.GET.tab_id }}">
-            {% endif %}
-            
-            {% if role == 'Admin' or role == 'Storekeeper' or role == 'NOC' %}
-            <select name="user_id" onchange="submitFilterForm()"
-                class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white text-sm font-medium min-w-[160px] w-full sm:w-auto appearance-none cursor-pointer">
-                <option value="">All Branches</option>
-                {% for branch_user in users %}
-                <option value="{{ branch_user.id }}" {% if selected_user_id == branch_user.id|stringformat:"d" %}selected{% endif %}>
-                    {{ branch_user.username }}</option>
-                {% endfor %}
-            </select>
-            {% endif %}
-
-            <div class="flex items-center w-full sm:w-auto">
-                <input type="text" name="search" placeholder="Search materials, clients..." value="{{ search_query }}"
-                    class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-l-2xl px-6 py-3 focus:outline-none focus:border-indigo-500 transition-all flex-1 sm:w-64 dark:text-white">
-                <button type="submit"
-                    class="bg-indigo-600 text-white px-5 py-3 rounded-r-2xl border-2 border-l-0 border-indigo-600 hover:bg-indigo-700 transition-all">
-                    <i class="fas fa-search"></i>
-                </button>
+        <div class="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+            <div class="font-medium text-gray-700 dark:text-gray-200 bg-gradient-to-r from-pink-100 via-white to-purple-100 dark:from-pink-900/20 dark:via-midnight-900/20 dark:to-purple-900/20 border border-gray-200 dark:border-midnight-800 px-3 py-2 rounded-lg shadow-sm whitespace-nowrap flex items-center text-sm">
+                Total Used Materials: <span class="font-bold text-pink-600 dark:text-pink-400 text-base ml-2">{{ total_count }}</span>
             </div>
-        </form>
+
+            <form method="get" id="filter-form" class="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+                <!-- Preserve tab_id for session consistency -->
+                {% if request.GET.tab_id %}
+                <input type="hidden" name="tab_id" value="{{ request.GET.tab_id }}">
+                {% endif %}
+                
+                {% if role == 'Admin' or role == 'Storekeeper' or role == 'NOC' %}
+                <select name="user_id" onchange="submitFilterForm()"
+                    class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white text-sm font-medium min-w-[160px] w-full sm:w-auto appearance-none cursor-pointer">
+                    <option value="">All Branches</option>
+                    {% for branch_user in users %}
+                    <option value="{{ branch_user.id }}" {% if selected_user_id == branch_user.id|stringformat:"d" %}selected{% endif %}>
+                        {{ branch_user.username }}</option>
+                    {% endfor %}
+                </select>
+                {% endif %}
+
+                <div class="flex items-center w-full sm:w-auto">
+                    <input type="text" name="search" placeholder="Search materials, clients..." value="{{ search_query }}"
+                        class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-l-2xl px-6 py-3 focus:outline-none focus:border-indigo-500 transition-all flex-1 sm:w-64 dark:text-white">
+                    <button type="submit"
+                        class="bg-indigo-600 text-white px-5 py-3 rounded-r-2xl border-2 border-l-0 border-indigo-600 hover:bg-indigo-700 transition-all">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- Used Materials List -->

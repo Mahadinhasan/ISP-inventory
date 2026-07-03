@@ -62,7 +62,7 @@
                         <th class="px-6 py-4 text-left">Mac/Serial</th>
                         <th class="px-6 py-4 text-left">Assigned To (Branch)</th>
                         <th class="px-6 py-4 text-left">Added</th>
-                        <th class="px-6 py-4 text-left">Actions</th>
+                        <!-- <th class="px-6 py-4 text-left">Actions</th> -->
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
@@ -84,11 +84,11 @@
                             <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                                 {{ ms.created_at|date:"Y-m-d" }}
                             </td>
-                            <td class="px-6 py-4 text-sm text-left">
+                            <!-- <td class="px-6 py-4 text-sm text-left">
                                 <a href="{% url 'noc:delete_mac_serial' ms.id %}" class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
                                     <i class="fas fa-trash"></i>
                                 </a>
-                            </td>
+                            </td> -->
                         </tr>
                         {% endfor %}
                     {% else %}

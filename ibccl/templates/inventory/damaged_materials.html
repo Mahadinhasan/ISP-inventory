@@ -62,7 +62,7 @@
                     {% for item in damaged_materials %}
                     <tr class="hover:bg-red-50/10 dark:hover:bg-red-950/5 transition duration-300">
                         {% if user.userprofile.role != 'Branch' %}
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ item.branch_user_name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ item.branch_user.username }}</td>
                         {% endif %}
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ item.material_name }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-semibold">{{ item.quantity }}</td>

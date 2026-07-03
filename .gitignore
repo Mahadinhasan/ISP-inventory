@@ -19,6 +19,7 @@ __pycache__/
 local_settings.py
 media/
 django_cache/
+*ibccl/isp_inventory/pycache/
 
 # IDE
 .vscode/

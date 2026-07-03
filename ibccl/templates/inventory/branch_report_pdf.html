@@ -280,6 +280,61 @@
     </table>
     {% endif %}
 
+    <!-- Page Break -->
+    <div class="page-break"></div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- DAMAGED MATERIALS SECTION -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+
+    <div class="section-head">Damaged Materials Summary</div>
+
+    <table class="summary-grid">
+        <tr>
+            <td>
+                <div class="stat-box red">
+                    <div class="num">{{ dmg_total_count }}</div>
+                    <div class="lbl">Damaged Records</div>
+                </div>
+            </td>
+            <td>
+                <div class="stat-box red">
+                    <div class="num">{{ dmg_total_qty }}</div>
+                    <div class="lbl">Total Units Damaged</div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Damaged Materials Log -->
+    {% if dmg_list %}
+    <div class="section-subhead">Confirmed Damaged Materials Log</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Material</th>
+                <th>Category</th>
+                <th>Qty</th>
+                <th>Reason</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for dmg in dmg_list %}
+            <tr>
+                <td>{{ dmg.added_at|date:"d M Y" }}</td>
+                <td>{{ dmg.material.name }}</td>
+                <td>{{ dmg.material.category }}</td>
+                <td>{{ dmg.quantity }}</td>
+                <td>{{ dmg.damage_reason|default:"—" }}</td>
+                <td>Confirmed</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
     <!-- Footer -->
     <div id="footer-content">
         ISP Inventory System — Branch Report &nbsp;|&nbsp; Generated on {{ generated_at }} by {{ generated_by }}

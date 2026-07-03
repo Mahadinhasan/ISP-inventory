@@ -10,30 +10,36 @@
         </div>
 
         <div class="flex flex-col lg:flex-row items-start lg:items-center gap-2 w-full lg:w-auto">
-            {% if role == 'Admin' or role == 'Storekeeper' %}
             <!--Return materials List button-->
+            {% if role == 'Admin' or role == 'Storekeeper' %}
             <button onclick="openReturnModal()" class="w-full sm:w-auto justify-center px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-md text-sm font-bold transition-all inline-flex items-center gap-1 shadow-lg hover:shadow-indigo-200 mt-2 sm:mt-0">
                 <i class="fas fa-list"></i>View Materials
             </button>
-            <select name="user_id" onchange="submitInventoryFilterForm()"
-                class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white text-sm font-medium min-w-[160px] w-full sm:w-auto">
-                <option value="">All Users</option>
-                {% for branch_user in branch_users %}
-                <option value="{{ branch_user.id }}" {% if request.GET.user_id == branch_user.id|stringformat:"d" %}selected{% endif %}>
-                    {{ branch_user.username }}</option>
-                {% endfor %}
-            </select>
             {% endif %}
-            <form method="get" id="inventory-filter-form" class="flex items-center w-full sm:w-auto gap-0">
+            <form method="get" id="inventory-filter-form" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                 {% if request.GET.tab_id %}
                 <input type="hidden" name="tab_id" value="{{ request.GET.tab_id }}">
                 {% endif %}
-                <input type="text" name="search" placeholder="Search..." value="{{ request.GET.search }}"
-                    class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-l-2xl px-4 py-2 focus:outline-none focus:border-indigo-500 transition-all flex-1 sm:w-56 dark:text-white">
-                <button type="submit"
-                    class="bg-gray-100 dark:bg-midnight-800 text-gray-500 dark:text-gray-400 px-4 py-2 rounded-r-2xl border-2 border-l-0 border-gray-100 dark:border-midnight-800 hover:bg-gray-200 dark:hover:bg-midnight-700 transition-all">
-                    <i class="fas fa-search"></i>
-                </button>
+                
+                {% if role == 'Admin' or role == 'Storekeeper' or role == 'NOC' %}
+                <select name="user_id" onchange="this.form.submit()"
+                    class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white text-sm font-medium min-w-[160px] w-full sm:w-auto">
+                    <option value="">All Users</option>
+                    {% for branch_user in branch_users %}
+                    <option value="{{ branch_user.id }}" {% if request.GET.user_id == branch_user.id|stringformat:"d" %}selected{% endif %}>
+                        {{ branch_user.username }}</option>
+                    {% endfor %}
+                </select>
+                {% endif %}
+                
+                <div class="flex items-center w-full sm:w-auto gap-0">
+                    <input type="text" name="search" placeholder="Search..." value="{{ request.GET.search }}"
+                        class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-l-2xl px-4 py-2 focus:outline-none focus:border-indigo-500 transition-all flex-1 sm:w-56 dark:text-white">
+                    <button type="submit"
+                        class="bg-gray-100 dark:bg-midnight-800 text-gray-500 dark:text-gray-400 px-4 py-2 rounded-r-2xl border-2 border-l-0 border-gray-100 dark:border-midnight-800 hover:bg-gray-200 dark:hover:bg-midnight-700 transition-all">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
             </form>
         </div>
         
@@ -198,7 +204,8 @@
                     <table class="min-w-full divide-y divide-gray-200 dark:divide-midnight-800">
                         <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
                             <tr>
-                                {% if user.userprofile.role != 'Branch' %}
+                                <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm font-bold text-indigo-600">{{ forloop.counter }}</td>
+                                {% if role != 'Branch' %}
                                 <th scope="col" class="px-3 py-2 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Branch</th>
                                 {% endif %}
                                 <th scope="col" class="px-3 py-2 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Material Name</th>
@@ -213,29 +220,30 @@
                         <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
                             {% for item in refundable_materials %}
                             <tr class="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition duration-300">
-                                {% if user.userprofile.role != 'Branch' %}
+                                <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm font-bold text-indigo-600">{{ forloop.counter }}</td>
+                                {% if role != 'Branch' %}
                                 <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ item.branch_user_name }}</td>
                                 {% endif %}
                                 <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ item.material_name }}</td>
-                                 <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{{ item.mac_serial }}</td>
+                                <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{{ item.mac_serial }}</td>
                                 <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-semibold">{{ item.available_quantity|default:item.quantity }}</td>
                                 <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ item.added_at|date:"Y-m-d" }}</td>
+                                {% if role == 'Branch' %}
                                 <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm">
                                     <div class="flex gap-2">
-                                        {% if role == 'Branch' %}
-                                            <button onclick="openEditModal('{{ item.id }}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 font-semibold" title="Edit">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button onclick="confirmDelete('{{ item.id }}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 font-semibold" title="Delete">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        {% endif %}
+                                        <button onclick="openEditModal('{{ item.id }}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 font-semibold" title="Edit">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button onclick="confirmDelete('{{ item.id }}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 font-semibold" title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
                                     </div>
                                 </td>
+                                {% endif %}
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="{% if user.userprofile.role != 'Branch' %}5{% else %}4{% endif %}" class="px-3 py-8 sm:px-6 sm:py-12 text-center text-gray-500 dark:text-gray-400">
+                                <td colspan="6" class="px-3 py-8 sm:px-6 sm:py-12 text-center text-gray-500 dark:text-gray-400">
                                     <div class="flex flex-col items-center justify-center">
                                         <i class="fas fa-inbox text-5xl text-gray-300 dark:text-gray-700 mb-4 animate-bounce"></i>
                                         <p class="text-lg font-bold">No Returnable Materials found</p>
@@ -278,7 +286,7 @@
 
 <!-- Add/Edit Modal (Branch Only) -->
 {% if role == 'Branch' %}
-<div id="addEditModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4 animate-fade-in">
+<div id="addEditModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-[60] backdrop-blur-sm p-4 animate-fade-in">
     <div class="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl shadow-2xl max-w-xl w-full border border-gray-100 dark:border-slate-700 overflow-hidden transform transition-all duration-300">
         <div class="px-6 py-5 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gradient-to-r from-indigo-50/50 to-purple-50/50 dark:from-slate-800 dark:to-slate-800">
             <h3 id="modalTitle" class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -320,7 +328,7 @@
 </div>
 
 <!-- Usage Modal (Branch Only) -->
-<div id="usageModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4 animate-fade-in">
+<div id="usageModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-[60] backdrop-blur-sm p-4 animate-fade-in">
     <div class="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl shadow-2xl max-w-xl w-full border border-gray-100 dark:border-slate-700 overflow-hidden transform transition-all duration-300">
         <div class="px-6 py-5 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gradient-to-r from-indigo-50/50 to-purple-50/50 dark:from-slate-800 dark:to-slate-800">
             <h3 id="usageModalTitle" class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -373,7 +381,7 @@
 </div>
 
 <!-- Delete Modal -->
-<div id="deleteModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4">
+<div id="deleteModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-[60] backdrop-blur-sm p-4">
     <div class="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-xl shadow-2xl max-w-sm w-full border border-gray-200 dark:border-slate-700">
         <div class="p-6 text-center">
             <div class="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -463,36 +471,57 @@
     }
 
     function openEditModal(rfId) {
-        document.getElementById('formAction').value = 'edit';
-        document.getElementById('rf_id').value = rfId;
-        document.getElementById('modalTitle').innerHTML = '<i class="fas fa-edit text-indigo-600 dark:text-indigo-400"></i>Edit Refundable Material';
-        
+        const formAction   = document.getElementById('formAction');
+        const rfIdInput    = document.getElementById('rf_id');
+        const modalTitle   = document.getElementById('modalTitle');
+        const addEditModal = document.getElementById('addEditModal');
+        const refundableForm = document.getElementById('refundableForm');
+
+        if (!formAction || !rfIdInput || !addEditModal || !refundableForm) {
+            console.error('openEditModal: required DOM elements not found. Is role=Branch?');
+            return;
+        }
+
+        formAction.value = 'edit';
+        rfIdInput.value  = rfId;
+        if (modalTitle) {
+            modalTitle.innerHTML = '<i class="fas fa-edit text-indigo-600 dark:text-indigo-400"></i> Edit Refundable Material';
+        }
+
         fetch(`/api/refundable-materials/${rfId}/`, {
+            credentials: 'same-origin',
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
                 'Accept': 'application/json'
             }
         })
-        .then(response => response.json())
+        .then(response => {
+            const ct = response.headers.get('content-type') || '';
+            if (!ct.includes('application/json')) {
+                throw new Error('Session may have expired. Please refresh the page and try again.');
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.error) {
                 alert(data.error);
                 return;
             }
-            const refundableForm = document.getElementById('refundableForm');
-            if (refundableForm) {
-                const nameInput = refundableForm.querySelector('input[name="material_name"]');
-                if (nameInput) nameInput.value = data.material_name || '';
-                const macInput = refundableForm.querySelector('input[name="mac_serial"]');
-                if (macInput) macInput.value = data.mac_serial || '';
-                const qty = refundableForm.querySelector('input[type="number"]');
-                if (qty) qty.value = data.quantity;
-            }
-            document.getElementById('addEditModal').classList.remove('hidden');
+
+            const nameInput = refundableForm.querySelector('input[name="material_name"]');
+            if (nameInput) nameInput.value = data.material_name || '';
+
+            const macInput = refundableForm.querySelector('input[name="mac_serial"]');
+            if (macInput) macInput.value = (data.mac_serial && data.mac_serial !== 'null') ? data.mac_serial : '';
+
+            const qtyInput = refundableForm.querySelector('input[name="quantity"]');
+            if (qtyInput) qtyInput.value = data.quantity || 1;
+
+            addEditModal.classList.remove('hidden');
         })
         .catch(err => {
-            console.error(err);
-            alert('Failed to load refundable material details.');
+            console.error('openEditModal error:', err);
+            alert('Failed to load material details: ' + err.message);
         });
     }
 
@@ -517,17 +546,16 @@
         }
 
         fetch(`/api/refundable-materials-usage/${usageId}/`, {
+            credentials: 'same-origin',
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
                 'Accept': 'application/json'
             }
         })
         .then(response => {
-            if (!response.ok) {
-                return response.text().then(text => {
-                    console.error('API error:', response.status, text);
-                    throw new Error(`Server returned ${response.status}`);
-                });
+            const ct = response.headers.get('content-type') || '';
+            if (!ct.includes('application/json')) {
+                throw new Error('Session may have expired. Please refresh the page and try again.');
             }
             return response.json();
         })
@@ -540,7 +568,27 @@
             // Populate form fields
             const selectionSelect = usageForm.querySelector('select[name="material_selection"]');
             if (selectionSelect) {
-                selectionSelect.value = `r:${data.refundable_material_id}`;
+                const targetVal = `r:${data.refundable_material_id}`;
+                let existingOpt = selectionSelect.querySelector(`option[value="${targetVal}"]`);
+                if (!existingOpt) {
+                    const newOpt = document.createElement('option');
+                    newOpt.value = targetVal;
+                    // Format option label with MAC/Serial if available
+                    let label = data.material_name || 'Refundable Material';
+                    if (data.mac_serial) {
+                        label += ` - ${data.mac_serial}`;
+                    }
+                    label += ' (current)';
+                    newOpt.textContent = label;
+                    newOpt.setAttribute('data-injected', 'true');
+                    
+                    // Remove any previously injected options
+                    const prevInjected = selectionSelect.querySelector('option[data-injected="true"]');
+                    if (prevInjected) prevInjected.remove();
+                    
+                    selectionSelect.appendChild(newOpt);
+                }
+                selectionSelect.value = targetVal;
             }
 
             const qtyInput = usageForm.querySelector('input[name="materials_quantity"]');

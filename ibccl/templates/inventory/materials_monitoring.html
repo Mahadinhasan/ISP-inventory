@@ -89,7 +89,7 @@
                             <th>Category</th>
                             <th>Available Qty</th>
                             <th>Status</th>
-                            <th>Received</th>
+                            <th>Date</th>
                         </tr>
                     </thead>
                     <tbody id="stock-table-body">
@@ -292,7 +292,7 @@
         }
     };
 
-    /* ── Tab control ────────────────────────────────────────────── */
+    /* ── Tab control ─── */
     window.showTab = function(tab) {
         activeTab = tab;
         updateTabUI();
@@ -392,7 +392,7 @@
             const badgeClass = r.status === 'Accepted' ? 'badge-accepted' : r.status === 'Rejected' ? 'badge-rejected' : 'badge-pending';
             const timeStr = r.added_at ? new Date(r.added_at).toLocaleString() : '—';
             return `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700/40">
-                <td class="font-medium">${escHtml(r.technician_name || r.technician_username || '—')}</td>
+                <td class="font-medium">${escHtml(r.userName || r.technician_username || '—')}</td>
                 <td>${escHtml(r.material_name || '—')}</td>
                 <td class="font-bold text-indigo-600">${r.quantity != null ? r.quantity : '—'}</td>
                 <td><span class="badge-sm ${badgeClass}">${escHtml(r.status || '—')}</span></td>
