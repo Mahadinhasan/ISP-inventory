@@ -1,0 +1,404 @@
+ /* Enable smooth theme transitions */
+        html {
+            transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1), color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            font-family: 'Public Sans', sans-serif;
+            transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1), color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        table,
+        th,
+        td {
+            font-family: 'Public Sans', sans-serif;
+        }
+
+        /* Premium Dark Mode Glassmorphism */
+        .dark body {
+            background: radial-gradient(circle at top right, #0b1120 0%, #020617 100%) !important;
+            color: #e2e8f0;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+        }
+
+        .dark .glass-card {
+            background: rgba(30, 41, 59, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 8px 40px 0 rgba(0, 0, 0, 0.4);
+        }
+
+        .dark .glass-nav {
+            background: rgba(15, 23, 42, 0.8) !important;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border: 2px solid #020617;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .card-hover {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .dropdown-menu {
+            animation: slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .animate-slide-up {
+            animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .status-online { background-color: #10b981; }
+        .status-offline { background-color: #9ca3af; }
+
+        /* ============================================================
+           DARK-MODE SAFETY NET
+           Provides readable dark defaults for any element that does
+           NOT already declare its own dark: variant. The
+           :not([class*="dark:..."]) guards make sure we never override
+           styling that was already handled correctly per element.
+           ============================================================ */
+        /* Surfaces */
+        .dark .bg-white:not([class*="dark:bg-"]) { background-color: #0f172a; }
+        .dark .bg-gray-50:not([class*="dark:bg-"]),
+        .dark .bg-gray-100:not([class*="dark:bg-"]),
+        .dark .bg-slate-50:not([class*="dark:bg-"]),
+        .dark .bg-slate-100:not([class*="dark:bg-"]) { background-color: #1e293b; }
+        .dark .bg-gray-200:not([class*="dark:bg-"]),
+        .dark .bg-slate-200:not([class*="dark:bg-"]) { background-color: #334155; }
+
+        /* Text */
+        .dark .text-black:not([class*="dark:text-"]),
+        .dark .text-gray-900:not([class*="dark:text-"]),
+        .dark .text-gray-800:not([class*="dark:text-"]),
+        .dark .text-slate-900:not([class*="dark:text-"]),
+        .dark .text-slate-800:not([class*="dark:text-"]) { color: #f1f5f9; }
+        .dark .text-gray-700:not([class*="dark:text-"]),
+        .dark .text-gray-600:not([class*="dark:text-"]),
+        .dark .text-slate-700:not([class*="dark:text-"]),
+        .dark .text-slate-600:not([class*="dark:text-"]) { color: #cbd5e1; }
+        .dark .text-gray-500:not([class*="dark:text-"]),
+        .dark .text-gray-400:not([class*="dark:text-"]),
+        .dark .text-slate-500:not([class*="dark:text-"]),
+        .dark .text-slate-400:not([class*="dark:text-"]) { color: #94a3b8; }
+
+        /* Borders & dividers */
+        .dark .border-gray-100:not([class*="dark:border-"]),
+        .dark .border-gray-200:not([class*="dark:border-"]),
+        .dark .border-slate-100:not([class*="dark:border-"]),
+        .dark .border-slate-200:not([class*="dark:border-"]) { border-color: #334155; }
+        .dark .border-gray-300:not([class*="dark:border-"]),
+        .dark .border-slate-300:not([class*="dark:border-"]) { border-color: #475569; }
+        .dark .divide-gray-100:not([class*="dark:divide-"]) > :not([hidden]) ~ :not([hidden]),
+        .dark .divide-gray-200:not([class*="dark:divide-"]) > :not([hidden]) ~ :not([hidden]) { border-color: #334155; }
+
+        /* Light gradient banners (from-/to- *-50 / *-100) -> subtle dark gradient.
+           from- rules first, to- second, so a "from x to y" pair resolves correctly. */
+        .dark .from-slate-50:not([class*="dark:from-"]),
+        .dark .from-gray-50:not([class*="dark:from-"]),
+        .dark .from-gray-100:not([class*="dark:from-"]),
+        .dark .from-indigo-50:not([class*="dark:from-"]),
+        .dark .from-indigo-100:not([class*="dark:from-"]),
+        .dark .from-purple-50:not([class*="dark:from-"]),
+        .dark .from-purple-100:not([class*="dark:from-"]),
+        .dark .from-blue-50:not([class*="dark:from-"]),
+        .dark .from-blue-100:not([class*="dark:from-"]),
+        .dark .from-red-50:not([class*="dark:from-"]),
+        .dark .from-rose-50:not([class*="dark:from-"]),
+        .dark .from-pink-50:not([class*="dark:from-"]),
+        .dark .from-teal-50:not([class*="dark:from-"]),
+        .dark .from-green-50:not([class*="dark:from-"]),
+        .dark .from-emerald-50:not([class*="dark:from-"]),
+        .dark .from-yellow-50:not([class*="dark:from-"]),
+        .dark .from-amber-50:not([class*="dark:from-"]),
+        .dark .from-sky-50:not([class*="dark:from-"]),
+        .dark .from-violet-50:not([class*="dark:from-"]) {
+            --tw-gradient-from: #0f172a var(--tw-gradient-from-position);
+            --tw-gradient-to: rgb(15 23 42 / 0) var(--tw-gradient-to-position);
+            --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+        }
+        .dark .to-slate-50:not([class*="dark:to-"]),
+        .dark .to-gray-50:not([class*="dark:to-"]),
+        .dark .to-gray-100:not([class*="dark:to-"]),
+        .dark .to-indigo-50:not([class*="dark:to-"]),
+        .dark .to-indigo-100:not([class*="dark:to-"]),
+        .dark .to-purple-50:not([class*="dark:to-"]),
+        .dark .to-purple-100:not([class*="dark:to-"]),
+        .dark .to-blue-50:not([class*="dark:to-"]),
+        .dark .to-blue-100:not([class*="dark:to-"]),
+        .dark .to-red-50:not([class*="dark:to-"]),
+        .dark .to-rose-50:not([class*="dark:to-"]),
+        .dark .to-pink-50:not([class*="dark:to-"]),
+        .dark .to-teal-50:not([class*="dark:to-"]),
+        .dark .to-green-50:not([class*="dark:to-"]),
+        .dark .to-emerald-50:not([class*="dark:to-"]),
+        .dark .to-yellow-50:not([class*="dark:to-"]),
+        .dark .to-amber-50:not([class*="dark:to-"]),
+        .dark .to-sky-50:not([class*="dark:to-"]),
+        .dark .to-violet-50:not([class*="dark:to-"]) {
+            --tw-gradient-to: #1e293b var(--tw-gradient-to-position);
+        }
+
+        /* Hover states */
+        .dark .hover\:bg-gray-50:hover:not([class*="dark:hover:bg-"]),
+        .dark .hover\:bg-gray-100:hover:not([class*="dark:hover:bg-"]) { background-color: #1e293b; }
+        .dark .hover\:bg-gray-200:hover:not([class*="dark:hover:bg-"]) { background-color: #334155; }
+        .dark .hover\:text-gray-900:hover:not([class*="dark:hover:text-"]),
+        .dark .hover\:text-gray-800:hover:not([class*="dark:hover:text-"]),
+        .dark .hover\:text-gray-700:hover:not([class*="dark:hover:text-"]) { color: #f1f5f9; }
+
+        /* Form controls (native / unstyled) */
+        .dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([class*="dark:bg-"]),
+        .dark select:not([class*="dark:bg-"]),
+        .dark textarea:not([class*="dark:bg-"]) {
+            background-color: #0f172a;
+            color: #f1f5f9;
+            border-color: #334155;
+        }
+        .dark input::placeholder,
+        .dark textarea::placeholder { color: #64748b; }
+
+        /* Active appearance option highlight */
+        .appearance-radio.theme-active {
+            background-color: rgba(99, 102, 241, 0.12);
+            color: #4f46e5;
+            font-weight: 700;
+        }
+        .dark .appearance-radio.theme-active {
+            background-color: rgba(99, 102, 241, 0.18);
+            color: #a5b4fc;
+        }
+
+        /* ============================================================
+           MODERN SIDEBAR ADMIN SHELL
+           A signature premium dark sidebar (always dark) + glassy
+           topbar. Collapsible on desktop, off-canvas drawer on mobile.
+           ============================================================ */
+        :root {
+            --sidebar-w: 16.5rem;
+            --sidebar-w-collapsed: 5rem;
+        }
+
+        #app-sidebar {
+            width: var(--sidebar-w);
+            /* Light mode: clean white sidebar */
+            background: #ffffff;
+            border-right: 1px solid #e8edf4;
+            box-shadow: 14px 0 40px -34px rgba(15, 23, 42, 0.3);
+            transition: width .32s cubic-bezier(.4, 0, .2, 1);
+        }
+        /* Dark mode: premium dark gradient sidebar */
+        .dark #app-sidebar {
+            background:
+                radial-gradient(120% 50% at 0% 0%, rgba(99, 102, 241, 0.18), transparent 60%),
+                linear-gradient(180deg, #1e293b 0%, #0f172a 55%, #020617 100%);
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 1px 0 0 rgba(255, 255, 255, 0.04), 18px 0 40px -28px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Hide labels/sections smoothly when collapsed (desktop) */
+        #app-sidebar .side-label,
+        #app-sidebar .side-brand-text,
+        #app-sidebar .side-section {
+            transition: opacity .18s ease;
+            white-space: nowrap;
+        }
+        @media (min-width: 1024px) {
+            #main-wrap { padding-left: var(--sidebar-w); transition: padding-left .32s cubic-bezier(.4, 0, .2, 1); }
+            body.sidebar-collapsed #main-wrap { padding-left: var(--sidebar-w-collapsed); }
+            body.sidebar-collapsed #app-sidebar { width: var(--sidebar-w-collapsed); }
+            body.sidebar-collapsed #app-sidebar .side-label,
+            body.sidebar-collapsed #app-sidebar .side-brand-text,
+            body.sidebar-collapsed #app-sidebar .side-section {
+                opacity: 0;
+                width: 0;
+                overflow: hidden;
+                pointer-events: none;
+            }
+            /* Center nav icons: kill the flex gap so the zero-width label can't push icons off-centre */
+            body.sidebar-collapsed #app-sidebar .side-link {
+                justify-content: center;
+                gap: 0;
+                padding-left: 0;
+                padding-right: 0;
+            }
+            body.sidebar-collapsed #app-sidebar .side-link .side-ico { margin: 0; }
+            /* Center the brand logo + user chip when collapsed */
+            body.sidebar-collapsed #app-sidebar .side-brand-row { justify-content: center; padding-left: 0; padding-right: 0; }
+            body.sidebar-collapsed #app-sidebar .side-brand-row > a { gap: 0; justify-content: center; width: 100%; }
+            body.sidebar-collapsed #app-sidebar .side-userchip { justify-content: center; gap: 0; padding-left: 0; padding-right: 0; }
+        }
+
+        /* Sidebar nav links */
+        .side-link {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: .85rem;
+            padding: .68rem .9rem;
+            margin: .15rem .6rem;
+            border-radius: .85rem;
+            color: #475569;
+            font-weight: 600;
+            font-size: .875rem;
+            transition: background-color .2s ease, color .2s ease, transform .2s ease;
+        }
+        .side-link:hover { background: rgba(99, 102, 241, .10); color: #4338ca; }
+        .side-link:active { transform: scale(.98); }
+        .side-link .side-ico { width: 1.45rem; text-align: center; font-size: 1.02rem; flex-shrink: 0; }
+        .side-link.active {
+            background: linear-gradient(90deg, rgba(99, 102, 241, .12), rgba(99, 102, 241, .02));
+            color: #4338ca;
+            box-shadow: inset 0 0 0 1px rgba(99, 102, 241, .18);
+        }
+        .side-link.active .side-ico { color: #6366f1; }
+
+        /* Dark-mode sidebar link colours */
+        .dark .side-link { color: #94a3b8; }
+        .dark .side-link:hover { background: rgba(99, 102, 241, .12); color: #e0e7ff; }
+        .dark .side-link.active {
+            background: linear-gradient(90deg, rgba(99, 102, 241, .28), rgba(99, 102, 241, .04));
+            color: #ffffff;
+            box-shadow: inset 0 0 0 1px rgba(129, 140, 248, .22);
+        }
+        .dark .side-link.active .side-ico { color: #a5b4fc; }
+        .side-link.active::before {
+            content: '';
+            position: absolute;
+            left: -.6rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: .26rem;
+            height: 58%;
+            border-radius: 99px;
+            background: linear-gradient(180deg, #818cf8, #6366f1);
+            box-shadow: 0 0 10px rgba(129, 140, 248, .6);
+        }
+
+        /* Glassy topbar */
+        .topbar {
+            background: rgba(255, 255, 255, 0.78);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border-bottom: 1px solid rgba(15, 23, 42, 0.07);
+        }
+        .dark .topbar {
+            background: rgba(15, 23, 42, 0.72);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        /* ============================================================
+           TYPOGRAPHY & CRISP WHITE LIGHT MODE
+           ============================================================ */
+        body {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+        }
+        /* Clean white light mode (dark mode keeps its own gradient above) */
+        html:not(.dark) body {
+            background: linear-gradient(180deg, #ffffff 0%, #f4f7fb 100%) !important;
+            color: #1e293b;
+        }
+
+        /* ============================================================
+           MODERN DATA TABLES — refines existing tables, no markup change
+           ============================================================ */
+        main table { font-size: 0.875rem; }
+        main tbody tr { transition: background-color .15s ease; }
+        /* Soft zebra striping for readability (light + dark) */
+        main tbody tr:nth-child(even) { background-color: rgba(148, 163, 184, 0.05); }
+        .dark main tbody tr:nth-child(even) { background-color: rgba(148, 163, 184, 0.04); }
+
+        /* Responsive: tighten table padding and scale on small screens */
+        @media (max-width: 640px) {
+            main table th, main table td {
+                padding-left: 0.8rem !important;
+                padding-right: 0.8rem !important;
+            }
+            main table { font-size: 0.8125rem; }
+        }
+
+        /* ============================================================
+           MODERN BUTTONS & CONTROLS — app-wide polish, no markup change
+           Bare element selectors keep specificity low, so Tailwind
+           utilities always win; this only enriches interaction.
+           ============================================================ */
+        button, [type="button"], [type="submit"], [type="reset"] {
+            transition: transform .14s cubic-bezier(.4,0,.2,1), box-shadow .2s ease,
+                        background-color .2s ease, color .2s ease, opacity .2s ease, filter .2s ease;
+        }
+        /* Tactile press feedback */
+        button:active:not(:disabled),
+        [type="button"]:active:not(:disabled),
+        [type="submit"]:active:not(:disabled),
+        [type="reset"]:active:not(:disabled) {
+            transform: translateY(1px) scale(.985);
+        }
+        /* Subtle lift + brightness on solid-colour action buttons */
+        button[class*="bg-indigo-6"]:hover:not(:disabled),
+        button[class*="bg-green-6"]:hover:not(:disabled),
+        button[class*="bg-red-6"]:hover:not(:disabled),
+        a[class*="bg-indigo-6"]:hover,
+        [type="submit"][class*="bg-indigo-6"]:hover:not(:disabled) {
+            filter: brightness(1.04);
+            box-shadow: 0 10px 24px -10px rgba(79, 70, 229, .55);
+        }
+        button:disabled, [type="submit"]:disabled { opacity: .55; cursor: not-allowed; }
+
+        /* Crisp modern keyboard focus ring (accessibility + polish) */
+        button:focus-visible,
+        a:focus-visible,
+        [type="submit"]:focus-visible,
+        [type="button"]:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, .35);
+        }

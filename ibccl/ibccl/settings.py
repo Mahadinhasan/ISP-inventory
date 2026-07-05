@@ -17,10 +17,10 @@ CACHE_DIR = os.path.join(BASE_DIR, 'cache')
 SECRET_KEY = 'django-insecure-_o$zbpjqv-u=jgd0qri&gibv@pskcyd*z^6ts=ikz-g0#4%&!u'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-# ALLOWED_HOSTS = ['72.61.148.231']
-ALLOWED_HOSTS = ['*']  # Allow all hosts for development; restrict in production
+# Production: VPS IP. Add domain name here if you get one.
+ALLOWED_HOSTS = ['72.61.148.231', 'localhost', '127.0.0.1']
 
 # Application definition
 
@@ -72,10 +72,14 @@ TEMPLATES = [
 WSGI_APPLICATION = 'ibccl.wsgi.application'
 ASGI_APPLICATION = 'ibccl.asgi.application'
 
-# Django Channels - in-memory layer for development (use Redis in production)
+# Django Channels - Redis channel layer for production WebSocket support
+# Redis must be running on VPS: sudo systemctl start redis
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [('127.0.0.1', 6379)],
+        },
     },
 }
 
@@ -161,8 +165,10 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATICFILES_DIRS = [STATIC_DIR]
+# Production: collects all static files into this folder for Nginx to serve
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 

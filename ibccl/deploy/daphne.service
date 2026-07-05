@@ -1,0 +1,25 @@
+[Unit]
+Description=ISP Inventory - Daphne ASGI Server (WebSocket Support)
+After=network.target postgresql.service redis.service
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/var/www/isp-inventory/ibccl
+
+# Activate virtualenv and run Daphne on port 8001 (internal, Nginx proxies to it)
+ExecStart=/var/www/isp-inventory/venv/bin/daphne \
+    -b 127.0.0.1 \
+    -p 8001 \
+    ibccl.asgi:application
+
+# Restart automatically on failure
+Restart=always
+RestartSec=5
+
+# Environment variables
+Environment="DJANGO_SETTINGS_MODULE=ibccl.settings"
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target
