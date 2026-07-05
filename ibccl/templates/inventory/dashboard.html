@@ -154,7 +154,7 @@
 
         <!-- 9. Materials Monitoring Card (Admin Only) -->
         {% if user.userprofile.role == 'Admin' %}
-        <div onclick="document.getElementById('materialsMonitoringModal').classList.remove('hidden')"
+        <div onclick="openMaterialsModal()"
             class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
                 <div class="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full">
@@ -167,6 +167,7 @@
             </div>
         </div>
         {% endif %}
+
 
         <!-- 10. PoP/Area Used Materials (Branch) -->
         {% if user.userprofile.role != 'Admin' and user.userprofile.role != 'Storekeeper' %}
@@ -356,9 +357,12 @@
                         <td class="px-6 py-4 text-sm text-gray-500">{{ req.requested_at|date:"Y-m-d" }}</td>
                         <td class="px-6 py-4 text-sm">
                             <span class="px-2 py-1 rounded-full text-xs font-semibold
-                                        {% if req.available_quantity > 0 %}bg-green-100 text-green-800
-                                        {% else %}bg-red-100 text-red-800{% endif %}">
-                                {% if req.available_quantity > 0 %}Normal{% else %}Out of Stock{% endif %}
+                                        {% if req.available_quantity == 0 %}bg-red-100 text-red-800
+                                        {% elif req.is_serialized or req.available_quantity > 2 %}bg-green-100 text-green-800
+                                        {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                {% if req.available_quantity == 0 %}Out of Stock
+                                {% elif req.is_serialized or req.available_quantity > 2 %}Normal
+                                {% else %}Low Stock{% endif %}
                             </span>
                         </td>
                         <td class="px-6 py-4 text-sm text-gray-500 font-mono">{{ req.serials_display|default:"N/A" }}</td>
@@ -1468,92 +1472,254 @@
         </div>
     </div>
 </div>
-<!-- 📦 MODAL: MATERIALS MONITORING MODAL (ADMIN) -->
-<!-- 📝 Description: Admin monitoring dashboard for branch stocks. -->
+<!-- 📦 MODAL: MATERIALS MONITORING MODAL (ADMIN) — Live In-Stock -->
+<!-- 📝 Description: Admin monitoring dashboard for branch stocks — live AJAX data. -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 {% if role == 'Admin' %}
-<div id="materialsMonitoringModal"class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"onclick="if(event.target === this) this.classList.add('hidden')">
-    <div id="materialsMonitoringModalContent" class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4 transform transition-all duration-300">
-                    <div class="p-6 border-b flex justify-between items-center">
-                        <h3 class="text-xl font-bold text-gray-900">Materials Monitoring - Branch Users</h3>
-                        <div class="flex items-center gap-3 ml-auto">
-                            <input type="text" placeholder="Search..."
-                                onkeyup="filterTable(this, 'materialsMonitoringTable')"
-                                class="border rounded px-2 py-1 text-sm focus:ring-indigo-500 focus:border-indigo-500">
-                            <button onclick="toggleModalSize('materialsMonitoringModalContent', 'btnToggleMonitoringSize')" id="btnToggleMonitoringSize"
-                                class="text-gray-500 hover:text-gray-700 transition-colors" title="Toggle Size">
-                                <i class="fas fa-expand-alt text-lg"></i>
-                            </button>
-                            <button onclick="document.getElementById('materialsMonitoringModal').classList.add('hidden')"
-                                class="text-gray-500 hover:text-gray-700 text-2xl font-bold">&times;</button>
-                        </div>
-                    </div>
-                    <div class="p-6 overflow-y-auto">
-                        <table id="materialsMonitoringTable" class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch
-                                    </th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                                        Materials Name</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity
-                                    </th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status
-                                    </th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-200">
-                                {% for item in materials_monitoring %}
-                                <tr>
-                                    <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ item.branch.username }}
-                                    </td>
-                                    <td class="px-6 py-4 text-sm text-gray-900">{{ item.material.name }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-900 font-bold">{{ item.quantity }}</td>
-                                    <td class="px-6 py-4 text-sm">
-                                        <span class="px-2 py-1 rounded-full text-xs font-semibold
-                                    {% if item.status == 'Normal' %}bg-green-100 text-green-800
-                                    {% elif item.status == 'Low Stock' %}bg-yellow-100 text-yellow-800
-                                    {% else %}bg-red-100 text-red-800{% endif %}">
-                                            {{ item.status }}
-                                        </span>
-                                    </td>
-                                    <td class="px-6 py-4 text-sm text-gray-500">{{ item.date|date:"Y-m-d" }}</td>
-                                </tr>
-                                {% empty %}
-                                <tr>
-                                    <td colspan="5" class="px-6 py-8 text-center text-gray-500">
-                                        <i class="fas fa-inbox text-4xl mb-2 text-gray-300"></i><br>
-                                        No branch materials to monitor
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                        <!---Pagination add-->
-                    {% if page_obj %}
-                    <div class="flex items-center justify-between border-t border-gray-200 bg-white px-6 py-4">
-                        <div class="text-sm text-gray-700">
-                            Showing <span class="font-medium">{{ page_obj.start_index }}</span> to <span class="font-medium">{{ page_obj.end_index }}</span> of <span class="font-medium">{{ page_obj.paginator.count }}</span> results
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            {% if page_obj.has_previous %}
-                            <a href="?page=1" class="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300">First</a>
-                            <a href="?page={{ page_obj.previous_page_number }}" class="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300">Previous</a>
-                            {% endif %}
-                            <span class="px-3 py-1 rounded-md bg-indigo-100 text-indigo-700">{{ page_obj.number }}</span>
-                            {% if page_obj.has_next %}
-                            <a href="?page={{ page_obj.next_page_number }}" class="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300">Next</a>
-                            <a href="?page={{ page_obj.paginator.num_pages }}" class="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300">Last</a>
-                            {% endif %}
-                        </div>
-                    </div>
-                  {% endif %}
-                    </div>
+<div id="materialsMonitoringModal" class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+    onclick="if(event.target === this) closeMaterialsModal()">
+    <div id="materialsMonitoringModalContent" class="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col m-4 transform transition-all duration-300">
+
+        <!-- Header -->
+        <div class="p-5 border-b flex justify-between items-center bg-gradient-to-r from-indigo-600 to-violet-600 rounded-t-xl">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl">📡</span>
+                <div>
+                    <h3 class="text-lg font-bold text-white">Live Materials Monitoring</h3>
+                    <p class="text-indigo-200 text-xs">Real-time branch in-stock materials</p>
                 </div>
             </div>
+            <div class="flex items-center gap-3">
+                <button onclick="toggleModalSize('materialsMonitoringModalContent', 'btnToggleMonitoringSize')"
+                    id="btnToggleMonitoringSize"
+                    class="text-white/70 hover:text-white transition-colors" title="Toggle Size">
+                    <i class="fas fa-expand-alt text-lg"></i>
+                </button>
+                <button onclick="closeMaterialsModal()"
+                    class="text-white/70 hover:text-white text-2xl font-bold leading-none">&times;</button>
+            </div>
+        </div>
+
+        <!-- Controls row: branch user select + search -->
+        <div class="px-5 py-3 border-b bg-gray-50 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div class="flex items-center gap-2 flex-1">
+                <label class="text-sm font-semibold text-gray-700 whitespace-nowrap">
+                    <i class="fas fa-users text-indigo-500 mr-1"></i>Branch User:
+                </label>
+                <select id="modalBranchSelect"
+                    class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                    onchange="loadModalBranchStock(this.value, this.options[this.selectedIndex].text)">
+                    <option value="">— Select Branch User —</option>
+                    {% for u in branch_list %}
+                    <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="text" id="modalStockSearch" placeholder="Search material…"
+                    oninput="filterModalStock(this.value)"
+                    class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500 outline-none w-48">
+                <a href="{% url 'materials_monitoring' %}" target="_blank"
+                    class="inline-flex items-center gap-1 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-all whitespace-nowrap">
+                    <i class="fas fa-external-link-alt text-xs"></i> Full View
+                </a>
+            </div>
+        </div>
+
+        <!-- Tabs: In Stock / Low Stock -->
+        <div class="flex gap-0 border-b border-gray-200 bg-white">
+            <button onclick="switchModalTab('in-stock')" id="modal-tab-in-stock"
+                class="px-5 py-3 text-sm font-bold border-b-2 transition-all text-indigo-600 border-indigo-500">
+                <i class="fas fa-check-circle mr-1 text-green-500"></i>
+                In Stock <span id="modal-count-in" class="ml-1 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-bold"></span>
+            </button>
+            <button onclick="switchModalTab('low-stock')" id="modal-tab-low-stock"
+                class="px-5 py-3 text-sm font-bold border-b-2 border-transparent transition-all text-gray-500 hover:text-indigo-600">
+                <i class="fas fa-exclamation-triangle mr-1 text-yellow-500"></i>
+                Low / Out <span id="modal-count-low" class="ml-1 text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full font-bold"></span>
+            </button>
+        </div>
+
+        <!-- Table body -->
+        <div class="overflow-y-auto flex-1 p-5">
+            <div id="modalStockState" class="text-center text-gray-400 py-16">
+                <i class="fas fa-hand-point-up text-4xl mb-3 block text-gray-300"></i>
+                <p class="text-base">Select a branch user above to view their live in-stock materials.</p>
+            </div>
+            <table id="materialsDashModal" class="min-w-full divide-y divide-gray-200 hidden">
+                <thead class="bg-gray-50 sticky top-0">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">#</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Material</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Category</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Available Qty</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Date</th>
+                    </tr>
+                </thead>
+                <tbody id="modalStockBody" class="divide-y divide-gray-100"></tbody>
+            </table>
+        </div>
+
+    </div>
+</div>
+
+<script>
+(function() {
+    /* ── Modal stock state ── */
+    let modalActiveTab = 'in-stock';
+    let modalStockCache = null;   // { in_stock: [], low_stock: [] }
+    let modalAllRows = [];        // rows for current tab (for client-side search)
+
+    /* ── Open / Close ── */
+    window.openMaterialsModal = function() {
+        document.getElementById('materialsMonitoringModal').classList.remove('hidden');
+        // Reset to blank state each open
+        resetModalState();
+    };
+
+    window.closeMaterialsModal = function() {
+        document.getElementById('materialsMonitoringModal').classList.add('hidden');
+    };
+
+    function resetModalState() {
+        document.getElementById('modalBranchSelect').value = '';
+        document.getElementById('modalStockSearch').value = '';
+        document.getElementById('modal-count-in').textContent = '';
+        document.getElementById('modal-count-low').textContent = '';
+        document.getElementById('materialsDashModal').classList.add('hidden');
+        document.getElementById('modalStockState').innerHTML =
+            '<i class="fas fa-hand-point-up text-4xl mb-3 block text-gray-300"></i><p class="text-base">Select a branch user above to view their live in-stock materials.</p>';
+        document.getElementById('modalStockState').classList.remove('hidden');
+        modalStockCache = null;
+        modalAllRows = [];
+    }
+
+    /* ── Load branch stock via AJAX ── */
+    window.loadModalBranchStock = async function(userId, userName) {
+        if (!userId) { resetModalState(); return; }
+
+        const state = document.getElementById('modalStockState');
+        const table = document.getElementById('materialsDashModal');
+        state.classList.remove('hidden');
+        state.innerHTML = '<i class="fas fa-spinner fa-spin text-3xl text-indigo-400 mb-2 block"></i><p class="text-sm text-gray-500">Loading stock data for <strong>' + escHtml(userName) + '</strong>…</p>';
+        table.classList.add('hidden');
+        document.getElementById('modal-count-in').textContent = '';
+        document.getElementById('modal-count-low').textContent = '';
+        modalStockCache = null;
+
+        try {
+            const resp = await fetch('/api/branch-stock/' + userId + '/');
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const data = await resp.json();
+            modalStockCache = data;
+            document.getElementById('modal-count-in').textContent  = (data.in_stock  || []).length;
+            document.getElementById('modal-count-low').textContent = (data.low_stock || []).length;
+            renderModalStockTable(modalActiveTab);
+        } catch(err) {
+            state.classList.remove('hidden');
+            state.innerHTML = '<i class="fas fa-exclamation-circle text-3xl text-red-400 mb-2 block"></i><p class="text-sm text-red-500">Failed to load stock data. Please try again.</p>';
+            table.classList.add('hidden');
+            console.error('Modal stock fetch error:', err);
+        }
+    };
+
+    /* ── Tab switching ── */
+    window.switchModalTab = function(tab) {
+        modalActiveTab = tab;
+        ['in-stock', 'low-stock'].forEach(t => {
+            const btn = document.getElementById('modal-tab-' + t);
+            if (t === tab) {
+                btn.classList.add('text-indigo-600', 'border-indigo-500');
+                btn.classList.remove('text-gray-500', 'border-transparent');
+            } else {
+                btn.classList.remove('text-indigo-600', 'border-indigo-500');
+                btn.classList.add('text-gray-500', 'border-transparent');
+            }
+        });
+        if (modalStockCache) renderModalStockTable(tab);
+    };
+
+    /* ── Render table ── */
+    function renderModalStockTable(tab) {
+        const state = document.getElementById('modalStockState');
+        const table = document.getElementById('materialsDashModal');
+        const tbody = document.getElementById('modalStockBody');
+        const items = tab === 'in-stock'
+            ? (modalStockCache.in_stock  || [])
+            : (modalStockCache.low_stock || []);
+
+        modalAllRows = items;
+
+        if (!items.length) {
+            state.classList.remove('hidden');
+            state.innerHTML = tab === 'in-stock'
+                ? '<i class="fas fa-box-open text-4xl mb-2 block text-gray-300"></i><p class="text-sm text-gray-400">No in-stock materials found for this branch.</p>'
+                : '<i class="fas fa-exclamation-triangle text-4xl mb-2 block text-yellow-300"></i><p class="text-sm text-gray-400">No low / out-of-stock items found.</p>';
+            table.classList.add('hidden');
+            return;
+        }
+
+        state.classList.add('hidden');
+        table.classList.remove('hidden');
+        renderModalRows(items, tab);
+    }
+
+    function renderModalRows(items, tab) {
+        const tbody = document.getElementById('modalStockBody');
+        tab = tab || modalActiveTab;
+        tbody.innerHTML = items.map((item, idx) => {
+            const qty = Math.max(0, item.branch_available_quantity ?? item.available_quantity ?? item.quantity ?? 0);
+            let badge = '';
+            if (tab === 'in-stock') {
+                badge = '<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">In Stock</span>';
+            } else {
+                badge = qty === 0
+                    ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">Out of Stock</span>'
+                    : '<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">Low Stock</span>';
+            }
+            const dateStr = item.requested_at
+                ? new Date(item.requested_at).toLocaleDateString('en-GB')
+                : '—';
+            return `<tr class="hover:bg-gray-50 transition-colors">
+                <td class="px-4 py-3 text-sm font-bold text-indigo-600">${idx + 1}</td>
+                <td class="px-4 py-3 text-sm font-medium text-gray-900">${escHtml(item.material_name)}</td>
+                <td class="px-4 py-3 text-xs text-gray-500">${escHtml(item.material_category || '—')}</td>
+                <td class="px-4 py-3 text-sm font-bold text-gray-900 text-lg">${qty}</td>
+                <td class="px-4 py-3 text-sm">${badge}</td>
+                <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">${dateStr}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    /* ── Client-side search filter ── */
+    window.filterModalStock = function(query) {
+        if (!modalStockCache) return;
+        const q = query.trim().toLowerCase();
+        const filtered = q
+            ? modalAllRows.filter(r => (r.material_name || '').toLowerCase().includes(q) || (r.material_category || '').toLowerCase().includes(q))
+            : modalAllRows;
+        renderModalRows(filtered, modalActiveTab);
+        const table = document.getElementById('materialsDashModal');
+        const state = document.getElementById('modalStockState');
+        if (!filtered.length) {
+            state.classList.remove('hidden');
+            state.innerHTML = '<i class="fas fa-search text-3xl mb-2 block text-gray-300"></i><p class="text-sm text-gray-400">No results match "' + escHtml(query) + '".</p>';
+            table.classList.add('hidden');
+        } else {
+            state.classList.add('hidden');
+            table.classList.remove('hidden');
+        }
+    };
+
+    function escHtml(str) {
+        if (str == null) return '';
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+})();
+</script>
 {% endif %}
+
 
 <!--Today's Used Materials-->
 {% if user.userprofile.role != 'Branch' and user.userprofile.role != 'Storekeeper' %}

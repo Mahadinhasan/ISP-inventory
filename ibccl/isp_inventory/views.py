@@ -1,5 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import authenticate, logout
+from django.contrib.auth import authenticate, logout, login as django_login
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth.models import User, Group
@@ -70,46 +70,46 @@ def process_month_end_reset():
     )
     return True
 
-def _set_jwt_cookies(response, user, tab_id):
-    """Generate JWT tokens for user and attach them as HttpOnly cookies."""
-    refresh = RefreshToken.for_user(user)
-    access = str(refresh.access_token)
-    refresh_str = str(refresh)
-
-    jwt_cfg = getattr(settings, 'SIMPLE_JWT', {})
-    secure = jwt_cfg.get('AUTH_COOKIE_SECURE', False)
-    samesite = jwt_cfg.get('AUTH_COOKIE_SAMESITE', 'Lax')
-    access_lifetime = jwt_cfg.get('ACCESS_TOKEN_LIFETIME').total_seconds()
-    refresh_lifetime = jwt_cfg.get('REFRESH_TOKEN_LIFETIME').total_seconds()
-
-    response.set_cookie(
-        f'jwt_access_{tab_id}',
-        access,
-        max_age=int(access_lifetime),
-        httponly=True,
-        secure=secure,
-        samesite=samesite,
-    )
-    response.set_cookie(
-        f'jwt_refresh_{tab_id}',
-        refresh_str,
-        max_age=int(refresh_lifetime),
-        httponly=True,
-        secure=secure,
-        samesite=samesite,
-    )
-    return response
+# JWT authentication functions commented out in favor of session-based authentication
+# def _set_jwt_cookies(response, user, tab_id):
+#     """Generate JWT tokens for user and attach them as HttpOnly cookies."""
+#     refresh = RefreshToken.for_user(user)
+#     access = str(refresh.access_token)
+#     refresh_str = str(refresh)
+# 
+#     jwt_cfg = getattr(settings, 'SIMPLE_JWT', {})
+#     secure = jwt_cfg.get('AUTH_COOKIE_SECURE', False)
+#     samesite = jwt_cfg.get('AUTH_COOKIE_SAMESITE', 'Lax')
+#     access_lifetime = jwt_cfg.get('ACCESS_TOKEN_LIFETIME').total_seconds()
+#     refresh_lifetime = jwt_cfg.get('REFRESH_TOKEN_LIFETIME').total_seconds()
+# 
+#     response.set_cookie(
+#         f'jwt_access_{tab_id}',
+#         access,
+#         max_age=int(access_lifetime),
+#         httponly=True,
+#         secure=secure,
+#         samesite=samesite,
+#     )
+#     response.set_cookie(
+#         f'jwt_refresh_{tab_id}',
+#         refresh_str,
+#         max_age=int(refresh_lifetime),
+#         httponly=True,
+#         secure=secure,
+#         samesite=samesite,
+#     )
+#     return response
 
 def login_view(request):
-    """Authenticate user and issue JWT tokens stored in HttpOnly cookies."""
-    tab_id = request.GET.get('tab_id') or request.POST.get('tab_id')
-
+    """Authenticate user and perform session-based login."""
     if request.user.is_authenticated:
         return redirect('dashboard')
 
     if request.method == "POST":
         username = request.POST.get('username', '').strip()
         password = request.POST.get('password', '')
+        remember_me = request.POST.get('remember_me')  # checkbox value
         user = authenticate(request, username=username, password=password)
 
         if user:
@@ -122,21 +122,22 @@ def login_view(request):
             except UserProfile.DoesNotExist:
                 messages.error(request, "Access denied.")
                 return render(request, 'inventory/login.html')
-
-            if not tab_id:
-                import uuid
-                tab_id = uuid.uuid4().hex[:8]
-
-            request.tab_id = tab_id # Set this for middleware to catch and append to redirect
             
+            # Standard Django session-based login
+            django_login(request, user)
+
+            # Session expiry: if "Remember me" unchecked, expire on browser close
+            if not remember_me:
+                request.session.set_expiry(0)        # expires when browser closes
+            else:
+                request.session.set_expiry(60 * 60 * 24)  # 24 hours
+
             # Update profile activity status
             profile.is_active = True
             profile.last_login = timezone.now()
             profile.save(update_fields=['is_active', 'last_login'])
             
-            response = redirect('dashboard')
-            _set_jwt_cookies(response, user, tab_id)
-            return response
+            return redirect('dashboard')
         else:
             messages.error(request, "Invalid credentials")
 
@@ -145,19 +146,7 @@ def login_view(request):
 
 @login_required
 def logout_view(request):
-    """Clear JWT cookies to log the user out."""
-    response = redirect('login')
-    tab_id = getattr(request, 'tab_id', None)
-    
-    if tab_id:
-        response.delete_cookie(f'jwt_access_{tab_id}')
-        response.delete_cookie(f'jwt_refresh_{tab_id}')
-    else:
-        # Fallback: if tab_id is missing, try to clear all JWT cookies
-        for cookie_name in list(request.COOKIES.keys()):
-            if cookie_name.startswith('jwt_access_') or cookie_name.startswith('jwt_refresh_'):
-                response.delete_cookie(cookie_name)
-    
+    """Log the user out using Django standard session logout."""
     # Update profile activity status to False on logout
     try:
         profile = request.user.userprofile
@@ -166,47 +155,14 @@ def logout_view(request):
     except Exception:
         pass
     
-    # Also clear session just in case
+    # Standard Django logout
     logout(request)
-    return response
+    return redirect('login')
 
 
 def token_refresh_view(request):
-    """Silently refresh the access token using the refresh cookie.
-    Called by JS before access token expires."""
-    tab_id = request.GET.get('tab_id') or request.POST.get('tab_id')
-    if not tab_id:
-        return JsonResponse({'error': 'No tab_id provided.'}, status=400)
-
-    refresh_token = request.COOKIES.get(f'jwt_refresh_{tab_id}')
-    if not refresh_token:
-        return JsonResponse({'error': 'No refresh token'}, status=401)
-
-    try:
-        refresh = RefreshToken(refresh_token)
-        response = JsonResponse({'status': 'ok'})
-        
-        from django.conf import settings
-        jwt_cfg = getattr(settings, 'SIMPLE_JWT', {})
-        secure = jwt_cfg.get('AUTH_COOKIE_SECURE', False)
-        samesite = jwt_cfg.get('AUTH_COOKIE_SAMESITE', 'Lax')
-        access_lifetime = jwt_cfg.get('ACCESS_TOKEN_LIFETIME').total_seconds()
-        
-        response.set_cookie(
-            f'jwt_access_{tab_id}',
-            str(refresh.access_token),
-            max_age=int(access_lifetime),
-            httponly=True,
-            secure=secure,
-            samesite=samesite,
-        )
-        return response
-    except Exception as e:
-        # Refresh token is also invalid — force re-login
-        response = JsonResponse({'error': 'Session expired. Please login again.'}, status=401)
-        response.delete_cookie(f'jwt_access_{tab_id}')
-        response.delete_cookie(f'jwt_refresh_{tab_id}')
-        return response
+    """Dummy endpoint returning status since JWT is disabled."""
+    return JsonResponse({'status': 'disabled', 'message': 'Session authentication is active'})
 
 @login_required
 def dashboard(request):
@@ -393,7 +349,7 @@ def dashboard(request):
                     req.serials_display = "N/A"
                     req.is_serialized = False
                     technician_approved_materials.append(req)
-            elif available_for_this_req > 0:
+            elif available_for_this_req >= 0:
                 # If no serials, or no remaining serials to attach, show as a single aggregate row.
                 req.available_quantity = available_for_this_req
                 req.serials_display = "N/A"
@@ -472,25 +428,19 @@ def dashboard(request):
     low_stock_material_list = []
 
     if role == 'Branch':
-        # For Branch: split technician_approved_materials into in-stock and out-of-stock.
-        # - available_quantity > 0  → stays in technician_approved_materials (shown in table)
-        # - available_quantity == 0 → moved to low_stock_material_list (hidden from table)
+        # For Branch: Do not remove out-of-stock items from the table.
+        # Just calculate the low_stock_materials count for the summary cards.
         # total_materials reflects the count of unique in-stock materials, not serialized row duplicates.
         if technician_approved_materials:
             in_stock_list = []
-            in_stock_material_names = []
             for req in technician_approved_materials:
                 if req.available_quantity == 0:
                     low_stock_materials += 1
                     low_stock_material_list.append(req)
                 else:
                     in_stock_list.append(req)
-                    if hasattr(req, 'material') and req.material is not None:
-                        in_stock_material_names.append(req.material.name)
-            technician_approved_materials = in_stock_list
 
-            # Count unique in-stock materials by material id/name, not by available quantity.
-            # Count every in-stock request row, even if the same material appears multiple times.
+            technician_approved_materials = in_stock_list
             total_materials = len(in_stock_list)
     else:
         # For Admin/Storekeeper: Materials with status 'Low Stock' or 'Out of Stock'
@@ -508,13 +458,14 @@ def dashboard(request):
         branch_users = User.objects.filter(userprofile__role='Branch')
         for branch_user in branch_users:
             # Only monitor materials that completed full workflow (all-time, not month-limited)
+            # Exclude NOC materials; only show Admin approved / Storekeeper passed on
             approved_qs = MaterialRequest.objects.filter(
                 requester=branch_user,
                 status='Received',
                 received_by__isnull=False,
-            ).filter(
-                Q(pass_on__isnull=False) |
-                Q(material__created_by__userprofile__role='NOC')
+                pass_on__isnull=False
+            ).exclude(
+                material__created_by__userprofile__role='NOC'
             ).select_related('material').order_by('requested_at')
 
             used_totals = {}
@@ -657,6 +608,7 @@ def dashboard(request):
         'refundable_form': refundable_form,
         'damaged_form': damaged_form,
         'branch_users': branch_users,
+        'branch_list': branch_users,  # For Materials Monitoring modal dropdown
         'page_obj': page_obj if role == 'Branch' else None,  # For pagination of branch materials
     })
 
@@ -672,6 +624,13 @@ def materials_monitoring_view(request):
         messages.error(request, 'Only Admin can access Materials Monitoring.')
         return redirect('dashboard')
     
+    selected_user_id = request.GET.get('user_id')
+    if selected_user_id:
+        try:
+            selected_user_id = int(selected_user_id)
+        except ValueError:
+            selected_user_id = None
+
     ws_scheme = 'wss' if request.scheme == 'https' else 'ws'
     ws_host = request.get_host()
     ws_path = '/ws/inventory/materials-monitoring/'
@@ -683,14 +642,15 @@ def materials_monitoring_view(request):
     branch_list = branch_users
     for branch_user in branch_users:
         # Only show materials that completed full workflow and are not archived
+        # Exclude NOC materials; only show Admin approved / Storekeeper passed on
         approved_qs = MaterialRequest.objects.filter(
             requester=branch_user,
             status='Received',
             received_by__isnull=False,  # Branch must have received it
-            is_archived=False
-        ).filter(
-            Q(pass_on__isnull=False) |
-            Q(material__created_by__userprofile__role='NOC')
+            is_archived=False,
+            pass_on__isnull=False
+        ).exclude(
+            material__created_by__userprofile__role='NOC'
         ).select_related('material').order_by('requested_at')
 
         used_totals = {}
@@ -753,6 +713,7 @@ def materials_monitoring_view(request):
         'ws_url': ws_url,
         'materials_monitoring': materials_monitoring,
         'branch_list': branch_list,
+        'selected_user_id': selected_user_id,
     })
 
 
@@ -858,10 +819,15 @@ def get_branch_stock_data(branch_user):
     from django.db.models.functions import Coalesce
 
     # Get all received requests for this branch user that are not archived
+    # Exclude NOC materials; only show Admin approved / Storekeeper passed on
     received_requests = MaterialRequest.objects.filter(
         requester=branch_user,
         status='Received',
-        is_archived=False
+        received_by__isnull=False,
+        is_archived=False,
+        pass_on__isnull=False
+    ).exclude(
+        material__created_by__userprofile__role='NOC'
     ).select_related('material').order_by('requested_at')
 
     # 1. Total used per material

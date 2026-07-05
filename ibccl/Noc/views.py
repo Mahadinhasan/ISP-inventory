@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.contrib.auth import authenticate, logout
+from django.contrib.auth import authenticate, logout, login as django_login
 from rest_framework_simplejwt.tokens import RefreshToken
 from isp_inventory.models import UserProfile, Material, MaterialRequest, UsedMaterial, InternalMessage, MacSerialNumber, MaterialMacSerialImport, RefundableMaterial, RefundableMaterialUsage, DamageMaterial
 
@@ -25,10 +25,17 @@ from isp_inventory.views import process_month_end_reset
 # Create your views here.
 
 def noc_login_view(request):
-    """NOC-only login page"""
-    tab_id = request.GET.get('tab_id') or request.POST.get('tab_id')
+    """NOC-only login page using Django standard session login"""
+    if request.user.is_authenticated:
+        try:
+            profile = UserProfile.objects.get(user=request.user)
+            if profile.role == 'NOC':
+                return redirect('noc:dashboard')
+        except UserProfile.DoesNotExist:
+            pass
 
     if request.method == "POST":
+        remember_me = request.POST.get('remember_me')  # checkbox value
         user = authenticate(
             username=request.POST.get('username'),
             password=request.POST.get('password')
@@ -45,22 +52,21 @@ def noc_login_view(request):
                     messages.error(request, "Your account is inactive. Please contact administrator.")
                     return render(request, 'noc/login.html')
                 
-                # User is NOC and active - proceed with login
-                if not tab_id:
-                    import uuid
-                    tab_id = uuid.uuid4().hex[:8]
+                # Standard Django login
+                django_login(request, user)
 
-                request.tab_id = tab_id # Set for middleware to catch and append to redirect
+                # Session expiry: if "Remember me" unchecked, expire on browser close
+                if not remember_me:
+                    request.session.set_expiry(0)         # expires when browser closes
+                else:
+                    request.session.set_expiry(60 * 60 * 24)  # 24 hours
                 
                 # Update profile activity status
                 profile.is_active = True
                 profile.last_login = timezone.now()
                 profile.save(update_fields=['is_active', 'last_login'])
                 
-                response = redirect('noc:dashboard')
-                from isp_inventory.views import _set_jwt_cookies
-                _set_jwt_cookies(response, user, tab_id)
-                return response
+                return redirect('noc:dashboard')
                 
             except UserProfile.DoesNotExist:
                 messages.error(request, "User profile not found. Please contact administrator.")
@@ -70,20 +76,9 @@ def noc_login_view(request):
     
     return render(request, 'noc/login.html')
 
+
 def noc_logout_view(request):
-    """NOC logout"""
-    response = redirect('noc:login')
-    tab_id = getattr(request, 'tab_id', None)
-    
-    if tab_id:
-        response.delete_cookie(f'jwt_access_{tab_id}')
-        response.delete_cookie(f'jwt_refresh_{tab_id}')
-    else:
-        # Fallback: if tab_id is missing, try to clear all JWT cookies
-        for cookie_name in list(request.COOKIES.keys()):
-            if cookie_name.startswith('jwt_access_') or cookie_name.startswith('jwt_refresh_'):
-                response.delete_cookie(cookie_name)
-    
+    """NOC logout using Django standard session logout"""
     # Update profile activity status to False on logout
     try:
         profile = request.user.userprofile
@@ -92,9 +87,9 @@ def noc_logout_view(request):
     except Exception:
         pass
     
-    # Also clear session just in case
+    # Standard Django logout
     logout(request)
-    return response
+    return redirect('noc:login')
 
 def noc_role_required(view_func):
     @wraps(view_func)

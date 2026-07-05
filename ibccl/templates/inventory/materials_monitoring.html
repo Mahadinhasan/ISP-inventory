@@ -13,6 +13,14 @@
                 <p class="text-indigo-300 text-sm mt-1 font-medium">Real-time branch stock — Admin access only</p>
             </div>
             <div class="flex items-center gap-3 flex-wrap">
+                <div class="relative">
+                    <select id="user-select-dropdown" class="px-4 py-2.5 bg-white/10 dark:bg-midnight-900/50 border border-white/20 dark:border-midnight-800 rounded-xl text-white font-bold text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer">
+                        <option value="" class="text-gray-900 dark:text-white">-- Select Branch User --</option>
+                        {% for u in branch_list %}
+                            <option value="{{ u.id }}" class="text-gray-900 dark:text-white" {% if selected_user_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
                 <div class="ws-pill">
                     <span id="ws-dot" class="ws-dot"></span>
                     <span id="ws-status">Connecting…</span>
@@ -139,6 +147,7 @@
 
 <script>
 (function () {
+    const SELECTED_USER_ID = '{{ selected_user_id|default:"" }}';
     /* ── tab_id: required for JWT cookie auth over WebSocket ────── */
     const urlParams = new URLSearchParams(window.location.search);
     const TAB_ID = urlParams.get('tab_id') || '';
@@ -255,6 +264,10 @@
         const card = document.getElementById('bcard-' + userId);
         if (card) card.classList.add('selected');
 
+        // Synchronize dropdown value
+        const dropdown = document.getElementById('user-select-dropdown');
+        if (dropdown) dropdown.value = userId;
+
         selectedUserId = userId;
         activeTab = 'in-stock';
         updateTabUI();
@@ -359,6 +372,9 @@
         stockWrap.classList.add('hidden');
         document.querySelectorAll('.branch-card').forEach(c => c.classList.remove('selected'));
         selectedUserId = null;
+        // Clear dropdown value
+        const dropdown = document.getElementById('user-select-dropdown');
+        if (dropdown) dropdown.value = '';
     };
 
     /* ── Live feed rendering & pagination ── */
@@ -458,6 +474,15 @@
                 if (msg.type === 'initial' && msg.payload) {
                     renderBranchCards(msg.payload.branch_users || []);
                     fetchLiveFeedPage(1);
+
+                    // Auto-select user if selected_user_id was passed
+                    const targetUserId = SELECTED_USER_ID ? parseInt(SELECTED_USER_ID) : (urlParams.get('user_id') ? parseInt(urlParams.get('user_id')) : null);
+                    if (targetUserId) {
+                        const u = (msg.payload.branch_users || []).find(b => b.id === targetUserId);
+                        if (u) {
+                            selectBranchUser(u.id, u.full_name || u.username);
+                        }
+                    }
                 } else if (msg.type === 'used_material_update' && msg.payload) {
                     if (liveFeedPage === 1) {
                         recentRows.unshift(msg.payload);
@@ -521,6 +546,20 @@
     function escHtml(str) {
         if (str == null) return '';
         return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    /* ── Dropdown Change ── */
+    const userSelectDropdown = document.getElementById('user-select-dropdown');
+    if (userSelectDropdown) {
+        userSelectDropdown.addEventListener('change', function() {
+            const val = this.value;
+            if (val) {
+                const optText = this.options[this.selectedIndex].text;
+                selectBranchUser(parseInt(val), optText);
+            } else {
+                closeStockPanel();
+            }
+        });
     }
 
     /* ── Boot ──*/

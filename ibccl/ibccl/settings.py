@@ -19,7 +19,8 @@ SECRET_KEY = 'django-insecure-_o$zbpjqv-u=jgd0qri&gibv@pskcyd*z^6ts=ikz-g0#4%&!u
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+# ALLOWED_HOSTS = ['72.61.148.231']
+ALLOWED_HOSTS = ['*']  # Allow all hosts for development; restrict in production
 
 # Application definition
 
@@ -45,7 +46,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     # JWT Cookie Auth — authenticates request.user from HttpOnly jwt_access cookie
-    'isp_inventory.jwt_middleware.JWTCookieAuthMiddleware',
+    # 'isp_inventory.jwt_middleware.JWTCookieAuthMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'isp_inventory.middleware.ActiveUserMiddleware',
@@ -85,8 +86,8 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=12),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=3),
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=24),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': False,
     'AUTH_COOKIE': 'jwt_access',           # HttpOnly cookie name for access token
@@ -150,7 +151,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Dhaka'
 
 USE_I18N = True
 
@@ -208,7 +209,8 @@ CACHES = {
     }
 }
 
-# JWT replaces session-based auth — these remain for Django admin compatibility
-SESSION_COOKIE_AGE = 60 * 60 * 12
+# Session-based auth — 24h default lifetime, persists after browser close
+SESSION_COOKIE_AGE = 60 * 60 * 24          # 24 hours (seconds)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False    # Session survives browser restart within 24h
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
