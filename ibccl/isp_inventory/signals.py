@@ -283,6 +283,11 @@ def log_user_login(sender, request, user, **kwargs):
                 ip_address=ip_address,
                 user_agent=user_agent[:500],
             )
+            
+            # Automatically delete log data older than 30 days (1 month)
+            from datetime import timedelta
+            cutoff_date = timezone.now() - timedelta(days=30)
+            ActivityLog.objects.filter(timestamp__lt=cutoff_date).delete()
     except Exception:
         pass
 
@@ -333,3 +338,67 @@ def create_notification_setting(sender, instance, created, **kwargs):
     """Create NotificationSetting for new users"""
     if created:
         NotificationSetting.objects.get_or_create(user=instance)
+
+
+# ── Automatically Log User Create, Edit & Delete Actions ──────────────────────
+from .middleware import get_current_user, get_current_request
+from .models import DamageMaterial, RefundableMaterial, MacSerialNumber
+
+LOGGED_MODELS = [Material, MaterialRequest, UsedMaterial, RefundableMaterial, DamageMaterial, MacSerialNumber]
+
+def log_db_action(instance, sender, action_type, description):
+    try:
+        user = get_current_user()
+        if not user or not user.is_authenticated:
+            # Fallback checks to find an associated user
+            if hasattr(instance, 'created_by') and instance.created_by:
+                user = instance.created_by
+            elif hasattr(instance, 'requester') and instance.requester:
+                user = instance.requester
+            elif hasattr(instance, 'technician') and instance.technician:
+                user = instance.technician
+            elif hasattr(instance, 'user') and instance.user:
+                user = instance.user
+            else:
+                return
+
+        request = get_current_request()
+        ip_address = get_client_ip(request) if request else None
+        user_agent = request.META.get('HTTP_USER_AGENT', '') if request else ''
+        
+        # Check database logging settings
+        log_settings = LogSettings.objects.first()
+        if log_settings and log_settings.log_user_activities and log_settings.enable_database_logging:
+            ActivityLog.objects.create(
+                user=user,
+                activity_type=action_type,
+                description=description,
+                ip_address=ip_address,
+                user_agent=user_agent[:500]
+            )
+    except Exception:
+        pass
+
+@receiver(post_save, sender=Material)
+@receiver(post_save, sender=MaterialRequest)
+@receiver(post_save, sender=UsedMaterial)
+@receiver(post_save, sender=RefundableMaterial)
+@receiver(post_save, sender=DamageMaterial)
+@receiver(post_save, sender=MacSerialNumber)
+def log_create_or_update(sender, instance, created, **kwargs):
+    model_name = sender.__name__
+    action = 'create' if created else 'edit'
+    desc = f"{model_name} '{instance}' was {'created' if created else 'updated'}"
+    log_db_action(instance, sender, action, desc)
+
+@receiver(post_delete, sender=Material)
+@receiver(post_delete, sender=MaterialRequest)
+@receiver(post_delete, sender=UsedMaterial)
+@receiver(post_delete, sender=RefundableMaterial)
+@receiver(post_delete, sender=DamageMaterial)
+@receiver(post_delete, sender=MacSerialNumber)
+def log_delete(sender, instance, **kwargs):
+    model_name = sender.__name__
+    desc = f"{model_name} '{instance}' was deleted"
+    log_db_action(instance, sender, 'delete', desc)
+

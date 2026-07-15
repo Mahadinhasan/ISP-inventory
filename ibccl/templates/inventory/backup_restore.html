@@ -1,0 +1,378 @@
+{% extends 'inventory/base.html' %}
+{% load static %}
+{% block title %}Backup & Restore - Admin{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/settings.css' %}">
+<div class="bg-transparent transition-all duration-500 pb-8">
+
+  <!-- PAGE HEADER -->
+  <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
+    <div>
+      <div class="flex items-center gap-3 mb-1">
+        <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200 dark:shadow-indigo-900/30">
+          <i class="fas fa-database text-white"></i>
+        </div>
+        <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight">Backup &amp; Restore</h1>
+      </div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">
+        <span class="inline-flex items-center gap-1.5 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2.5 py-0.5 rounded-full font-bold">
+          <i class="fas fa-shield-alt"></i> Admin Only
+        </span>
+        &nbsp;Securely backup &amp; restore all system data with SHA256 integrity verification
+      </p>
+    </div>
+    <a href="{% url 'settings' %}?tab=backup" class="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-midnight-900 border border-gray-200 dark:border-midnight-700 text-gray-600 dark:text-gray-300 text-sm font-semibold rounded-xl shadow-sm hover:bg-gray-50 dark:hover:bg-midnight-800 transition active:scale-95">
+      <i class="fas fa-arrow-left text-xs"></i> Back to Settings
+    </a>
+  </div>
+
+  <!-- STATS CARDS -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+    <div class="bg-white dark:bg-midnight-900/50 rounded-2xl p-4 border border-slate-200/70 dark:border-midnight-800 shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-archive text-indigo-600 dark:text-indigo-400"></i>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-gray-900 dark:text-white">{{ total_backups }}</p>
+        <p class="text-xs font-semibold text-gray-500 dark:text-gray-400">Total Backups</p>
+      </div>
+    </div>
+    <div class="bg-white dark:bg-midnight-900/50 rounded-2xl p-4 border border-slate-200/70 dark:border-midnight-800 shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-check-circle text-green-600 dark:text-green-400"></i>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-gray-900 dark:text-white">{{ active_backups }}</p>
+        <p class="text-xs font-semibold text-gray-500 dark:text-gray-400">Active Backups</p>
+      </div>
+    </div>
+    <div class="bg-white dark:bg-midnight-900/50 rounded-2xl p-4 border border-slate-200/70 dark:border-midnight-800 shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-trash-alt text-yellow-600 dark:text-yellow-400"></i>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-gray-900 dark:text-white">{{ deleted_backups }}</p>
+        <p class="text-xs font-semibold text-gray-500 dark:text-gray-400">In Trash (30-day recovery)</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTION PANELS -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+
+    <!-- CREATE BACKUP -->
+    <div class="bg-white dark:bg-midnight-900/50 rounded-2xl border border-slate-200/70 dark:border-midnight-800 shadow-sm overflow-hidden">
+      <div class="px-5 py-3.5 border-b border-slate-100 dark:border-midnight-800 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-900/10 dark:to-purple-900/10">
+        <h2 class="text-sm font-bold text-violet-800 dark:text-violet-300 flex items-center gap-2">
+          <i class="fas fa-download text-violet-600 dark:text-violet-400"></i> Create Backup
+        </h2>
+        <p class="text-xs text-violet-600/70 dark:text-violet-400/70 mt-0.5">Download a complete system snapshot with SHA256 checksum</p>
+      </div>
+      <form method="post" class="p-5 space-y-4">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="backup">
+        <div>
+          <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">Backup Type</label>
+          <select name="backup_type" class="w-full px-3 py-2.5 text-sm border border-gray-200 dark:border-midnight-700 rounded-xl bg-gray-50 dark:bg-midnight-950 dark:text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-100 transition">
+            <option value="full">Full Backup - All Data (Users, Materials, Requests, Logs)</option>
+            <option value="partial">Partial Backup - Data Only (no user accounts)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">Description <span class="text-gray-400 font-normal">(optional)</span></label>
+          <textarea name="backup_description" placeholder="e.g. Before major update..." rows="2"
+            class="w-full px-3 py-2.5 text-sm border border-gray-200 dark:border-midnight-700 rounded-xl bg-gray-50 dark:bg-midnight-950 dark:text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-100 transition resize-none"></textarea>
+        </div>
+        <div class="bg-violet-50 dark:bg-violet-900/20 rounded-xl px-4 py-2.5 text-xs text-violet-700 dark:text-violet-400 flex items-start gap-2">
+          <i class="fas fa-info-circle mt-0.5 flex-shrink-0"></i>
+          <span>File saved to history and downloaded automatically. SHA256 checksum generated for integrity verification.</span>
+        </div>
+        <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-violet-200 dark:shadow-violet-900/30 transition active:scale-95 flex items-center justify-center gap-2">
+          <i class="fas fa-download"></i> Download Backup
+        </button>
+      </form>
+    </div>
+
+    <!-- RESTORE BACKUP -->
+    <div class="bg-white dark:bg-midnight-900/50 rounded-2xl border border-slate-200/70 dark:border-midnight-800 shadow-sm overflow-hidden">
+      <div class="px-5 py-3.5 border-b border-slate-100 dark:border-midnight-800 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/10 dark:to-orange-900/10">
+        <h2 class="text-sm font-bold text-red-800 dark:text-red-300 flex items-center gap-2">
+          <i class="fas fa-redo text-red-600 dark:text-red-400"></i> Restore Backup
+          <span class="text-[10px] bg-red-200 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-2 py-0.5 rounded-full font-black">DANGER</span>
+        </h2>
+        <p class="text-xs text-red-600/70 dark:text-red-400/70 mt-0.5">Admin can restore data for any user. Replaces ALL current data.</p>
+      </div>
+      <form method="post" enctype="multipart/form-data" class="p-5 space-y-4">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="restore">
+        <input type="hidden" name="confirm_restore" value="yes">
+        <div>
+          <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">Restore Source</label>
+          <select id="restore-type-select" name="restore_type" onchange="toggleRestoreInput(this.value)"
+            class="w-full px-3 py-2.5 text-sm border border-gray-200 dark:border-midnight-700 rounded-xl bg-gray-50 dark:bg-midnight-950 dark:text-white focus:border-red-500 focus:ring-2 focus:ring-red-100 transition">
+            <option value="file">Upload Backup File (.json)</option>
+            <option value="history">Restore from Saved History</option>
+          </select>
+        </div>
+        <!-- File Upload -->
+        <div id="file-upload-section">
+          <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">Select Backup File</label>
+          <input type="file" name="backup_file" accept=".json"
+            class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-midnight-700 rounded-xl bg-gray-50 dark:bg-midnight-950 dark:text-white transition">
+        </div>
+        <!-- History Picker -->
+        <div id="history-section" class="hidden">
+          <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">Filter by User (Admin: restore for specific user)</label>
+          <select onchange="location.href='{% url 'backup_restore' %}?user_id='+this.value+'&restore_mode=1'"
+            class="w-full px-3 py-2.5 text-sm border border-gray-200 dark:border-midnight-700 rounded-xl bg-gray-50 dark:bg-midnight-950 dark:text-white focus:border-red-500 transition mb-2">
+            <option value="">All Users</option>
+            {% for u in all_users %}
+            <option value="{{ u.id }}" {% if user_filter == u.id|stringformat:"s" %}selected{% endif %}>{{ u.username }}</option>
+            {% endfor %}
+          </select>
+          <select name="backup_id" class="w-full px-3 py-2.5 text-sm border border-gray-200 dark:border-midnight-700 rounded-xl bg-gray-50 dark:bg-midnight-950 dark:text-white focus:border-red-500 transition">
+            <option value="">--- Choose a backup ---</option>
+            {% for backup in backup_history %}
+            {% if backup.status == 'active' %}
+            <option value="{{ backup.id }}">
+              {{ backup.created_by.username|default:"System" }} - {{ backup.created_at|date:"Y-m-d H:i" }} ({{ backup.data_records_count }} records, {{ backup.get_backup_type_display }})
+            </option>
+            {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+        <div class="bg-red-50 dark:bg-red-900/20 rounded-xl px-4 py-2.5 text-xs text-red-700 dark:text-red-400 flex items-start gap-2">
+          <i class="fas fa-exclamation-triangle mt-0.5 flex-shrink-0"></i>
+          <span><strong>Warning:</strong> This will PERMANENTLY replace all existing data. Create a backup before restoring.</span>
+        </div>
+        <button type="submit" onclick="return confirm('FINAL WARNING: All current data will be permanently replaced.\n\nThis cannot be easily undone.\n\nAre you absolutely sure?')"
+          class="w-full py-2.5 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-red-200 dark:shadow-red-900/30 transition active:scale-95 flex items-center justify-center gap-2">
+          <i class="fas fa-redo"></i> Restore Now
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- BACKUP HISTORY TABLE -->
+  <div class="bg-white dark:bg-midnight-900/50 rounded-2xl border border-slate-200/70 dark:border-midnight-800 shadow-sm overflow-hidden">
+    <div class="flex flex-col md:flex-row justify-between md:items-center gap-3 px-5 py-4 border-b border-gray-100 dark:border-midnight-800 bg-gray-50/80 dark:bg-midnight-950/50">
+      <h2 class="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+        <i class="fas fa-history text-indigo-500"></i> Backup History
+        <span class="text-xs font-normal text-gray-500 dark:text-gray-400">({{ backup_history.paginator.count }} total)</span>
+      </h2>
+      <form method="get" class="flex flex-wrap items-center gap-2">
+        <select name="user_id" onchange="this.form.submit()" class="px-3 py-1.5 text-xs border border-gray-200 dark:border-midnight-700 rounded-lg bg-white dark:bg-midnight-900 dark:text-gray-300 focus:border-indigo-500 transition">
+          <option value="">All Users</option>
+          {% for u in all_users %}
+          <option value="{{ u.id }}" {% if user_filter == u.id|stringformat:"s" %}selected{% endif %}>{{ u.username }}</option>
+          {% endfor %}
+        </select>
+        <select name="status" onchange="this.form.submit()" class="px-3 py-1.5 text-xs border border-gray-200 dark:border-midnight-700 rounded-lg bg-white dark:bg-midnight-900 dark:text-gray-300 focus:border-indigo-500 transition">
+          <option value="">All Status</option>
+          <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+          <option value="deleted" {% if status_filter == 'deleted' %}selected{% endif %}>Trash</option>
+          <option value="purged" {% if status_filter == 'purged' %}selected{% endif %}>Purged</option>
+        </select>
+        {% if user_filter or status_filter %}
+        <a href="{% url 'backup_restore' %}" class="px-3 py-1.5 text-xs bg-gray-100 dark:bg-midnight-800 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 transition font-semibold">
+          <i class="fas fa-times mr-1"></i>Clear
+        </a>
+        {% endif %}
+      </form>
+    </div>
+
+    {% if backup_history %}
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm divide-y divide-gray-100 dark:divide-midnight-800">
+        <thead class="bg-slate-50 dark:bg-midnight-950/50 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+          <tr>
+            <th class="px-4 py-3 text-left">Created By</th>
+            <th class="px-4 py-3 text-left">Date</th>
+            <th class="px-4 py-3 text-left">Type</th>
+            <th class="px-4 py-3 text-left">Size</th>
+            <th class="px-4 py-3 text-right">Records</th>
+            <th class="px-4 py-3 text-left">SHA256</th>
+            <th class="px-4 py-3 text-left">Status</th>
+            <th class="px-4 py-3 text-left">Restored</th>
+            <th class="px-4 py-3 text-center">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white dark:bg-midnight-900/10 divide-y divide-gray-100 dark:divide-midnight-800">
+          {% for backup in backup_history %}
+          <tr class="hover:bg-indigo-50/20 dark:hover:bg-indigo-900/10 transition">
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <div class="w-7 h-7 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-lg flex items-center justify-center text-white text-[10px] font-black flex-shrink-0">
+                  {{ backup.created_by.username|slice:":1"|upper|default:"S" }}
+                </div>
+                <span class="font-semibold text-gray-800 dark:text-gray-200 text-xs">{{ backup.created_by.username|default:"System" }}</span>
+              </div>
+            </td>
+            <td class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ backup.created_at|date:"Y-m-d H:i" }}</td>
+            <td class="px-4 py-3">
+              <span class="px-2 py-0.5 rounded-full text-[11px] font-bold {% if backup.backup_type == 'full' %}bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400{% else %}bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400{% endif %}">
+                {{ backup.get_backup_type_display }}
+              </span>
+            </td>
+            <td class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{{ backup.backup_size|filesizeformat }}</td>
+            <td class="px-4 py-3 text-xs font-bold text-gray-800 dark:text-gray-200 text-right">{{ backup.data_records_count }}</td>
+            <td class="px-4 py-3">
+              {% if backup.checksum %}
+              <span class="font-mono text-[10px] text-gray-400 dark:text-gray-500 cursor-help" title="SHA256: {{ backup.checksum }}">{{ backup.checksum|slice:":16" }}...</span>
+              {% else %}
+              <span class="text-[10px] text-gray-300 dark:text-gray-600">N/A</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-3">
+              {% if backup.status == 'active' %}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[11px] font-bold">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span> Active
+              </span>
+              {% elif backup.status == 'deleted' %}
+              <div>
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-[11px] font-bold">
+                  <i class="fas fa-trash-alt text-[9px]"></i> Trash
+                </span>
+                {% if backup.deleted_at %}
+                <div class="text-[10px] text-yellow-600 dark:text-yellow-500 mt-0.5">Expires +30 days</div>
+                {% endif %}
+              </div>
+              {% else %}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-[11px] font-bold">
+                <i class="fas fa-fire-alt text-[9px]"></i> Purged
+              </span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
+              {% if backup.restored_at %}
+              {{ backup.restored_at|date:"Y-m-d" }}<br>
+              <span class="text-gray-400">{{ backup.restored_by.username|default:"?" }}</span>
+              {% else %}
+              <span class="text-gray-300 dark:text-gray-600">—</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-3">
+              <div class="flex items-center justify-center gap-1.5">
+                {% if backup.status == 'active' %}
+                <!-- Download -->
+                <form method="post" class="inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="download_backup">
+                  <input type="hidden" name="backup_id" value="{{ backup.id }}">
+                  <button type="submit" title="Download Backup File"
+                    class="w-8 h-8 flex items-center justify-center rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 transition text-xs font-bold">
+                    <i class="fas fa-download"></i>
+                  </button>
+                </form>
+                <!-- Trash -->
+                <form method="post" class="inline" onsubmit="return confirm('Move to trash? Recoverable for 30 days.')">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="delete_backup">
+                  <input type="hidden" name="backup_id" value="{{ backup.id }}">
+                  <button type="submit" title="Move to Trash"
+                    class="w-8 h-8 flex items-center justify-center rounded-xl bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 dark:hover:bg-orange-900/30 text-orange-600 dark:text-orange-400 transition text-xs font-bold">
+                    <i class="fas fa-trash-alt"></i>
+                  </button>
+                </form>
+                {% elif backup.status == 'deleted' %}
+                <!-- Recover -->
+                <form method="post" class="inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="recover_backup">
+                  <input type="hidden" name="backup_id" value="{{ backup.id }}">
+                  <button type="submit" title="Recover from Trash"
+                    class="w-8 h-8 flex items-center justify-center rounded-xl bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 transition text-xs font-bold">
+                    <i class="fas fa-undo"></i>
+                  </button>
+                </form>
+                <!-- Permanently Purge -->
+                <form method="post" class="inline" onsubmit="return confirm('PERMANENTLY DELETE? This cannot be undone.')">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="purge_backup">
+                  <input type="hidden" name="backup_id" value="{{ backup.id }}">
+                  <button type="submit" title="Permanently Purge"
+                    class="w-8 h-8 flex items-center justify-center rounded-xl bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 transition text-xs font-bold">
+                    <i class="fas fa-fire-alt"></i>
+                  </button>
+                </form>
+                {% else %}
+                <span class="text-xs text-gray-400 dark:text-gray-600">Purged</span>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if backup_history.has_other_pages %}
+    <div class="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-midnight-800 bg-gray-50/50">
+      <span class="text-xs text-gray-500 dark:text-gray-400">Page {{ backup_history.number }} of {{ backup_history.paginator.num_pages }}</span>
+      <div class="flex gap-1">
+        {% if backup_history.has_previous %}
+        <a href="?page={{ backup_history.previous_page_number }}{% if user_filter %}&amp;user_id={{ user_filter }}{% endif %}{% if status_filter %}&amp;status={{ status_filter }}{% endif %}"
+          class="w-8 h-8 flex items-center justify-center rounded-lg bg-white dark:bg-midnight-900 border border-gray-200 dark:border-midnight-700 text-gray-600 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition text-xs">
+          <i class="fas fa-chevron-left"></i>
+        </a>
+        {% endif %}
+        {% if backup_history.has_next %}
+        <a href="?page={{ backup_history.next_page_number }}{% if user_filter %}&amp;user_id={{ user_filter }}{% endif %}{% if status_filter %}&amp;status={{ status_filter }}{% endif %}"
+          class="w-8 h-8 flex items-center justify-center rounded-lg bg-white dark:bg-midnight-900 border border-gray-200 dark:border-midnight-700 text-gray-600 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition text-xs">
+          <i class="fas fa-chevron-right"></i>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="flex flex-col items-center justify-center py-16">
+      <div class="w-16 h-16 bg-gray-100 dark:bg-midnight-800 rounded-2xl flex items-center justify-center mb-4">
+        <i class="fas fa-inbox text-2xl text-gray-400 dark:text-gray-500"></i>
+      </div>
+      <p class="text-gray-600 dark:text-gray-400 font-semibold mb-1">No backups found</p>
+      <p class="text-gray-400 dark:text-gray-500 text-sm">
+        {% if user_filter or status_filter %}
+        No backups match your filters. <a href="{% url 'backup_restore' %}" class="text-indigo-600 dark:text-indigo-400 underline">Clear filters</a>
+        {% else %}
+        Create your first backup using the form above.
+        {% endif %}
+      </p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- INFO FOOTER -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+    <div class="bg-white dark:bg-midnight-900/50 rounded-2xl p-4 border border-slate-200/70 dark:border-midnight-800 shadow-sm flex items-start gap-3">
+      <div class="w-9 h-9 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-user-shield text-blue-600 dark:text-blue-400 text-sm"></i>
+      </div>
+      <div>
+        <p class="text-xs font-black text-gray-800 dark:text-gray-200 uppercase tracking-wide mb-0.5">Role-Based Access</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400">Only Admins can backup, restore, and manage all system data</p>
+      </div>
+    </div>
+    <div class="bg-white dark:bg-midnight-900/50 rounded-2xl p-4 border border-slate-200/70 dark:border-midnight-800 shadow-sm flex items-start gap-3">
+      <div class="w-9 h-9 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-history text-emerald-600 dark:text-emerald-400 text-sm"></i>
+      </div>
+      <div>
+        <p class="text-xs font-black text-gray-800 dark:text-gray-200 uppercase tracking-wide mb-0.5">30-Day Recovery</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400">Deleted backups are kept in trash for 30 days before permanent removal</p>
+      </div>
+    </div>
+    <div class="bg-white dark:bg-midnight-900/50 rounded-2xl p-4 border border-slate-200/70 dark:border-midnight-800 shadow-sm flex items-start gap-3">
+      <div class="w-9 h-9 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-fingerprint text-purple-600 dark:text-purple-400 text-sm"></i>
+      </div>
+      <div>
+        <p class="text-xs font-black text-gray-800 dark:text-gray-200 uppercase tracking-wide mb-0.5">SHA256 Integrity</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400">Every backup is verified with a SHA256 checksum to detect corruption</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

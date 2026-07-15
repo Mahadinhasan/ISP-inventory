@@ -1474,7 +1474,19 @@ def noc_refundable_materials_view(request):
     usage_paginator = Paginator(refundable_usages_qs, 20)
     usage_page = usage_paginator.get_page(request.GET.get('usage_page'))
 
-    refundable_count = RefundableMaterial.objects.count()
+    # Compute refundable and used material statistics
+    from django.db.models.functions import Coalesce
+    from django.db.models import Sum, F
+    
+    annotated_qs = refundable_qs.annotate(
+        used_total=Coalesce(Sum('usages__materials_quantity'), 0),
+        available_quantity=F('quantity') - F('used_total')
+    )
+    total_refundable_qty = sum(r.available_quantity for r in annotated_qs)
+    refundable_count = annotated_qs.filter(available_quantity__gt=0).count()
+    
+    used_count = refundable_usages_qs.count()
+    total_used_qty = refundable_usages_qs.aggregate(s=Sum('materials_quantity'))['s'] or 0
 
     return render(request, 'noc/refundable_materials.html', {
         'refundable_materials': refundable_page,
@@ -1484,6 +1496,9 @@ def noc_refundable_materials_view(request):
         'search_query': search_query,
         'usage_page': usage_page,
         'refundable_count': refundable_count,
+        'total_refundable_qty': total_refundable_qty,
+        'used_count': used_count,
+        'total_used_qty': total_used_qty,
     })
 
 
@@ -1535,10 +1550,60 @@ def noc_damaged_materials_view(request):
                 messages.error(request, 'Record not found.')
                 return redirect('noc:damaged_materials')
 
+    # Damaged materials count stats
+    total_damaged_count = damaged_qs.count()
+    pending_count = damaged_qs.filter(status='Pending').count()
+    confirmed_count = damaged_qs.filter(status='Confirmed').count()
+    rejected_count = damaged_qs.filter(status='Rejected').count()
+    total_damaged_qty = damaged_qs.aggregate(s=Sum('quantity'))['s'] or 0
+
     return render(request, 'noc/damaged_materials.html', {
         'damaged_materials': damaged_page,
         'role': 'NOC',
         'page_obj': damaged_page,
         'branch_users': branch_users,
         'search_query': search_query,
+        'total_damaged_count': total_damaged_count,
+        'pending_count': pending_count,
+        'confirmed_count': confirmed_count,
+        'rejected_count': rejected_count,
+        'total_damaged_qty': total_damaged_qty,
     })
+
+
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.shortcuts import redirect, render
+
+@login_required
+def noc_logs(request):
+    """Dedicated logs view for the NOC role, showing only their own actions."""
+    user = request.user
+    profile = user.userprofile
+    
+    if profile.role != 'NOC':
+        messages.error(request, "Access restricted to NOC role.")
+        return redirect('noc:dashboard')
+        
+    from isp_inventory.models import ActivityLog
+    from django.core.paginator import Paginator
+    
+    # Fetch logs for the logged-in user only
+    logs_qs = ActivityLog.objects.filter(user=request.user).order_by('-timestamp')
+    
+    # Filter by search/activity type if provided
+    log_type_filter = request.GET.get('log_type')
+    if log_type_filter:
+        logs_qs = logs_qs.filter(activity_type=log_type_filter)
+        
+    # Paginate by 30 records per page
+    paginator = Paginator(logs_qs, 30)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'logs': page_obj,
+        'log_type_filter': log_type_filter,
+        'profile': profile,
+    }
+    return render(request, 'noc/logs.html', context)

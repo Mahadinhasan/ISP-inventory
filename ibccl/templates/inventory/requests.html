@@ -44,25 +44,43 @@
         </div>
     </div>
     <!--Request count-->
-     <div class="flex flex-wrap gap-4 mb-8 px-4">
-        <div class="px-5 py-2.5 bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 rounded-xl border border-yellow-100 dark:border-yellow-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
-            <i class="fas fa-hourglass-half"></i> Pending: {{ pending_count }}
+    <div class="flex flex-wrap gap-2 mb-8 px-4">
+        {% if pending_count > 0 %}
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 rounded-lg border border-yellow-100 dark:border-yellow-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
+            <i class="fas fa-hourglass-half text-xs"></i>
+            <span>Pending: <span class="font-extrabold">{{ pending_count }}</span></span>
         </div>
-        <div class="px-5 py-2.5 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 rounded-xl border border-green-100 dark:border-green-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
-            <i class="fas fa-check"></i> Approved: {{ approved_count }}
+        {% endif %}
+        {% if approved_count > 0 %}
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 rounded-lg border border-green-100 dark:border-green-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
+            <i class="fas fa-check text-xs"></i>
+            <span>Approved: <span class="font-extrabold">{{ approved_count }}</span></span>
         </div>
-        <div class="px-5 py-2.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded-xl border border-blue-100 dark:border-blue-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
-            <i class="fas fa-truck"></i> Dispatched: {{ dispatched_count }}
+        {% endif %}
+        {% if dispatched_count > 0 %}
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded-lg border border-blue-100 dark:border-blue-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
+            <i class="fas fa-truck text-xs"></i>
+            <span>Dispatched: <span class="font-extrabold">{{ dispatched_count }}</span></span>
         </div>
-        <div class="px-5 py-2.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-xl border border-emerald-100 dark:border-emerald-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
-            <i class="fas fa-box-open"></i> Received: {{ received_count }}
+        {% endif %}
+        {% if received_count > 0 %}
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-lg border border-emerald-100 dark:border-emerald-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
+            <i class="fas fa-box-open text-xs"></i>
+            <span>Received: <span class="font-extrabold">{{ received_count }}</span></span>
         </div>
-        <div class="px-5 py-2.5 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 rounded-xl border border-red-100 dark:border-red-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
-            <i class="fas fa-times"></i> Rejected: {{ rejected_count }}
+        {% endif %}
+        {% if rejected_count > 0 %}
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 rounded-lg border border-red-100 dark:border-red-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
+            <i class="fas fa-times text-xs"></i>
+            <span>Rejected: <span class="font-extrabold">{{ rejected_count }}</span></span>
         </div>
-        <div class="px-5 py-2.5 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 rounded-xl border border-indigo-100 dark:border-indigo-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
-            <i class="fas fa-star"></i> Advance: {{ advance_count }}
+        {% endif %}
+        {% if advance_count > 0 %}
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 rounded-lg border border-indigo-100 dark:border-indigo-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
+            <i class="fas fa-star text-xs"></i>
+            <span>Advance: <span class="font-extrabold">{{ advance_count }}</span></span>
         </div>
+        {% endif %}
     </div>
     <!-----------Unified Requests Table----------->
     <div class="bg-white/40 dark:bg-midnight-900/40 glass-card rounded-[0.6rem] shadow-2xl border border-gray-100 dark:border-midnight-800 mx-4">

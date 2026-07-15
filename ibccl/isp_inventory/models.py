@@ -64,8 +64,13 @@ class UserProfile(models.Model):
     @property
     def profile_image_url(self):
         if self.image:
-            return self.image.url
-        return '/static/images/default_profile.png'
+            import os
+            try:
+                if os.path.exists(self.image.path):
+                    return self.image.url
+            except Exception:
+                pass
+        return None
 
     @property
     def role_display(self):

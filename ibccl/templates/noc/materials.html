@@ -7,19 +7,25 @@
     <!-- Stock Summary Cards and Search/Add Controls - Responsive -->
     <div class="mb-6 flex flex-col gap-4 px-4 sm:flex-row sm:items-center sm:justify-between">
         <!-- Stock Summary Cards -->
-        <div class="flex flex-wrap gap-4 w-full sm:w-auto">
-            <div class="px-5 py-2.5 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 rounded-xl border border-green-100 dark:border-green-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
-                <i class="fas fa-check-circle"></i> Normal Stock: {{ total_normal_stock }}
+        <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+            {% if total_normal_stock > 0 %}
+            <div class="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 rounded-lg border border-green-100 dark:border-green-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
+                <i class="fas fa-check-circle text-xs"></i>
+                <span>Normal: <span class="font-extrabold">{{ total_normal_stock }}</span></span>
             </div>
-            <div class="px-5 py-2.5 bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 rounded-xl border border-yellow-100 dark:border-yellow-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
-                <i class="fas fa-info-circle"></i> Low Stock: {{ total_low_stock }}
+            {% endif %}
+            {% if total_low_stock > 0 %}
+            <div class="flex items-center gap-2 px-3 py-1.5 bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 rounded-lg border border-yellow-100 dark:border-yellow-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
+                <i class="fas fa-exclamation-triangle text-xs"></i>
+                <span>Low Stock: <span class="font-extrabold">{{ total_low_stock }}</span></span>
             </div>
-            <div class="px-5 py-2.5 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 rounded-xl border border-red-100 dark:border-red-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
-                <i class="fas fa-times-circle"></i> Out of Stock: {{ total_out_of_stock }}
+            {% endif %}
+            {% if total_out_of_stock > 0 %}
+            <div class="flex items-center gap-2 px-3 py-1.5 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 rounded-lg border border-red-100 dark:border-red-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
+                <i class="fas fa-times-circle text-xs"></i>
+                <span>Out of Stock: <span class="font-extrabold">{{ total_out_of_stock }}</span></span>
             </div>
-            <!-- <div class="px-5 py-2.5 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 rounded-xl border border-green-100 dark:border-green-900/30 flex items-center gap-2 font-bold text-sm shadow-sm">
-                <i class="fas fa-check-circle"></i> Total Price: {{ total_price|floatformat:2 }}/-
-            </div> -->
+            {% endif %}
         </div>
 
         <!-- Search Bar and Add Material Button -->

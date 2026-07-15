@@ -17,10 +17,10 @@ CACHE_DIR = os.path.join(BASE_DIR, 'cache')
 SECRET_KEY = 'django-insecure-_o$zbpjqv-u=jgd0qri&gibv@pskcyd*z^6ts=ikz-g0#4%&!u'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 # Production: VPS IP. Add domain name here if you get one.
-ALLOWED_HOSTS = ['72.61.148.231', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['*']
 
 # Application definition
 
@@ -72,14 +72,13 @@ TEMPLATES = [
 WSGI_APPLICATION = 'ibccl.wsgi.application'
 ASGI_APPLICATION = 'ibccl.asgi.application'
 
-# Django Channels - Redis channel layer for production WebSocket support
-# Redis must be running on VPS: sudo systemctl start redis
+# Django Channels - In-memory channel layer for local development
+# No Redis required. For production (multi-worker), switch back to RedisChannelLayer:
+#   'BACKEND': 'channels_redis.core.RedisChannelLayer',
+#   'CONFIG': {'hosts': [('127.0.0.1', 6379)]},
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [('127.0.0.1', 6379)],
-        },
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
     },
 }
 

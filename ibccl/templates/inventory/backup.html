@@ -1,0 +1,309 @@
+{% extends 'inventory/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-8 animate-fade-in p-4 sm:p-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+            <h1 class="text-3xl font-extrabold text-slate-800 dark:text-white flex items-center gap-3">
+                <i class="fas fa-database text-indigo-600 dark:text-indigo-400"></i> Backup & Restore
+            </h1>
+            <p class="text-sm text-slate-500 dark:text-slate-400">Securely back up and restore system data with role-based access control</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="px-3 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-full text-xs font-bold uppercase tracking-wider border border-indigo-100 dark:border-indigo-900/30">
+                Role: {{ role }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Alert Messages -->
+    {% if messages %}
+    <div class="space-y-3">
+        {% for message in messages %}
+        <div class="p-4 rounded-xl text-sm font-semibold flex items-center justify-between shadow-sm border
+            {% if message.tags == 'success' %}bg-green-50 text-green-700 border-green-200 dark:bg-green-950/20 dark:text-green-400 dark:border-green-900/30
+            {% elif message.tags == 'warning' %}bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30
+            {% else %}bg-red-50 text-red-700 border-red-200 dark:bg-red-950/20 dark:text-red-400 dark:border-red-900/30{% endif %}">
+            <div class="flex items-center gap-3">
+                {% if message.tags == 'success' %}
+                    <i class="fas fa-check-circle text-lg"></i>
+                {% elif message.tags == 'warning' %}
+                    <i class="fas fa-exclamation-triangle text-lg"></i>
+                {% else %}
+                    <i class="fas fa-times-circle text-lg"></i>
+                {% endif %}
+                <span>{{ message }}</span>
+            </div>
+            <button onclick="this.parentElement.remove()" class="text-current opacity-70 hover:opacity-100 transition-opacity">&times;</button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Panels Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        
+        <!-- Create Backup Panel -->
+        <div class="bg-white dark:bg-midnight-900/40 glass-card rounded-3xl p-6 sm:p-8 border border-slate-100 dark:border-midnight-800 shadow-xl flex flex-col justify-between">
+            <div>
+                <h3 class="text-xl font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-3">
+                    <i class="fas fa-download text-indigo-600 dark:text-indigo-400"></i> Create System Backup
+                </h3>
+                <p class="text-slate-500 dark:text-slate-400 text-xs mb-6">
+                    {% if role == 'Admin' %}
+                    Download a full database snapshot (including users) or a partial snapshot (inventory & requests data only).
+                    {% else %}
+                    Generate a data-only snapshot containing materials, serials, logs, requests, and usage records.
+                    {% endif %}
+                </p>
+
+                <form method="post" action="{% url 'backup_restore' %}" class="space-y-4">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="backup">
+
+                    {% if role == 'Admin' %}
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">Backup Type</label>
+                        <select name="backup_type" class="w-full px-4 py-3 border border-slate-200 dark:border-midnight-800 rounded-xl bg-slate-50 dark:bg-midnight-950 dark:text-white focus:border-indigo-500 transition-all font-medium text-sm">
+                            <option value="full">Full Backup (All tables & users)</option>
+                            <option value="partial">Partial Backup (Materials, requests, serials & logs only)</option>
+                        </select>
+                    </div>
+                    {% else %}
+                    <input type="hidden" name="backup_type" value="partial">
+                    <div class="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 rounded-xl text-xs text-indigo-700 dark:text-indigo-400 font-semibold mb-4">
+                        <i class="fas fa-info-circle mr-1"></i> Data-only backup mode enabled for {{ role }} role. User credentials and configuration settings are excluded.
+                    </div>
+                    {% endif %}
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">Description / Notes</label>
+                        <textarea name="backup_description" placeholder="e.g., Backup before inventory reset" rows="3"
+                                  class="w-full px-4 py-3 border border-slate-200 dark:border-midnight-800 rounded-xl bg-slate-50 dark:bg-midnight-950 dark:text-white focus:border-indigo-500 transition-all text-sm"></textarea>
+                    </div>
+
+                    <button type="submit" class="w-full mt-4 px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white rounded-xl font-bold transition shadow-lg active:scale-[0.98] flex items-center justify-center gap-2">
+                        <i class="fas fa-download"></i> Generate & Download Backup
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Restore Backup Panel (Role Restricted) -->
+        <div class="bg-white dark:bg-midnight-900/40 glass-card rounded-3xl p-6 sm:p-8 border border-slate-100 dark:border-midnight-800 shadow-xl flex flex-col justify-between">
+            {% if role == 'Admin' %}
+            <div>
+                <h3 class="text-xl font-bold text-emerald-700 dark:text-emerald-400 mb-2 flex items-center gap-3">
+                    <i class="fas fa-redo"></i> Restore System Data
+                </h3>
+                <p class="text-slate-500 dark:text-slate-400 text-xs mb-6">
+                    Upload a local JSON backup file or choose a restore point from the backup history records. <span class="text-red-500 font-bold">WARNING: Current data will be replaced!</span>
+                </p>
+
+                <form method="post" action="{% url 'backup_restore' %}" enctype="multipart/form-data" class="space-y-4">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="restore">
+                    <input type="hidden" name="confirm_restore" value="yes">
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">Restore Source</label>
+                        <select id="restore-type-select" name="restore_type" onchange="toggleRestoreInput(this.value)" class="w-full px-4 py-3 border border-slate-200 dark:border-midnight-800 rounded-xl bg-slate-50 dark:bg-midnight-950 dark:text-white focus:border-indigo-500 transition-all font-medium text-sm">
+                            <option value="file">Upload JSON File</option>
+                            <option value="history">Restore from Backup History</option>
+                        </select>
+                    </div>
+
+                    <!-- File Input -->
+                    <div id="file-upload-section">
+                        <label class="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">Select Backup File</label>
+                        <input type="file" name="backup_file" accept=".json" class="w-full px-4 py-2.5 border border-slate-200 dark:border-midnight-800 rounded-xl bg-slate-50 dark:bg-midnight-950 dark:text-white focus:border-indigo-500 transition-all text-sm">
+                    </div>
+
+                    <!-- History Input -->
+                    <div id="history-section" class="hidden">
+                        <label class="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">Select From History</label>
+                        <select name="backup_id" class="w-full px-4 py-3 border border-slate-200 dark:border-midnight-800 rounded-xl bg-slate-50 dark:bg-midnight-950 dark:text-white focus:border-indigo-500 transition-all font-medium text-sm">
+                            <option value="">--- Choose a backup ---</option>
+                            {% for backup in backup_history %}
+                                {% if backup.status == 'active' %}
+                                <option value="{{ backup.id }}">
+                                    {{ backup.created_by.username }} - {{ backup.created_at|date:"Y-m-d H:i" }} ({{ backup.data_records_count }} records)
+                                </option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Warning Message -->
+                    <div class="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-xl p-3 text-xs text-red-600 dark:text-red-400 flex items-start gap-2.5 font-semibold">
+                        <i class="fas fa-exclamation-triangle mt-0.5 text-lg"></i>
+                        <span>This will overwrite current system databases. Make sure to download a backup of the current database before restoring!</span>
+                    </div>
+
+                    <button type="submit" onclick="return confirm('Are you absolutely sure you want to restore? ALL current database records will be permanently replaced with database data!')" 
+                            class="w-full mt-4 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white rounded-xl font-bold transition shadow-lg active:scale-[0.98] flex items-center justify-center gap-2">
+                        <i class="fas fa-redo"></i> Restore System Database
+                    </button>
+                </form>
+            </div>
+            {% else %}
+            <div class="h-full flex flex-col items-center justify-center text-center p-6 space-y-4">
+                <div class="w-16 h-16 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400 dark:text-slate-600">
+                    <i class="fas fa-lock text-3xl"></i>
+                </div>
+                <div>
+                    <h4 class="text-lg font-bold text-slate-700 dark:text-slate-300">Restore Restricted</h4>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 max-w-sm mt-1">
+                        Only members of the Admin group are permitted to restore snapshots in order to prevent accidental data corruption and preserve system configurations.
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+
+    <!-- Backup History Table -->
+    <div class="bg-white dark:bg-midnight-900/40 glass-card rounded-3xl p-6 sm:p-8 border border-slate-100 dark:border-midnight-800 shadow-xl">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+                <h3 class="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                    <i class="fas fa-history text-indigo-600 dark:text-indigo-400"></i> Backup History Log
+                </h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400">View logs, download generated backups, or manage system records</p>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto rounded-2xl border border-slate-100 dark:border-midnight-800">
+            <table class="w-full border-collapse text-left">
+                <thead>
+                    <tr class="bg-slate-50 dark:bg-midnight-950 text-slate-600 dark:text-slate-400 text-xs font-bold uppercase border-b border-slate-100 dark:border-midnight-800">
+                        <th class="px-6 py-4">Created By</th>
+                        <th class="px-6 py-4">Date & Time</th>
+                        <th class="px-6 py-4">Type</th>
+                        <th class="px-6 py-4">Size</th>
+                        <th class="px-6 py-4">Records</th>
+                        <th class="px-6 py-4">Status</th>
+                        <th class="px-6 py-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-midnight-800">
+                    {% for backup in backup_history %}
+                    <tr class="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors text-sm text-slate-700 dark:text-slate-300">
+                        <!-- Created By -->
+                        <td class="px-6 py-4 font-semibold text-slate-800 dark:text-white">
+                            {{ backup.created_by.username }}
+                        </td>
+                        <!-- Timestamp -->
+                        <td class="px-6 py-4 text-xs font-medium">
+                            {{ backup.created_at|date:"Y-m-d H:i:s" }}
+                        </td>
+                        <!-- Type -->
+                        <td class="px-6 py-4">
+                            <span class="px-2.5 py-1 rounded-full text-xs font-bold 
+                                {% if backup.backup_type == 'full' %}bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400
+                                {% else %}bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400{% endif %}">
+                                {{ backup.get_backup_type_display }}
+                            </span>
+                        </td>
+                        <!-- Size -->
+                        <td class="px-6 py-4 text-xs font-medium">
+                            {{ backup.backup_size|filesizeformat }}
+                        </td>
+                        <!-- Records count -->
+                        <td class="px-6 py-4 font-bold text-slate-900 dark:text-white">
+                            {{ backup.data_records_count }}
+                        </td>
+                        <!-- Status -->
+                        <td class="px-6 py-4">
+                            <span class="px-2.5 py-1 rounded-full text-xs font-bold 
+                                {% if backup.status == 'active' %}bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400
+                                {% elif backup.status == 'deleted' %}bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400
+                                {% else %}bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-400{% endif %}">
+                                {{ backup.get_status_display }}
+                            </span>
+                        </td>
+                        <!-- Actions -->
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex justify-end items-center gap-2">
+                                {% if backup.status == 'active' %}
+                                    <!-- Download -->
+                                    <a href="{{ backup.backup_file.url }}" download class="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg text-slate-600 dark:text-slate-400 hover:text-indigo-600 transition-colors" title="Download">
+                                        <i class="fas fa-download"></i>
+                                    </a>
+                                    
+                                    <!-- Delete backup -->
+                                    {% if role == 'Admin' or backup.created_by == user %}
+                                    <form method="post" action="{% url 'backup_restore' %}" onsubmit="return confirm('Delete this backup entry? Deleted backups can be recovered for 30 days.')" class="inline">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="delete_backup">
+                                        <input type="hidden" name="backup_id" value="{{ backup.id }}">
+                                        <button type="submit" class="p-2 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg text-slate-400 hover:text-rose-600 transition-colors" title="Delete">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                {% elif backup.status == 'deleted' and role == 'Admin' %}
+                                    <!-- Recover backup -->
+                                    <form method="post" action="{% url 'backup_restore' %}" onsubmit="return confirm('Recover this deleted backup?')" class="inline">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="recover_backup">
+                                        <input type="hidden" name="backup_id" value="{{ backup.id }}">
+                                        <button type="submit" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/20 text-slate-700 dark:text-slate-300 font-bold rounded-lg text-xs transition" title="Recover">
+                                            <i class="fas fa-undo mr-1"></i> Recover
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="px-6 py-12 text-center text-slate-400 dark:text-slate-600 font-medium">
+                            <i class="fas fa-database text-4xl mb-3 block"></i> No backups logs found.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if backup_history.has_other_pages %}
+        <div class="flex justify-between items-center mt-6">
+            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Page {{ backup_history.number }} of {{ backup_history.paginator.num_pages }}
+            </span>
+            <div class="flex gap-2">
+                {% if backup_history.has_previous %}
+                    <a href="?page={{ backup_history.previous_page_number }}" class="px-4 py-2 border border-slate-200 dark:border-midnight-800 rounded-xl hover:bg-slate-50 dark:hover:bg-midnight-800 text-slate-600 dark:text-slate-400 font-bold text-xs transition">
+                        Previous
+                    </a>
+                {% endif %}
+                {% if backup_history.has_next %}
+                    <a href="?page={{ backup_history.next_page_number }}" class="px-4 py-2 border border-slate-200 dark:border-midnight-800 rounded-xl hover:bg-slate-50 dark:hover:bg-midnight-800 text-slate-600 dark:text-slate-400 font-bold text-xs transition">
+                        Next
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function toggleRestoreInput(val) {
+    const fileSec = document.getElementById('file-upload-section');
+    const histSec = document.getElementById('history-section');
+    if (val === 'file') {
+        fileSec.classList.remove('hidden');
+        histSec.classList.add('hidden');
+    } else {
+        fileSec.classList.add('hidden');
+        histSec.classList.remove('hidden');
+    }
+}
+</script>
+{% endblock %}

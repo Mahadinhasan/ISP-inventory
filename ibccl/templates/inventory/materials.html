@@ -86,11 +86,19 @@
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Sortable, responsive table with compact text and clean row styling.</p>
             </div> -->
             <div class="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                <span class="px-3 py-1 bg-gray-100 dark:bg-midnight-900 rounded-full">Total: {{ materials_page.paginator.count }}</span>
-                <span class="px-3 py-1 bg-gray-100 dark:bg-midnight-900 rounded-full">Normal: {{ total_normal_stock }}</span>
-                <span class="px-3 py-1 bg-yellow-100 dark:bg-yellow-950 rounded-full">Low: {{ total_low_stock }}</span>
-                <span class="px-3 py-1 bg-red-100 dark:bg-red-950 rounded-full">Out: {{ total_out_of_stock }}</span>
-                <span class="px-3 py-1 bg-gray-100 dark:bg-midnight-900 rounded-full">Total price: {{total_price|default:0}}৳</span>
+                <span class="px-3 py-1 bg-gray-100 dark:bg-midnight-900 rounded-full font-semibold">Total: {{ materials_page.paginator.count }}</span>
+                {% if total_normal_stock > 0 %}
+                <span class="px-3 py-1 bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400 rounded-full font-semibold">Normal: {{ total_normal_stock }}</span>
+                {% endif %}
+                {% if total_low_stock > 0 %}
+                <span class="px-3 py-1 bg-yellow-100 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-400 rounded-full font-semibold">Low: {{ total_low_stock }}</span>
+                {% endif %}
+                {% if total_out_of_stock > 0 %}
+                <span class="px-3 py-1 bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400 rounded-full font-semibold">Out: {{ total_out_of_stock }}</span>
+                {% endif %}
+                {% if total_price %}
+                <span class="px-3 py-1 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 rounded-full font-semibold">Price: {{ total_price|default:0 }}৳</span>
+                {% endif %}
             </div>
         </div>
         <div class="overflow-x-auto">
@@ -183,7 +191,7 @@
     <div id="materialModal"
         class="fixed inset-0 bg-midnight-950/80 hidden flex items-center justify-center z-50 backdrop-blur-md">
         <div class="bg-white dark:bg-midnight-900 rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] shadow-2xl border border-gray-100 dark:border-midnight-800 overflow-y-auto">
-            <h2 id="modalTitle" class="text-2xl font-bold mb-6">Add Material</h2>
+            <h2 id="modalTitle" class="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Add Material</h2>
             <form method="post" id="materialForm">
                 {% csrf_token %}
                 <input type="hidden" name="material_id" id="materialId">
@@ -192,19 +200,19 @@
 
                     <!-- Name (disabled on edit via JS) -->
                     <div class="form-group">
-                        <label for="id_name" class="block text-sm font-medium text-gray-700 mb-2">
+                        <label for="id_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             Name
                         </label>
                         <input type="text" name="name" id="id_name" required
-                            class="w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            class="w-full px-3 py-2 border-2 border-black dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-midnight-800 text-gray-900 dark:text-white"
                             placeholder="Material name">
                     </div>
 
                     <!-- Category -->
                     <div class="form-group">
-                        <label for="id_category" class="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                        <label for="id_category" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Category</label>
                         <select name="category" id="id_category" required
-                            class="w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            class="w-full px-3 py-2 border-2 border-black dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-midnight-800 text-gray-900 dark:text-white">
                             <option value="">-- Select Category --</option>
                             <option value="Internet">Internet</option>
                             <option value="Dish">Dish</option>
@@ -216,17 +224,17 @@
 
                     <!-- Quantity -->
                     <div class="form-group">
-                        <label for="id_quantity" class="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+                        <label for="id_quantity" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Quantity</label>
                         <input type="number" name="quantity" id="id_quantity" min="0" required
-                            class="w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            class="w-full px-3 py-2 border-2 border-black dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-midnight-800 text-gray-900 dark:text-white"
                             placeholder="0">
                     </div>
 
                     <!-- Rate -->
                     <div class="form-group">
-                        <label for="id_rate" class="block text-sm font-medium text-gray-700 mb-2">Rate</label>
+                        <label for="id_rate" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Rate</label>
                         <input type="number" name="rate" id="id_rate" min="0" required
-                            class="w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            class="w-full px-3 py-2 border-2 border-black dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-midnight-800 text-gray-900 dark:text-white"
                             placeholder="0">
                     </div>
 
@@ -238,17 +246,17 @@
 
                     <!-- Min Stock Level -->
                     <div class="form-group">
-                        <label for="id_min_stock_level" class="block text-sm font-medium text-gray-700 mb-2">Min Stock
+                        <label for="id_min_stock_level" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Min Stock
                             Level</label>
                         <input type="number" name="min_stock_level" id="id_min_stock_level" min="0" required
-                            class="w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            class="w-full px-3 py-2 border-2 border-black dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-midnight-800 text-gray-900 dark:text-white"
                             placeholder="0">
                     </div>
                     <!-- Type -->
                     <div class="form-group">
-                        <label for="id_Type" class="block text-sm font-medium text-gray-700 mb-2">Type</label>
+                        <label for="id_Type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type</label>
                         <select name="Type" id="id_Type" required
-                            class="w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            class="w-full px-3 py-2 border-2 border-black dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-midnight-800 text-gray-900 dark:text-white">
                             <option value="">-- Select Type --</option>
                             <option value="Meter">Meter</option>
                             <option value="Piece">Piece</option>
@@ -277,13 +285,13 @@
     <nav class="inline-flex -space-x-px" aria-label="Pagination">
         {% if materials_page.has_previous %}
         <a href="?{% if search %}search={{ search }}&{% endif %}{% if category %}category={{ category }}&{% endif %}{% if stock_status %}stock_status={{ stock_status }}&{% endif %}page={{ materials_page.previous_page_number }}"
-            class="px-3 py-2 ml-0 leading-tight text-gray-500 bg-white border border-gray-300 rounded-l-lg hover:bg-gray-100 hover:text-gray-700 transition">
+            class="px-3 py-2 ml-0 leading-tight text-gray-500 dark:text-gray-400 bg-white dark:bg-midnight-900 border border-gray-300 dark:border-midnight-700 rounded-l-lg hover:bg-gray-100 dark:hover:bg-midnight-800 hover:text-gray-700 dark:hover:text-white transition">
             <span class="sr-only">Previous</span>
             <i class="fas fa-chevron-left"></i>
         </a>
         {% else %}
         <span
-            class="px-3 py-2 ml-0 leading-tight text-gray-300 bg-gray-100 border border-gray-300 rounded-l-lg cursor-not-allowed">
+            class="px-3 py-2 ml-0 leading-tight text-gray-300 dark:text-gray-600 bg-gray-100 dark:bg-midnight-950 border border-gray-300 dark:border-midnight-700 rounded-l-lg cursor-not-allowed">
             <span class="sr-only">Previous</span>
             <i class="fas fa-chevron-left"></i>
         </span>
@@ -294,7 +302,7 @@
         <span class="px-3 py-2 leading-tight text-white bg-indigo-600 border border-indigo-600">{{ num }}</span>
         {% else %}
         <a href="?{% if search %}search={{ search }}&{% endif %}{% if category %}category={{ category }}&{% endif %}{% if stock_status %}stock_status={{ stock_status }}&{% endif %}page={{ num }}"
-            class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 hover:bg-gray-100 hover:text-gray-700 transition">
+            class="px-3 py-2 leading-tight text-gray-500 dark:text-gray-400 bg-white dark:bg-midnight-900 border border-gray-300 dark:border-midnight-700 hover:bg-gray-100 dark:hover:bg-midnight-800 hover:text-gray-700 dark:hover:text-white transition">
             {{ num }}
         </a>
         {% endif %}
@@ -302,13 +310,13 @@
 
         {% if materials_page.has_next %}
         <a href="?{% if search %}search={{ search }}&{% endif %}{% if category %}category={{ category }}&{% endif %}{% if stock_status %}stock_status={{ stock_status }}&{% endif %}page={{ materials_page.next_page_number }}"
-            class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 rounded-r-lg hover:bg-gray-100 hover:text-gray-700 transition">
+            class="px-3 py-2 leading-tight text-gray-500 dark:text-gray-400 bg-white dark:bg-midnight-900 border border-gray-300 dark:border-midnight-700 rounded-r-lg hover:bg-gray-100 dark:hover:bg-midnight-800 hover:text-gray-700 dark:hover:text-white transition">
             <span class="sr-only">Next</span>
             <i class="fas fa-chevron-right"></i>
         </a>
         {% else %}
         <span
-            class="px-3 py-2 leading-tight text-gray-300 bg-gray-100 border border-gray-300 rounded-r-lg cursor-not-allowed">
+            class="px-3 py-2 leading-tight text-gray-300 dark:text-gray-600 bg-gray-100 dark:bg-midnight-950 border border-gray-300 dark:border-midnight-700 rounded-r-lg cursor-not-allowed">
             <span class="sr-only">Next</span>
             <i class="fas fa-chevron-right"></i>
         </span>
@@ -317,11 +325,11 @@
 </div>
 
 <style>
-            /* Force table text to pure black */
-            #materials-table th,
-            #materials-table td {
-                color: #000000 !important;
-            }
+    /* Dark mode: ensure table text is readable */
+    .dark #materials-table th,
+    .dark #materials-table td {
+        color: inherit;
+    }
 </style>
 
 <script>

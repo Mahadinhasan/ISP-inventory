@@ -2873,6 +2873,23 @@ def settings_view(request):
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
 
+    # Local redirect override to preserve active settings tab on form submissions
+    def redirect(to, *args, **kwargs):
+        from django.shortcuts import redirect as django_redirect
+        if to == 'settings':
+            action = request.POST.get('action')
+            tab_name = 'users'
+            if action in ['create_user', 'edit_user', 'delete', 'toggle_status', 'change_role', 'create_group', 'delete_group', 'add_user_to_group', 'remove_user_from_group']:
+                tab_name = 'users'
+            elif action in ['backup', 'restore', 'delete_backup', 'recover_backup', 'download_backup', 'purge_backup']:
+                tab_name = 'backup'
+            elif action == 'update_notifications':
+                tab_name = 'notifications'
+            elif action == 'update_logs':
+                tab_name = 'logs'
+            return django_redirect(f"/settings/?tab={tab_name}")
+        return django_redirect(to, *args, **kwargs)
+
     if role == 'NOC':
         return redirect('noc:dashboard')
 
@@ -3105,6 +3122,11 @@ def settings_view(request):
                 log_settings.log_user_activities = request.POST.get('log_user_activities') == 'on'
                 log_settings.updated_by = request.user
                 log_settings.save()
+                
+                # Apply changes dynamically
+                from .logging_config import setup_logging
+                setup_logging()
+                
                 messages.success(request, "Log settings updated successfully!")
             except Exception as e:
                 messages.error(request, f"Error updating log settings: {str(e)}")
@@ -3119,10 +3141,10 @@ def settings_view(request):
             from django.core.files.base import ContentFile
             from io import StringIO
             
-            # Check if user is Admin or can create backups (Storekeeper, Branch, NOC)
+            # Only Admin can create backups
             user_role = profile.role
-            if user_role not in ['Admin', 'Storekeeper', 'Branch', 'NOC']:
-                messages.error(request, "You don't have permission to create backups.")
+            if user_role != 'Admin':
+                messages.error(request, "Only Admins can create backups.")
                 return redirect('settings')
             
             try:
@@ -3357,9 +3379,11 @@ def settings_view(request):
             return redirect('settings')
         
         elif action == 'recover_backup':
-            """Recover a soft-deleted backup"""
+            """Recover a soft-deleted backup (Admin only)"""
+            if profile.role != 'Admin':
+                messages.error(request, "Only Admin can recover backups.")
+                return redirect('settings')
             from isp_inventory.models import BackupRestore
-            
             backup_id = request.POST.get('backup_id')
             try:
                 backup = BackupRestore.objects.get(id=backup_id, status='deleted')
@@ -3372,7 +3396,48 @@ def settings_view(request):
                 messages.error(request, "Backup not found or already active.")
             except Exception as e:
                 messages.error(request, f"Error recovering backup: {str(e)}")
-            
+            return redirect('settings')
+
+        elif action == 'download_backup':
+            """Re-download an existing backup file from history (Admin only)"""
+            if profile.role != 'Admin':
+                messages.error(request, "Only Admin can download backups.")
+                return redirect('settings')
+            from isp_inventory.models import BackupRestore
+            backup_id = request.POST.get('backup_id')
+            try:
+                backup = BackupRestore.objects.get(id=backup_id, status='active')
+                backup_data = backup.backup_file.read()
+                filename = backup.backup_file.name.split('/')[-1]
+                response = HttpResponse(backup_data, content_type='application/json')
+                response['Content-Disposition'] = f'attachment; filename="{filename}"'
+                return response
+            except BackupRestore.DoesNotExist:
+                messages.error(request, "Backup not found or not available for download.")
+            except Exception as e:
+                messages.error(request, f"Download failed: {str(e)}")
+            return redirect('settings')
+
+        elif action == 'purge_backup':
+            """Permanently delete a backup record and its file (Admin only)"""
+            if profile.role != 'Admin':
+                messages.error(request, "Only Admin can permanently delete backups.")
+                return redirect('settings')
+            from isp_inventory.models import BackupRestore
+            backup_id = request.POST.get('backup_id')
+            try:
+                backup = BackupRestore.objects.get(id=backup_id)
+                # Delete the physical file
+                try:
+                    backup.backup_file.delete(save=False)
+                except Exception:
+                    pass
+                backup.delete()
+                messages.success(request, "Backup permanently deleted.")
+            except BackupRestore.DoesNotExist:
+                messages.error(request, "Backup not found.")
+            except Exception as e:
+                messages.error(request, f"Error purging backup: {str(e)}")
             return redirect('settings')
 
         # Role change: update groups and (optionally) UserProfile for compatibility
@@ -3470,12 +3535,32 @@ def settings_view(request):
     enable_database_logging = log_settings.enable_database_logging
     log_user_activities = log_settings.log_user_activities
     
-    # Get recent activity logs for current user
-    recent_activity = ActivityLog.objects.filter(user=request.user).order_by('-timestamp')[:20]
+    # Query all activity logs since the settings page is Admin-only
+    activity_qs = ActivityLog.objects.all().select_related('user').order_by('-timestamp')
     
-    # Get backup history
+    # Filters
+    log_user_filter = request.GET.get('log_user')
+    if log_user_filter:
+        activity_qs = activity_qs.filter(user_id=log_user_filter)
+        
+    log_type_filter = request.GET.get('log_type')
+    if log_type_filter:
+        activity_qs = activity_qs.filter(activity_type=log_type_filter)
+        
+    # Paginate by 30 items per page
+    paginator = Paginator(activity_qs, 30)
+    page_number = request.GET.get('log_page', 1)
+    recent_activity_page = paginator.get_page(page_number)
+    
+    # Get backup history (all, newest first)
     from isp_inventory.models import BackupRestore
-    backup_history = BackupRestore.objects.all().select_related('created_by', 'deleted_by', 'restored_by').order_by('-created_at')[:20]
+    from django.utils import timezone as tz
+    thirty_days_ago = tz.now() - __import__('datetime').timedelta(days=30)
+    # Auto-purge deleted backups older than 30 days
+    BackupRestore.objects.filter(status='deleted', deleted_at__lt=thirty_days_ago).update(status='purged')
+    backup_history = BackupRestore.objects.all().select_related(
+        'created_by', 'deleted_by', 'restored_by'
+    ).order_by('-created_at')[:50]
     
     context = {
         'users': users,
@@ -3504,7 +3589,9 @@ def settings_view(request):
         'enable_database_logging': enable_database_logging,
         'log_user_activities': log_user_activities,
         'log_settings': log_settings,
-        'recent_activity': recent_activity,
+        'recent_activity': recent_activity_page, # Paginated page object
+        'log_user_filter': log_user_filter,
+        'log_type_filter': log_type_filter,
         'backup_history': backup_history,
     }
     return render(request, 'inventory/settings.html', context)
@@ -4387,8 +4474,12 @@ def refundable_materials_view(request):
     form = RefundableMaterialForm(user=request.user)
     usage_form = RefundableMaterialUsageForm(user=request.user)
 
-    # Count matching filters (Point 6 count)
+    # Count matching filters and sum quantities (refundable & used)
     refundable_count = refundable_qs.count()
+    total_refundable_qty = sum(r.available_quantity for r in refundable_qs)
+    
+    used_count = refundable_usages_qs.count()
+    total_used_qty = refundable_usages_qs.aggregate(s=Sum('materials_quantity'))['s'] or 0
 
     return render(request, 'inventory/refundable_materials.html', {
         'refundable_materials': refundable_page,
@@ -4400,6 +4491,9 @@ def refundable_materials_view(request):
         'branch_users': branch_users,
         'search_query': search_query,
         'refundable_count': refundable_count,
+        'total_refundable_qty': total_refundable_qty,
+        'used_count': used_count,
+        'total_used_qty': total_used_qty,
     })
 
 def get_refundable_material_api(request, pk):
@@ -4663,6 +4757,13 @@ def damaged_materials_view(request):
                 messages.error(request, "Record not found.")
                 return redirect('damaged_materials')
 
+    # Damaged materials count stats
+    total_damaged_count = damaged_qs.count()
+    pending_count = damaged_qs.filter(status='Pending').count()
+    confirmed_count = damaged_qs.filter(status='Confirmed').count()
+    rejected_count = damaged_qs.filter(status='Rejected').count()
+    total_damaged_qty = damaged_qs.aggregate(s=Sum('quantity'))['s'] or 0
+
     return render(request, 'inventory/damaged_materials.html', {
         'damaged_materials': damaged_page,
         'form': form,
@@ -4670,6 +4771,11 @@ def damaged_materials_view(request):
         'page_obj': damaged_page,
         'branch_users': branch_users,
         'search_query': search_query,
+        'total_damaged_count': total_damaged_count,
+        'pending_count': pending_count,
+        'confirmed_count': confirmed_count,
+        'rejected_count': rejected_count,
+        'total_damaged_qty': total_damaged_qty,
     })
 
 @login_required
@@ -4802,3 +4908,301 @@ def custom_404_view(request, exception=None):
         'request_path': request.path,
     }
     return render(request, '404.html', context, status=404)
+
+
+@login_required
+def backup_restore_view(request):
+    """Dedicated Backup & Restore page — Admin only."""
+    profile = ensure_userprofile(request.user)
+    role = profile.role if profile else 'Branch'
+
+    if role != 'Admin':
+        messages.error(request, "Access Denied. Only Admins can access Backup & Restore.")
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        # ── CREATE BACKUP ──
+        if action == 'backup':
+            import json, hashlib
+            from django.core.files.base import ContentFile
+            from django.core.management import call_command
+            from io import StringIO
+
+            try:
+                backup_type = request.POST.get('backup_type', 'full')
+                description = request.POST.get('backup_description', '').strip()
+
+                if backup_type == 'full':
+                    exclude_models = ['auth.permission', 'contenttypes', 'admin.logentry']
+                    backup_label = 'Full Backup'
+                else:
+                    exclude_models = [
+                        'auth.permission', 'auth.user', 'auth.group',
+                        'contenttypes', 'admin.logentry', 'sessions.session'
+                    ]
+                    backup_label = 'Partial Backup (Data Only)'
+
+                output = StringIO()
+                call_command('dumpdata', exclude=exclude_models, stdout=output, indent=2)
+                backup_data = output.getvalue()
+
+                if not backup_data:
+                    messages.error(request, "Backup failed: No data to backup.")
+                    return redirect('backup_restore')
+
+                checksum = hashlib.sha256(backup_data.encode()).hexdigest()
+                try:
+                    records_count = len(json.loads(backup_data))
+                except Exception:
+                    records_count = 0
+
+                from isp_inventory.models import BackupRestore
+                timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+                backup_filename = f'backup_{backup_type}_{timestamp}.json'
+
+                backup_obj = BackupRestore(
+                    backup_file=ContentFile(backup_data.encode(), name=backup_filename),
+                    created_by=request.user,
+                    backup_type=backup_type,
+                    backup_size=len(backup_data),
+                    description=description or f'{backup_label} by {request.user.username}',
+                    status='active',
+                    data_records_count=records_count,
+                    checksum=checksum,
+                )
+                backup_obj.save()
+
+                response = HttpResponse(backup_data, content_type='application/json')
+                response['Content-Disposition'] = f'attachment; filename="{backup_filename}"'
+                messages.success(request, f"{backup_label} created! {records_count} records. SHA256: {checksum[:16]}...")
+                return response
+
+            except Exception as e:
+                import traceback
+                messages.error(request, f"Backup failed: {str(e)}")
+                return redirect('backup_restore')
+
+        # ── RESTORE BACKUP ──
+        elif action == 'restore':
+            try:
+                import json, tempfile, os
+                from isp_inventory.models import BackupRestore
+
+                restore_type = request.POST.get('restore_type', 'file')
+                backup_content = None
+                backup_obj = None
+
+                if restore_type == 'file' and 'backup_file' in request.FILES:
+                    backup_content = request.FILES['backup_file'].read().decode('utf-8')
+                elif restore_type == 'history':
+                    backup_id = request.POST.get('backup_id')
+                    if not backup_id:
+                        messages.error(request, "Please select a backup to restore.")
+                        return redirect('backup_restore')
+                    backup_obj = BackupRestore.objects.filter(id=backup_id, status='active').first()
+                    if not backup_obj:
+                        messages.error(request, "Backup not found or not available.")
+                        return redirect('backup_restore')
+                    backup_content = backup_obj.backup_file.read().decode('utf-8')
+                else:
+                    messages.error(request, "Invalid restore type or no file provided.")
+                    return redirect('backup_restore')
+
+                backup_data = json.loads(backup_content)
+                if not backup_data:
+                    messages.error(request, "Backup file is empty.")
+                    return redirect('backup_restore')
+
+                if request.POST.get('confirm_restore') != 'yes':
+                    messages.warning(request, "Please confirm restoration to proceed.")
+                    return redirect('backup_restore')
+
+                is_partial = backup_obj and backup_obj.backup_type == 'partial'
+
+                with transaction.atomic():
+                    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
+                        json.dump(backup_data, tmp, indent=2)
+                        tmp_path = tmp.name
+                    try:
+                        if is_partial:
+                            from django.db import connection
+                            cursor = connection.cursor()
+                            for table in [
+                                'isp_inventory_material', 'isp_inventory_materialrequest',
+                                'isp_inventory_usedmaterial', 'isp_inventory_refundablematerial',
+                                'isp_inventory_damagematerial', 'isp_inventory_activitylog',
+                            ]:
+                                try:
+                                    cursor.execute(f'DELETE FROM {table}')
+                                except Exception:
+                                    pass
+                            connection.commit()
+                        else:
+                            from django.core.management import call_command
+                            call_command('flush', '--no-input')
+
+                        from django.core.management import call_command
+                        call_command('loaddata', tmp_path)
+
+                        if backup_obj:
+                            backup_obj.restored_at = timezone.now()
+                            backup_obj.restored_by = request.user
+                            backup_obj.save()
+
+                        label = 'Partial' if is_partial else 'Full'
+                        messages.success(request, f"{label} restore completed! {len(backup_data)} records restored.")
+                    finally:
+                        try:
+                            os.unlink(tmp_path)
+                        except Exception:
+                            pass
+
+            except json.JSONDecodeError:
+                messages.error(request, "Invalid backup file (not valid JSON).")
+            except Exception as e:
+                import traceback
+                messages.error(request, f"Restore failed: {str(e)}")
+                print(f"Restore Error: {traceback.format_exc()}")
+            return redirect('backup_restore')
+
+        # ── DOWNLOAD EXISTING BACKUP ──
+        elif action == 'download_backup':
+            from isp_inventory.models import BackupRestore
+            backup_id = request.POST.get('backup_id')
+            try:
+                backup = BackupRestore.objects.get(id=backup_id, status='active')
+                backup_data = backup.backup_file.read()
+                filename = backup.backup_file.name.split('/')[-1]
+                response = HttpResponse(backup_data, content_type='application/json')
+                response['Content-Disposition'] = f'attachment; filename="{filename}"'
+                return response
+            except BackupRestore.DoesNotExist:
+                messages.error(request, "Backup not found or not available for download.")
+            except Exception as e:
+                messages.error(request, f"Download failed: {str(e)}")
+            return redirect('backup_restore')
+
+        # ── SOFT DELETE (30-day recovery) ──
+        elif action == 'delete_backup':
+            from isp_inventory.models import BackupRestore
+            backup_id = request.POST.get('backup_id')
+            try:
+                backup = BackupRestore.objects.get(id=backup_id, status='active')
+                backup.status = 'deleted'
+                backup.deleted_at = timezone.now()
+                backup.deleted_by = request.user
+                backup.save()
+                messages.success(request, "Backup moved to trash — recoverable for 30 days.")
+            except BackupRestore.DoesNotExist:
+                messages.error(request, "Backup not found.")
+            except Exception as e:
+                messages.error(request, f"Delete failed: {str(e)}")
+            return redirect('backup_restore')
+
+        # ── RECOVER DELETED BACKUP ──
+        elif action == 'recover_backup':
+            from isp_inventory.models import BackupRestore
+            backup_id = request.POST.get('backup_id')
+            try:
+                backup = BackupRestore.objects.get(id=backup_id, status='deleted')
+                backup.status = 'active'
+                backup.deleted_at = None
+                backup.deleted_by = None
+                backup.save()
+                messages.success(request, "Backup recovered successfully.")
+            except BackupRestore.DoesNotExist:
+                messages.error(request, "Backup not found or already active.")
+            except Exception as e:
+                messages.error(request, f"Recovery failed: {str(e)}")
+            return redirect('backup_restore')
+
+        # ── PERMANENTLY PURGE BACKUP ──
+        elif action == 'purge_backup':
+            from isp_inventory.models import BackupRestore
+            backup_id = request.POST.get('backup_id')
+            try:
+                backup = BackupRestore.objects.get(id=backup_id)
+                try:
+                    backup.backup_file.delete(save=False)
+                except Exception:
+                    pass
+                backup.delete()
+                messages.success(request, "Backup permanently deleted.")
+            except BackupRestore.DoesNotExist:
+                messages.error(request, "Backup not found.")
+            except Exception as e:
+                messages.error(request, f"Purge failed: {str(e)}")
+            return redirect('backup_restore')
+
+    # ── GET: render page ──
+    import datetime as dt
+    from isp_inventory.models import BackupRestore
+
+    # Auto-purge deleted backups older than 30 days
+    thirty_days_ago = timezone.now() - dt.timedelta(days=30)
+    BackupRestore.objects.filter(status='deleted', deleted_at__lt=thirty_days_ago).update(status='purged')
+
+    backup_qs = BackupRestore.objects.all().select_related(
+        'created_by', 'deleted_by', 'restored_by'
+    ).order_by('-created_at')
+
+    user_filter = request.GET.get('user_id')
+    if user_filter:
+        backup_qs = backup_qs.filter(created_by_id=user_filter)
+
+    status_filter = request.GET.get('status')
+    if status_filter:
+        backup_qs = backup_qs.filter(status=status_filter)
+
+    paginator = Paginator(backup_qs, 15)
+    page_number = request.GET.get('page', 1)
+    backup_page = paginator.get_page(page_number)
+
+    all_users = User.objects.filter(backups_created__isnull=False).distinct().order_by('username')
+
+    context = {
+        'backup_history': backup_page,
+        'role': role,
+        'all_users': all_users,
+        'user_filter': user_filter,
+        'status_filter': status_filter,
+        'total_backups': BackupRestore.objects.count(),
+        'active_backups': BackupRestore.objects.filter(status='active').count(),
+        'deleted_backups': BackupRestore.objects.filter(status='deleted').count(),
+    }
+    return render(request, 'inventory/backup_restore.html', context)
+
+@login_required
+def logs_view(request):
+    """Dedicated logs view for Storekeeper, NOC, and Branch roles."""
+    profile = ensure_userprofile(request.user)
+    role = profile.role if profile else 'Branch'
+    
+    # Only non-admin roles: Storekeeper, NOC, Branch can access
+    if role not in ['Storekeeper', 'NOC', 'Branch']:
+        messages.error(request, "Access restricted to Storekeeper, NOC, and Branch roles.")
+        return redirect('dashboard')
+        
+    from isp_inventory.models import ActivityLog
+    from django.core.paginator import Paginator
+    
+    # Fetch logs for the logged-in user only
+    logs_qs = ActivityLog.objects.filter(user=request.user).order_by('-timestamp')
+    
+    # Filter by search/activity type if provided
+    log_type_filter = request.GET.get('log_type')
+    if log_type_filter:
+        logs_qs = logs_qs.filter(activity_type=log_type_filter)
+        
+    # Paginate by 30 records per page
+    paginator = Paginator(logs_qs, 30)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'logs': page_obj,
+        'log_type_filter': log_type_filter,
+    }
+    return render(request, 'inventory/logs.html', context)

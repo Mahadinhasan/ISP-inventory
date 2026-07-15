@@ -38,6 +38,39 @@
         </div>
     </div>
 
+    <!-- Statistics Summary Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mx-4">
+        <!-- Available Returnable Stock Card -->
+        <div class="bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/10 dark:to-violet-950/10 rounded-xl p-3 border border-indigo-100 dark:border-indigo-900/30 flex items-center justify-between shadow-sm">
+            <div class="space-y-0.5">
+                <p class="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest">Available Returnable Stock</p>
+                <div class="flex items-baseline gap-1.5">
+                    <span class="text-2xl font-extrabold text-indigo-900 dark:text-white">{{ total_refundable_qty }}</span>
+                    <span class="text-[10px] font-semibold text-indigo-500 dark:text-indigo-400">units available</span>
+                </div>
+                <p class="text-[10px] text-slate-500 dark:text-slate-400 font-medium">From {{ refundable_count }} unique returnable items</p>
+            </div>
+            <div class="w-9 h-9 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-sm shadow-sm flex-shrink-0">
+                <i class="fas fa-boxes"></i>
+            </div>
+        </div>
+
+        <!-- Total Used Materials Card -->
+        <div class="bg-gradient-to-br from-pink-50 to-rose-50 dark:from-pink-950/10 dark:to-rose-950/10 rounded-xl p-3 border border-pink-100 dark:border-rose-900/30 flex items-center justify-between shadow-sm">
+            <div class="space-y-0.5">
+                <p class="text-[10px] font-bold text-pink-500 dark:text-pink-400 uppercase tracking-widest">Returnable Materials Used</p>
+                <div class="flex items-baseline gap-1.5">
+                    <span class="text-2xl font-extrabold text-pink-900 dark:text-white">{{ total_used_qty }}</span>
+                    <span class="text-[10px] font-semibold text-pink-500 dark:text-pink-400">units deployed</span>
+                </div>
+                <p class="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Across {{ used_count }} deployment records</p>
+            </div>
+            <div class="w-9 h-9 rounded-lg bg-pink-100 dark:bg-pink-900/40 flex items-center justify-center text-pink-600 dark:text-pink-400 text-sm shadow-sm flex-shrink-0">
+                <i class="fas fa-history"></i>
+            </div>
+        </div>
+    </div>
+
     <!-- Used Materials Table as main list -->
     <div class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-midnight-800 mx-4">
         <div class="px-6 py-5 border-b border-gray-100 dark:border-midnight-800 flex justify-between items-center">

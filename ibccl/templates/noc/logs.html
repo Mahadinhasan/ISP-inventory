@@ -1,0 +1,131 @@
+{% extends 'noc/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-8 animate-fade-in p-4 sm:p-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+            <h1 class="text-3xl font-extrabold text-slate-800 dark:text-white flex items-center gap-3">
+                <i class="fas fa-history text-indigo-600 dark:text-indigo-400"></i> My Activity Logs
+            </h1>
+            <p class="text-sm text-slate-500 dark:text-slate-400">View your session history and database operations log</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="px-3 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-full text-xs font-bold uppercase tracking-wider border border-indigo-100 dark:border-indigo-900/30">
+                User: {{ request.user.username }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Alert Messages -->
+    {% if messages %}
+    <div class="space-y-3">
+        {% for message in messages %}
+        <div class="p-4 rounded-xl text-sm font-semibold flex items-center justify-between shadow-sm border
+            {% if message.tags == 'success' %}bg-green-50 text-green-700 border-green-200 dark:bg-green-950/20 dark:text-green-400 dark:border-green-900/30
+            {% else %}bg-red-50 text-red-700 border-red-200 dark:bg-red-950/20 dark:text-red-400 dark:border-red-900/30{% endif %}">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-info-circle text-lg"></i>
+                <span>{{ message }}</span>
+            </div>
+            <button onclick="this.parentElement.remove()" class="text-current opacity-70 hover:opacity-100 transition-opacity">&times;</button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Filter and Search Card -->
+    <div class="bg-white dark:bg-midnight-900/40 glass-card rounded-3xl p-6 border border-slate-100 dark:border-midnight-800 shadow-xl">
+        <form method="get" class="flex flex-col sm:flex-row gap-4 items-end">
+            <div class="flex-1 w-full">
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">Filter by Activity Type</label>
+                <select name="log_type" onchange="this.form.submit()" class="w-full px-4 py-3 border border-slate-200 dark:border-midnight-800 rounded-xl bg-slate-50 dark:bg-midnight-950 dark:text-white focus:border-indigo-500 transition-all font-semibold text-sm">
+                    <option value="">All Activities</option>
+                    <option value="login" {% if log_type_filter == 'login' %}selected{% endif %}>Login</option>
+                    <option value="logout" {% if log_type_filter == 'logout' %}selected{% endif %}>Logout</option>
+                    <option value="create" {% if log_type_filter == 'create' %}selected{% endif %}>Create Action</option>
+                    <option value="edit" {% if log_type_filter == 'edit' %}selected{% endif %}>Edit Action</option>
+                    <option value="delete" {% if log_type_filter == 'delete' %}selected{% endif %}>Delete Action</option>
+                </select>
+            </div>
+            <div class="w-full sm:w-auto">
+                <a href="{% url 'noc:logs' %}" class="w-full sm:w-auto px-6 py-3 border border-slate-200 dark:border-midnight-800 rounded-xl hover:bg-slate-50 dark:hover:bg-midnight-800 text-slate-600 dark:text-slate-400 font-bold text-sm transition-all flex items-center justify-center gap-2">
+                    <i class="fas fa-sync-alt"></i> Reset
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Logs Table -->
+    <div class="bg-white dark:bg-midnight-900/40 glass-card rounded-3xl p-6 sm:p-8 border border-slate-100 dark:border-midnight-800 shadow-xl">
+        <div class="overflow-x-auto rounded-2xl border border-slate-100 dark:border-midnight-800">
+            <table class="w-full border-collapse text-left">
+                <thead>
+                    <tr class="bg-slate-50 dark:bg-midnight-950 text-slate-600 dark:text-slate-400 text-xs font-bold uppercase border-b border-slate-100 dark:border-midnight-800">
+                        <th class="px-6 py-4">Activity</th>
+                        <th class="px-6 py-4">Description</th>
+                        <th class="px-6 py-4">Time</th>
+                        <th class="px-6 py-4">IP Address</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-midnight-800">
+                    {% for log in logs %}
+                    <tr class="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors text-sm text-slate-700 dark:text-slate-300">
+                        <!-- Activity type -->
+                        <td class="px-6 py-4">
+                            <span class="px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider
+                                {% if log.activity_type == 'login' or log.activity_type == 'create' %}bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400
+                                {% elif log.activity_type == 'logout' %}bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400
+                                {% elif log.activity_type == 'delete' %}bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400
+                                {% else %}bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400{% endif %}">
+                                {{ log.activity_type }}
+                            </span>
+                        </td>
+                        <!-- Description -->
+                        <td class="px-6 py-4 font-medium text-slate-800 dark:text-white">
+                            {{ log.description }}
+                        </td>
+                        <!-- Timestamp -->
+                        <td class="px-6 py-4 text-xs font-medium text-slate-500 dark:text-slate-400">
+                            {{ log.timestamp|date:"Y-m-d H:i:s" }}
+                        </td>
+                        <!-- IP Address -->
+                        <td class="px-6 py-4 font-mono text-xs text-slate-600 dark:text-slate-400">
+                            {{ log.ip_address|default:"-" }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-6 py-12 text-center text-slate-400 dark:text-slate-600 font-medium">
+                            <i class="fas fa-history text-4xl mb-3 block"></i> No log entries found.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if logs.has_other_pages %}
+        <div class="flex justify-between items-center mt-6">
+            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Page {{ logs.number }} of {{ logs.paginator.num_pages }} (Showing 30 logs per page)
+            </span>
+            <div class="flex gap-2">
+                {% if logs.has_previous %}
+                    <a href="?page={{ logs.previous_page_number }}{% if log_type_filter %}&log_type={{ log_type_filter }}{% endif %}" class="px-4 py-2 border border-slate-200 dark:border-midnight-800 rounded-xl hover:bg-slate-50 dark:hover:bg-midnight-800 text-slate-600 dark:text-slate-400 font-bold text-xs transition">
+                        Previous
+                    </a>
+                {% endif %}
+                {% if logs.has_next %}
+                    <a href="?page={{ logs.next_page_number }}{% if log_type_filter %}&log_type={{ log_type_filter }}{% endif %}" class="px-4 py-2 border border-slate-200 dark:border-midnight-800 rounded-xl hover:bg-slate-50 dark:hover:bg-midnight-800 text-slate-600 dark:text-slate-400 font-bold text-xs transition">
+                        Next
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,141 @@
+{% extends 'noc/base.html' %}
+{% block title %}Enter Mac/Serial Numbers - NOC Dashboard{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="mb-8">
+        <h1 class="text-4xl font-bold text-gray-900 dark:text-white">Enter Mac/Serial Numbers</h1>
+        <p class="mt-2 text-lg text-gray-600 dark:text-gray-400">
+            Add the serial values for {{ import_record.material.name }} assigned to {{ import_record.assigned_to.username }}.
+        </p>
+    </div>
+
+    <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-xl p-8 border border-gray-100 dark:border-midnight-800">
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+
+            <div class="rounded-2xl border border-gray-200 dark:border-midnight-800 bg-gray-50 dark:bg-midnight-950/60 p-6">
+                <div class="mb-6">
+                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">Import Details</h2>
+                    <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                        You need to enter {{ import_record.mac_serials_count }} mac/serial value(s) for this assignment.
+                    </p>
+                </div>
+
+                <div class="space-y-4">
+                    {% for i in mac_serials_range %}
+                        {% if forloop.counter0|divisibleby:3 %}
+                        <div class="grid gap-4 md:grid-cols-3">
+                        {% endif %}
+                        <div>
+                            <label for="mac_serial_{{ i }}" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                Mac/Serial #{{ i }}
+                            </label>
+                            <input
+                                type="text"
+                                id="mac_serial_{{ i }}"
+                                name="mac_serial_{{ i }}"
+                                placeholder="Enter mac/serial value"
+                                autocomplete="off"
+                                autocapitalize="off"
+                                spellcheck="false"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-midnight-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:bg-midnight-900 dark:text-white"
+                            >
+                        </div>
+                        {% if forloop.counter|divisibleby:3 or forloop.last %}
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-3 pt-2">
+                <button type="submit" class="flex-1 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg">
+                    <i class="fas fa-save mr-2"></i>Save Mac/Serial Numbers
+                </button>
+                <a href="{% url 'noc:list_mac_serials' %}" class="px-6 py-3 bg-gray-300 dark:bg-midnight-800 text-gray-900 dark:text-white rounded-xl font-bold hover:bg-gray-400 dark:hover:bg-midnight-700 transition text-center">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const inputs = Array.from(document.querySelectorAll('input[name^="mac_serial_"]'));
+        if (!inputs.length) return;
+
+        let scannerBuffer = '';
+        let scannerTimer = null;
+
+        const focusActiveInput = () => {
+            const active = document.activeElement;
+            if (active && active.tagName === 'INPUT' && active.name && active.name.startsWith('mac_serial_')) {
+                return active;
+            }
+            return inputs[0];
+        };
+
+        const moveToNextInput = (current) => {
+            const currentIndex = inputs.indexOf(current);
+            const nextInput = inputs[currentIndex + 1] || inputs[0];
+            nextInput.focus();
+            nextInput.select();
+        };
+
+        document.addEventListener('keydown', function (event) {
+            const target = event.target;
+            if (!target || !target.name || !target.name.startsWith('mac_serial_')) {
+                return;
+            }
+
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                if (scannerBuffer.trim()) {
+                    target.value = scannerBuffer.trim();
+                    scannerBuffer = '';
+                    clearTimeout(scannerTimer);
+                    moveToNextInput(target);
+                } else if (target.value.trim()) {
+                    moveToNextInput(target);
+                }
+                return;
+            }
+
+            if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+                scannerBuffer += event.key;
+                clearTimeout(scannerTimer);
+                scannerTimer = setTimeout(() => {
+                    scannerBuffer = '';
+                }, 90);
+            }
+        });
+
+        document.addEventListener('paste', function (event) {
+            const target = event.target;
+            if (target && target.name && target.name.startsWith('mac_serial_')) {
+                const pasted = event.clipboardData?.getData('text') || '';
+                if (pasted) {
+                    event.preventDefault();
+                    target.value = pasted.trim();
+                    moveToNextInput(target);
+                }
+            }
+        });
+
+        inputs.forEach((input) => {
+            input.addEventListener('focus', function () {
+                this.select();
+            });
+        });
+
+        window.addEventListener('focus', function () {
+            const target = focusActiveInput();
+            if (target) {
+                target.focus();
+            }
+        });
+    });
+</script>
+{% endblock %}

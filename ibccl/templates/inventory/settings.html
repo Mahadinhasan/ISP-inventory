@@ -165,206 +165,252 @@
             </div>
 
             <!-- ── TAB 2: BACKUP & RESTORE ─────────────────────────────────── -->
-            <div id="backupTab" class="hidden bg-white/40 dark:bg-midnight-900/40 glass-card rounded-3xl shadow-2xl p-4 sm:p-8 border border-gray-100 dark:border-midnight-800">
-                <div class="mb-8">
-                    <h2 class="text-3xl font-bold text-indigo-900 dark:text-white mb-2 flex items-center">
-                        <i class="fas fa-database mr-3 text-indigo-600 dark:text-indigo-400"></i>Backup & Restore
-                    </h2>
-                    <p class="text-gray-600 dark:text-gray-400">Securely backup and restore your system data with role-based access control</p>
-                </div>
+            <div id="backupTab" class="hidden">
+                {% if user.userprofile.role == 'Admin' %}
+                <!-- ===== ADMIN VIEW ===== -->
+                <div class="bg-white dark:bg-midnight-900/50 rounded-2xl p-4 sm:p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm">
+                    <!-- Header -->
+                    <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6">
+                        <div>
+                            <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                <span class="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center">
+                                    <i class="fas fa-database text-indigo-600 dark:text-indigo-400 text-sm"></i>
+                                </span>
+                                Backup & Restore
+                            </h2>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Admin-only · SHA256 integrity · 30-day recovery</p>
+                        </div>
+                        <a href="{% url 'backup_restore' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow transition active:scale-95">
+                            <i class="fas fa-external-link-alt text-xs"></i> Full Page
+                        </a>
+                    </div>
 
-                <!-- Backup Action Cards Grid -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    
-                    <!-- Create Backup Card Form -->
-                    <form method="post" class="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 rounded-2xl shadow-md p-6 border border-purple-100 dark:border-purple-900/30">
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="backup">
-                        <h3 class="text-xl font-bold text-purple-900 dark:text-purple-300 mb-4 flex items-center">
-                            <i class="fas fa-download mr-2"></i> Create Backup
-                        </h3>
-                        <p class="text-gray-600 dark:text-gray-400 text-sm mb-6">Download a complete backup of all system data with metadata and checksums.</p>
-                        
-                        <div class="space-y-4 mb-6">
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Backup Type</label>
-                                <select name="backup_type" class="w-full px-4 py-3 border-2 border-purple-200 dark:border-purple-900/30 rounded-xl bg-white dark:bg-midnight-950 dark:text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition">
+                    <!-- Stats Row -->
+                    <div class="flex flex-wrap gap-2 mb-6">
+                        <div class="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 rounded-lg border border-indigo-100 dark:border-indigo-800 text-xs font-bold">
+                            <i class="fas fa-database"></i> Total: {{ backup_history|length }}
+                        </div>
+                        <div class="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg border border-green-100 dark:border-green-800 text-xs font-bold">
+                            <i class="fas fa-check-circle"></i> Active: {% with active=backup_history|length %}{{ active }}{% endwith %}
+                        </div>
+                    </div>
+
+                    <!-- Action Grid -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+                        <!-- Create Backup -->
+                        <form method="post" class="bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-900/10 dark:to-purple-900/10 rounded-xl p-4 border border-violet-100 dark:border-violet-900/30">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="backup">
+                            <h3 class="text-sm font-bold text-violet-800 dark:text-violet-300 mb-3 flex items-center gap-2">
+                                <i class="fas fa-download"></i> Create Backup
+                            </h3>
+                            <div class="space-y-3 mb-4">
+                                <select name="backup_type" class="w-full px-3 py-2 text-sm border border-violet-200 dark:border-violet-900/30 rounded-lg bg-white dark:bg-midnight-950 dark:text-white focus:border-violet-500 focus:ring-1 focus:ring-violet-200 transition">
                                     <option value="full">Full Backup (All Data)</option>
-                                    <option value="partial">Partial Backup (Recent Data)</option>
+                                    <option value="partial">Partial Backup (Data Only)</option>
                                 </select>
+                                <textarea name="backup_description" placeholder="Description (optional)..." rows="2"
+                                    class="w-full px-3 py-2 text-sm border border-violet-200 dark:border-violet-900/30 rounded-lg bg-white dark:bg-midnight-950 dark:text-white focus:border-violet-500 transition resize-none"></textarea>
                             </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Backup Description (Optional)</label>
-                                <textarea name="backup_description" placeholder="Add notes about this backup..." rows="3"
-                                    class="w-full px-4 py-3 border-2 border-purple-200 dark:border-purple-900/30 rounded-xl bg-white dark:bg-midnight-950 dark:text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"></textarea>
+                            <div class="text-[11px] text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/20 rounded-lg px-3 py-2 mb-3">
+                                <i class="fas fa-info-circle mr-1"></i> Includes: Users, Materials, Requests, Logs & all data
                             </div>
-                        </div>
+                            <button type="submit" class="w-full px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold rounded-xl transition active:scale-95">
+                                <i class="fas fa-download mr-2"></i>Download Backup
+                            </button>
+                        </form>
 
-                        <!-- System Details Panel -->
-                        <div class="bg-purple-100 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-900/30 rounded-lg p-3 mb-6 text-xs text-purple-700 dark:text-purple-300">
-                            <i class="fas fa-info-circle mr-2"></i>
-                            <strong>Backup includes:</strong> Users, Materials, Requests, Tasks, Used Materials, Logs & all system data
-                        </div>
-
-                        <button type="submit" class="w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 dark:bg-purple-600 dark:hover:bg-purple-700 text-white rounded-xl font-bold transition shadow-lg active:scale-95">
-                            <i class="fas fa-download mr-2"></i>Download Backup
-                        </button>
-                    </form>
-
-                    <!-- Restore Backup Card (Admin Only) -->
-                    {% if user.userprofile.role == 'Admin' %}
-                    <form method="post" enctype="multipart/form-data" class="bg-gradient-to-br from-green-50 to-teal-50 dark:from-green-900/10 dark:to-teal-900/10 rounded-2xl shadow-md p-6 border border-green-100 dark:border-green-900/30">
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="restore">
-                        <input type="hidden" name="confirm_restore" value="yes">
-                        <h3 class="text-xl font-bold text-green-900 dark:text-green-300 mb-4 flex items-center">
-                            <i class="fas fa-redo mr-2"></i> Restore Backup
-                        </h3>
-                        <p class="text-gray-600 dark:text-gray-400 text-sm mb-6">Upload a backup file to restore system data. <span class="text-red-600 dark:text-red-400 font-bold">WARNING: This will replace all current data!</span></p>
-
-                        <div class="space-y-4 mb-6">
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Select Restore Source</label>
-                                <select id="restore-type-select" name="restore_type" onchange="toggleRestoreInput(this.value)" class="w-full px-4 py-3 border-2 border-green-200 dark:border-green-900/30 rounded-xl bg-white dark:bg-midnight-950 dark:text-white focus:border-green-500 focus:ring-2 focus:ring-green-100 transition">
+                        <!-- Restore Backup -->
+                        <form method="post" enctype="multipart/form-data" class="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/10 dark:to-teal-900/10 rounded-xl p-4 border border-emerald-100 dark:border-emerald-900/30">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="restore">
+                            <input type="hidden" name="confirm_restore" value="yes">
+                            <h3 class="text-sm font-bold text-emerald-800 dark:text-emerald-300 mb-3 flex items-center gap-2">
+                                <i class="fas fa-redo"></i> Restore Backup
+                                <span class="text-[10px] bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-2 py-0.5 rounded-full font-bold">DANGER</span>
+                            </h3>
+                            <div class="space-y-3 mb-4">
+                                <select id="settings-restore-type" name="restore_type" onchange="toggleSettingsRestoreInput(this.value)"
+                                    class="w-full px-3 py-2 text-sm border border-emerald-200 dark:border-emerald-900/30 rounded-lg bg-white dark:bg-midnight-950 dark:text-white focus:border-emerald-500 transition">
                                     <option value="file">Upload Backup File</option>
                                     <option value="history">Restore from History</option>
                                 </select>
-                            </div>
-
-                            <!-- File Upload Picker -->
-                            <div id="file-upload-section">
-                                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Select Backup File</label>
-                                <input type="file" name="backup_file" accept=".json" class="w-full px-4 py-3 border-2 border-green-200 dark:border-green-900/30 rounded-xl bg-white dark:bg-midnight-950 dark:text-white focus:border-green-500 transition">
-                            </div>
-
-                            <!-- History Restore Picker -->
-                            <div id="history-section" class="hidden">
-                                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Select Backup from History</label>
-                                <select name="backup_id" class="w-full px-4 py-3 border-2 border-green-200 dark:border-green-900/30 rounded-xl bg-white dark:bg-midnight-950 dark:text-white focus:border-green-500 transition">
-                                    <option value="">--- Choose a backup ---</option>
-                                    {% for backup in backup_history %}
-                                    <option value="{{ backup.id }}">
-                                        {{ backup.created_by.username }} - {{ backup.created_at|date:"Y-m-d H:i" }} ({{ backup.data_records_count }} records)
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                        </div>
-
-                        <!-- Restore Danger Details -->
-                        <div class="bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 rounded-lg p-3 mb-6 text-xs text-red-700 dark:text-red-300">
-                            <i class="fas fa-exclamation-triangle mr-2"></i>
-                            <strong>Warning:</strong> Restoring will permanently replace all existing data. This action cannot be undone easily!
-                        </div>
-
-                        <button type="submit" onclick="return confirm('Are you sure? All current data will be replaced!')" class="w-full px-6 py-3 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white rounded-xl font-bold transition shadow-lg active:scale-95">
-                            <i class="fas fa-redo mr-2"></i>Restore Backup (Admin Only)
-                        </button>
-                    </form>
-                    {% else %}
-                    <!-- Inactive Restore Card for non-admins -->
-                    <div class="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900/20 dark:to-gray-900/30 rounded-2xl shadow-md p-6 border border-gray-200 dark:border-gray-900/30 flex items-center justify-center">
-                        <div class="text-center">
-                            <i class="fas fa-lock text-5xl text-gray-400 mb-4"></i>
-                            <p class="text-gray-600 dark:text-gray-400 font-semibold mb-2">Restore Access Restricted</p>
-                            <p class="text-gray-500 dark:text-gray-500 text-sm">Only Admins can restore backups to ensure data integrity</p>
-                        </div>
-                    </div>
-                    {% endif %}
-                </div>
-
-                <!-- Backup History List -->
-                <div class="mt-8 pt-8 border-t-2 border-gray-200 dark:border-gray-700">
-                    <h3 class="text-2xl font-bold text-indigo-900 dark:text-white mb-6 flex items-center">
-                        <i class="fas fa-history mr-2 text-indigo-600 dark:text-indigo-400"></i>Backup History
-                    </h3>
-
-                    {% if backup_history %}
-                    <div class="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                            <thead class="bg-indigo-50 dark:bg-indigo-900/20">
-                                <tr>
-                                    <th class="px-6 py-4 text-left text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase">Created By</th>
-                                    <th class="px-6 py-4 text-left text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase">Date</th>
-                                    <th class="px-6 py-4 text-left text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase">Type</th>
-                                    <th class="px-6 py-4 text-left text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase">Size</th>
-                                    <th class="px-6 py-4 text-left text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase">Records</th>
-                                    <th class="px-6 py-4 text-left text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase">Status</th>
-                                    <th class="px-6 py-4 text-center text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white dark:bg-midnight-900/20 divide-y divide-gray-200 dark:divide-gray-700">
-                                {% for backup in backup_history %}
-                                <tr class="hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition">
-                                    <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{{ backup.created_by.username }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{{ backup.created_at|date:"Y-m-d H:i:s" }}</td>
-                                    <td class="px-6 py-4 text-sm">
-                                        <span class="px-3 py-1 rounded-full text-xs font-bold {% if backup.backup_type == 'full' %}bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400{% else %}bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400{% endif %}">
-                                            {{ backup.get_backup_type_display }}
-                                        </span>
-                                    </td>
-                                    <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{{ backup.backup_size|filesizeformat }}</td>
-                                    <td class="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-white">{{ backup.data_records_count }}</td>
-                                    <td class="px-6 py-4 text-sm">
-                                        <span class="px-3 py-1 rounded-full text-xs font-bold
-                                            {% if backup.status == 'active' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
-                                            {% elif backup.status == 'deleted' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
-                                            {% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400{% endif %}">
-                                            {{ backup.get_status_display }}
-                                        </span>
-                                    </td>
-                                    <td class="px-6 py-4 text-center space-x-2">
+                                <div id="settings-file-section">
+                                    <input type="file" name="backup_file" accept=".json"
+                                        class="w-full px-3 py-2 text-sm border border-emerald-200 dark:border-emerald-900/30 rounded-lg bg-white dark:bg-midnight-950 dark:text-white transition">
+                                </div>
+                                <div id="settings-history-section" class="hidden">
+                                    <select name="backup_id" class="w-full px-3 py-2 text-sm border border-emerald-200 dark:border-emerald-900/30 rounded-lg bg-white dark:bg-midnight-950 dark:text-white focus:border-emerald-500 transition">
+                                        <option value="">--- Choose a backup ---</option>
+                                        {% for backup in backup_history %}
                                         {% if backup.status == 'active' %}
-                                            {% if user.userprofile.role == 'Admin' or backup.created_by == user %}
-                                            <form method="post" class="inline" onsubmit="return confirm('Delete this backup?');">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="action" value="delete_backup">
-                                                <input type="hidden" name="backup_id" value="{{ backup.id }}">
-                                                <button type="submit" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 text-xs font-bold transition">
-                                                    <i class="fas fa-trash mr-1"></i>Delete
-                                                </button>
-                                            </form>
-                                            {% endif %}
-                                        {% elif backup.status == 'deleted' and user.userprofile.role == 'Admin' %}
-                                            <form method="post" class="inline">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="action" value="recover_backup">
-                                                <input type="hidden" name="backup_id" value="{{ backup.id }}">
-                                                <button type="submit" class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 text-xs font-bold transition">
-                                                    <i class="fas fa-undo mr-1"></i>Recover
-                                                </button>
-                                            </form>
+                                        <option value="{{ backup.id }}">
+                                            {{ backup.created_by.username }} · {{ backup.created_at|date:"Y-m-d H:i" }} ({{ backup.data_records_count }} records)
+                                        </option>
                                         {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="text-[11px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2 mb-3">
+                                <i class="fas fa-exclamation-triangle mr-1"></i> This will replace ALL existing data!
+                            </div>
+                            <button type="submit" onclick="return confirm('⚠️ WARNING: All current data will be permanently replaced. Continue?')"
+                                class="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition active:scale-95">
+                                <i class="fas fa-redo mr-2"></i>Restore Now
+                            </button>
+                        </form>
                     </div>
-                    {% else %}
-                    <div class="bg-gray-50 dark:bg-gray-900/20 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-700 p-12 text-center">
-                        <i class="fas fa-inbox text-5xl text-gray-300 dark:text-gray-600 mb-4"></i>
-                        <p class="text-gray-500 dark:text-gray-400 font-semibold">No backups yet. Create your first backup now!</p>
+
+                    <!-- Backup History Table -->
+                    <div class="mt-2">
+                        <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                            <i class="fas fa-history text-indigo-500"></i> Backup History
+                        </h3>
+                        {% if backup_history %}
+                        <div class="overflow-x-auto rounded-xl border border-gray-200 dark:border-midnight-700">
+                            <table class="min-w-full text-xs divide-y divide-gray-100 dark:divide-midnight-700">
+                                <thead class="bg-slate-50 dark:bg-midnight-950/60 text-[11px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-bold">
+                                    <tr>
+                                        <th class="px-4 py-2.5 text-left">Created By</th>
+                                        <th class="px-4 py-2.5 text-left">Date</th>
+                                        <th class="px-4 py-2.5 text-left">Type</th>
+                                        <th class="px-4 py-2.5 text-left">Size</th>
+                                        <th class="px-4 py-2.5 text-left">Records</th>
+                                        <th class="px-4 py-2.5 text-left">SHA256</th>
+                                        <th class="px-4 py-2.5 text-left">Status</th>
+                                        <th class="px-4 py-2.5 text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white dark:bg-midnight-900/10 divide-y divide-gray-100 dark:divide-midnight-800">
+                                    {% for backup in backup_history %}
+                                    <tr class="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition">
+                                        <td class="px-4 py-2.5 font-semibold text-gray-800 dark:text-gray-200">
+                                            {{ backup.created_by.username|default:"System" }}
+                                        </td>
+                                        <td class="px-4 py-2.5 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                                            {{ backup.created_at|date:"Y-m-d H:i" }}
+                                        </td>
+                                        <td class="px-4 py-2.5">
+                                            <span class="px-2 py-0.5 rounded-full font-bold
+                                                {% if backup.backup_type == 'full' %}bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400
+                                                {% else %}bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400{% endif %}">
+                                                {{ backup.get_backup_type_display }}
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-2.5 text-gray-500 dark:text-gray-400">{{ backup.backup_size|filesizeformat }}</td>
+                                        <td class="px-4 py-2.5 font-bold text-gray-800 dark:text-gray-200">{{ backup.data_records_count }}</td>
+                                        <td class="px-4 py-2.5 font-mono text-gray-400 dark:text-gray-500" title="{{ backup.checksum }}">
+                                            {{ backup.checksum|slice:":12" }}{% if backup.checksum %}…{% endif %}
+                                        </td>
+                                        <td class="px-4 py-2.5">
+                                            <span class="px-2 py-0.5 rounded-full font-bold
+                                                {% if backup.status == 'active' %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400
+                                                {% elif backup.status == 'deleted' %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400
+                                                {% else %}bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400{% endif %}">
+                                                {% if backup.status == 'active' %}Active
+                                                {% elif backup.status == 'deleted' %}Trash
+                                                {% else %}Purged{% endif %}
+                                            </span>
+                                            {% if backup.status == 'deleted' and backup.deleted_at %}
+                                            <div class="text-[10px] text-yellow-600 dark:text-yellow-500 mt-0.5">
+                                                Expires: {{ backup.deleted_at|date:"Y-m-d" }}+30d
+                                            </div>
+                                            {% endif %}
+                                        </td>
+                                        <td class="px-4 py-2.5">
+                                            <div class="flex items-center justify-center gap-1.5 flex-wrap">
+                                                {% if backup.status == 'active' %}
+                                                <!-- Download -->
+                                                <form method="post" class="inline">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="action" value="download_backup">
+                                                    <input type="hidden" name="backup_id" value="{{ backup.id }}">
+                                                    <button type="submit" title="Download" class="w-7 h-7 flex items-center justify-center bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg transition text-xs">
+                                                        <i class="fas fa-download"></i>
+                                                    </button>
+                                                </form>
+                                                <!-- Soft Delete -->
+                                                <form method="post" class="inline" onsubmit="return confirm('Move this backup to trash? It can be recovered within 30 days.')">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="action" value="delete_backup">
+                                                    <input type="hidden" name="backup_id" value="{{ backup.id }}">
+                                                    <button type="submit" title="Move to Trash" class="w-7 h-7 flex items-center justify-center bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-lg transition text-xs">
+                                                        <i class="fas fa-trash-alt"></i>
+                                                    </button>
+                                                </form>
+                                                {% elif backup.status == 'deleted' %}
+                                                <!-- Recover -->
+                                                <form method="post" class="inline">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="action" value="recover_backup">
+                                                    <input type="hidden" name="backup_id" value="{{ backup.id }}">
+                                                    <button type="submit" title="Recover" class="w-7 h-7 flex items-center justify-center bg-green-50 hover:bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-lg transition text-xs">
+                                                        <i class="fas fa-undo"></i>
+                                                    </button>
+                                                </form>
+                                                <!-- Purge Permanently -->
+                                                <form method="post" class="inline" onsubmit="return confirm('⚠️ Permanently delete this backup? This CANNOT be undone.')">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="action" value="purge_backup">
+                                                    <input type="hidden" name="backup_id" value="{{ backup.id }}">
+                                                    <button type="submit" title="Purge Permanently" class="w-7 h-7 flex items-center justify-center bg-red-50 hover:bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg transition text-xs">
+                                                        <i class="fas fa-fire-alt"></i>
+                                                    </button>
+                                                </form>
+                                                {% else %}
+                                                <span class="text-gray-400 text-[10px]">Purged</span>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="flex flex-col items-center justify-center py-10 rounded-xl border-2 border-dashed border-gray-200 dark:border-midnight-700">
+                            <i class="fas fa-inbox text-3xl text-gray-300 dark:text-gray-600 mb-2"></i>
+                            <p class="text-gray-500 dark:text-gray-400 text-sm font-semibold">No backups yet.</p>
+                            <p class="text-gray-400 dark:text-gray-500 text-xs">Create your first backup using the form above.</p>
+                        </div>
+                        {% endif %}
                     </div>
-                    {% endif %}
+
+                    <!-- Info Footer -->
+                    <div class="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="bg-blue-50 dark:bg-blue-900/10 rounded-xl p-3 border border-blue-100 dark:border-blue-900/30">
+                            <p class="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase mb-0.5"><i class="fas fa-shield-alt mr-1"></i>Role-Based Access</p>
+                            <p class="text-xs text-blue-800 dark:text-blue-300">Admin-only backup & restore access</p>
+                        </div>
+                        <div class="bg-green-50 dark:bg-green-900/10 rounded-xl p-3 border border-green-100 dark:border-green-900/30">
+                            <p class="text-[10px] text-green-600 dark:text-green-400 font-bold uppercase mb-0.5"><i class="fas fa-undo mr-1"></i>30-Day Recovery</p>
+                            <p class="text-xs text-green-800 dark:text-green-300">Deleted backups recoverable for 30 days</p>
+                        </div>
+                        <div class="bg-purple-50 dark:bg-purple-900/10 rounded-xl p-3 border border-purple-100 dark:border-purple-900/30">
+                            <p class="text-[10px] text-purple-600 dark:text-purple-400 font-bold uppercase mb-0.5"><i class="fas fa-fingerprint mr-1"></i>Data Integrity</p>
+                            <p class="text-xs text-purple-800 dark:text-purple-300">SHA256 checksums verify backup integrity</p>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Backup Information Section -->
-                <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="bg-blue-50 dark:bg-blue-900/10 rounded-xl p-4 border border-blue-200 dark:border-blue-900/30">
-                        <p class="text-xs text-blue-600 dark:text-blue-400 font-bold uppercase mb-1">Role-Based Access</p>
-                        <p class="text-sm text-blue-900 dark:text-blue-300">Users can backup & delete own, Admin can manage all</p>
+                {% else %}
+                <!-- ===== NON-ADMIN LOCK SCREEN ===== -->
+                <div class="bg-white dark:bg-midnight-900/50 rounded-2xl p-8 border border-slate-200/70 dark:border-midnight-800 shadow-sm flex flex-col items-center justify-center min-h-64 text-center">
+                    <div class="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center mb-4">
+                        <i class="fas fa-lock text-2xl text-gray-400 dark:text-gray-500"></i>
                     </div>
-                    <div class="bg-green-50 dark:bg-green-900/10 rounded-xl p-4 border border-green-200 dark:border-green-900/30">
-                        <p class="text-xs text-green-600 dark:text-green-400 font-bold uppercase mb-1">30-Day Recovery</p>
-                        <p class="text-sm text-green-900 dark:text-green-300">Deleted backups recoverable for 30 days</p>
-                    </div>
-                    <div class="bg-purple-50 dark:bg-purple-900/10 rounded-xl p-4 border border-purple-200 dark:border-purple-900/30">
-                        <p class="text-xs text-purple-600 dark:text-purple-400 font-bold uppercase mb-1">Data Integrity</p>
-                        <p class="text-sm text-purple-900 dark:text-purple-300">SHA256 checksums verify backup integrity</p>
+                    <h3 class="text-lg font-bold text-gray-700 dark:text-gray-300 mb-2">Admin Access Only</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 max-w-xs">
+                        Backup & Restore is restricted to Administrators to ensure data security and integrity.
+                    </p>
+                    <div class="mt-4 px-4 py-2 bg-gray-100 dark:bg-midnight-800 rounded-xl text-xs text-gray-500 dark:text-gray-400 font-mono">
+                        Role: {{ user.userprofile.role }}
                     </div>
                 </div>
+                {% endif %}
             </div>
+
 
             <!-- ── TAB 3: NOTIFICATION SETTINGS ────────────────────────────── -->
             <div id="notificationTab" class="hidden bg-white/40 dark:bg-midnight-900/40 glass-card rounded-3xl p-4 sm:p-8 border border-gray-100 dark:border-midnight-800 shadow-xl">
@@ -610,26 +656,79 @@
                 </div>
                 {% endif %}
                 
-                <!-- Recent Activity Logs Table -->
+                <!-- Log Activity History -->
                 <div class="bg-white dark:bg-midnight-950 rounded-2xl p-6 border border-gray-200 dark:border-midnight-800">
                     <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center">
-                        <i class="fas fa-history mr-2 text-indigo-600 dark:text-indigo-400"></i>Your Activity History
+                        <i class="fas fa-history mr-2 text-indigo-600 dark:text-indigo-400"></i>Log Activity History
                     </h3>
+
+                    <!-- Log Filters Form -->
+                    <form method="get" class="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3 items-end bg-slate-50 dark:bg-midnight-900/40 p-4 rounded-xl border border-gray-100 dark:border-midnight-800">
+                        <input type="hidden" name="tab" value="logs">
+                        
+                        <!-- User Filter Dropdown -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Filter User</label>
+                            <select name="log_user" class="w-full px-3 py-2 bg-white dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-lg text-sm text-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer">
+                                <option value="">All Users</option>
+                                {% for u in users %}
+                                    <option value="{{ u.id }}" {% if log_user_filter|stringformat:"s" == u.id|stringformat:"s" %}selected{% endif %}>{{ u.username }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <!-- Log Type Filter Dropdown -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Activity Type</label>
+                            <select name="log_type" class="w-full px-3 py-2 bg-white dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-lg text-sm text-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer">
+                                <option value="">All Activities</option>
+                                <option value="login" {% if log_type_filter == 'login' %}selected{% endif %}>Login</option>
+                                <option value="logout" {% if log_type_filter == 'logout' %}selected{% endif %}>Logout</option>
+                                <option value="create" {% if log_type_filter == 'create' %}selected{% endif %}>Create Action</option>
+                                <option value="update" {% if log_type_filter == 'update' %}selected{% endif %}>Update Action</option>
+                                <option value="delete" {% if log_type_filter == 'delete' %}selected{% endif %}>Delete Action</option>
+                                <option value="approve" {% if log_type_filter == 'approve' %}selected{% endif %}>Approval Action</option>
+                                <option value="reject" {% if log_type_filter == 'reject' %}selected{% endif %}>Rejection Action</option>
+                                <option value="download" {% if log_type_filter == 'download' %}selected{% endif %}>Download Action</option>
+                                <option value="restore" {% if log_type_filter == 'restore' %}selected{% endif %}>Restore Action</option>
+                                <option value="other" {% if log_type_filter == 'other' %}selected{% endif %}>Other Action</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div class="flex gap-2">
+                            <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all active:scale-95 shadow-sm">
+                                <i class="fas fa-filter mr-1.5 text-xs"></i>Filter
+                            </button>
+                            <a href="?tab=logs" class="flex-1 text-center bg-gray-200 dark:bg-midnight-800 hover:bg-gray-300 dark:hover:bg-midnight-700 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg text-sm font-semibold transition-all active:scale-95 border border-gray-300/40 dark:border-midnight-700">
+                                <i class="fas fa-sync-alt mr-1.5 text-xs"></i>Reset
+                            </a>
+                        </div>
+                    </form>
                     
                     {% if recent_activity %}
                     <div class="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
                         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                             <thead class="bg-gray-50 dark:bg-midnight-900">
                                 <tr>
-                                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-400 uppercase">Activity</th>
-                                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-400 uppercase">Description</th>
-                                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-400 uppercase">Time</th>
-                                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-400 uppercase">IP Address</th>
+                                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-wider">User</th>
+                                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-wider">Activity</th>
+                                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-wider">Description</th>
+                                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-wider">Time</th>
+                                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-wider">IP Address</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-midnight-950">
                                 {% for log in recent_activity %}
                                 <tr class="hover:bg-gray-50 dark:hover:bg-midnight-900/50 transition">
+                                    <td class="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-white">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-700 dark:text-indigo-300 text-xs font-bold">
+                                                {{ log.user.username|slice:":1"|upper }}
+                                            </div>
+                                            <span>{{ log.user.username }}</span>
+                                        </div>
+                                    </td>
                                     <td class="px-6 py-4 text-sm font-medium">
                                         <span class="px-3 py-1 rounded-full text-xs font-bold
                                             {% if log.activity_type == 'login' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
@@ -641,18 +740,61 @@
                                             {{ log.get_activity_type_display }}
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{{ log.description|truncatewords:10 }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
+                                    <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate" title="{{ log.description }}">{{ log.description }}</td>
+                                    <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
                                     <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400 font-mono">{{ log.ip_address|default:"N/A" }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
+
+                    <!-- Pagination Controls -->
+                    <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-6 pt-4 border-t border-gray-100 dark:border-midnight-800">
+                        <div class="text-xs text-gray-500 dark:text-gray-400">
+                            Showing <span class="font-semibold">{{ recent_activity.start_index }}</span> to <span class="font-semibold">{{ recent_activity.end_index }}</span> of <span class="font-semibold">{{ recent_activity.paginator.count }}</span> entries
+                        </div>
+                        <nav class="inline-flex -space-x-px" aria-label="Pagination">
+                            {% if recent_activity.has_previous %}
+                            <a href="?tab=logs&log_page={{ recent_activity.previous_page_number }}{% if log_user_filter %}&log_user={{ log_user_filter }}{% endif %}{% if log_type_filter %}&log_type={{ log_type_filter }}{% endif %}"
+                                class="px-3 py-2 ml-0 leading-tight text-gray-500 dark:text-gray-400 bg-white dark:bg-midnight-900 border border-gray-300 dark:border-midnight-700 rounded-l-lg hover:bg-gray-100 dark:hover:bg-midnight-800 hover:text-gray-700 dark:hover:text-white transition">
+                                <span class="sr-only">Previous</span>
+                                <i class="fas fa-chevron-left"></i>
+                            </a>
+                            {% else %}
+                            <span class="px-3 py-2 ml-0 leading-tight text-gray-300 dark:text-gray-600 bg-gray-100 dark:bg-midnight-950 border border-gray-300 dark:border-midnight-700 rounded-l-lg cursor-not-allowed">
+                                <i class="fas fa-chevron-left"></i>
+                            </span>
+                            {% endif %}
+
+                            {% for num in recent_activity.paginator.page_range %}
+                            {% if recent_activity.number == num %}
+                            <span class="px-3 py-2 leading-tight text-white bg-indigo-600 border border-indigo-600 font-bold">{{ num }}</span>
+                            {% elif num > recent_activity.number|add:"-3" and num < recent_activity.number|add:"3" %}
+                            <a href="?tab=logs&log_page={{ num }}{% if log_user_filter %}&log_user={{ log_user_filter }}{% endif %}{% if log_type_filter %}&log_type={{ log_type_filter }}{% endif %}"
+                                class="px-3 py-2 leading-tight text-gray-500 dark:text-gray-400 bg-white dark:bg-midnight-900 border border-gray-300 dark:border-midnight-700 hover:bg-gray-100 dark:hover:bg-midnight-800 hover:text-gray-700 dark:hover:text-white transition">
+                                {{ num }}
+                            </a>
+                            {% endif %}
+                            {% endfor %}
+
+                            {% if recent_activity.has_next %}
+                            <a href="?tab=logs&log_page={{ recent_activity.next_page_number }}{% if log_user_filter %}&log_user={{ log_user_filter }}{% endif %}{% if log_type_filter %}&log_type={{ log_type_filter }}{% endif %}"
+                                class="px-3 py-2 leading-tight text-gray-500 dark:text-gray-400 bg-white dark:bg-midnight-900 border border-gray-300 dark:border-midnight-700 rounded-r-lg hover:bg-gray-100 dark:hover:bg-midnight-800 hover:text-gray-700 dark:hover:text-white transition">
+                                <span class="sr-only">Next</span>
+                                <i class="fas fa-chevron-right"></i>
+                            </a>
+                            {% else %}
+                            <span class="px-3 py-2 leading-tight text-gray-300 dark:text-gray-600 bg-gray-100 dark:bg-midnight-950 border border-gray-300 dark:border-midnight-700 rounded-r-lg cursor-not-allowed">
+                                <i class="fas fa-chevron-right"></i>
+                            </span>
+                            {% endif %}
+                        </nav>
+                    </div>
                     {% else %}
-                    <div class="bg-gray-50 dark:bg-gray-900/20 rounded-lg p-8 text-center">
+                    <div class="bg-gray-50 dark:bg-gray-900/20 rounded-lg p-8 text-center mt-4">
                         <i class="fas fa-inbox text-5xl text-gray-300 dark:text-gray-600 mb-3"></i>
-                        <p class="text-gray-500 dark:text-gray-400 font-semibold">No activity recorded yet</p>
+                        <p class="text-gray-500 dark:text-gray-400 font-semibold">No activity recorded for this criteria</p>
                     </div>
                     {% endif %}
                 </div>
@@ -977,5 +1119,5 @@
         </form>
     </div>
 </div>
-<script src={% static 'js/settings.js' %}></script>
+<script src="{% static 'js/settings.js' %}?v=1.0.1"></script>
 {% endblock %}

@@ -39,6 +39,9 @@ function closeDeleteModal() {
 
 //Tab Switching Actions
 function switchSettingsTab(tab, isInitialLoad = false) {
+    // Save active tab selection to sessionStorage
+    sessionStorage.setItem('active_settings_tab', tab);
+    
     const tabs = {
         'users': { tabEl: 'usersTab', btnEl: 'btn-users' },
         'backup': { tabEl: 'backupTab', btnEl: 'btn-backup' },
@@ -52,8 +55,11 @@ function switchSettingsTab(tab, isInitialLoad = false) {
     
     // On mobile view (window width < 1024px)
     if (window.innerWidth < 1024) {
-        if (isInitialLoad) {
-            // Initially, show only the menu
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasUrlTab = urlParams.has('tab');
+        
+        if (isInitialLoad && !hasUrlTab) {
+            // Initially, show only the menu if no specific tab is requested
             if (sidebar) {
                 sidebar.classList.remove('hidden');
                 sidebar.classList.add('block');
@@ -63,7 +69,7 @@ function switchSettingsTab(tab, isInitialLoad = false) {
                 content.classList.remove('block');
             }
         } else {
-            // When a feature clicked, show content and hide menu list
+            // When a feature clicked or specific tab is loaded, show content and hide menu list
             if (sidebar) {
                 sidebar.classList.add('hidden');
                 sidebar.classList.remove('block');
@@ -144,8 +150,17 @@ function togglePassword(inputId, iconId) {
 
 //Real-time Password Strength Checkers
 document.addEventListener('DOMContentLoaded', function() {
+    // Check URL query parameters for active tab
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlTab = urlParams.get('tab');
+    
+    // If not in URL, check sessionStorage
+    const storedTab = sessionStorage.getItem('active_settings_tab');
+    
+    const defaultTab = urlTab || storedTab || 'users';
+    
     // Initialize default active tab styling
-    switchSettingsTab('users', true);
+    switchSettingsTab(defaultTab, true);
 
     const createPass = document.getElementById('create-password-input');
     const editPass = document.getElementById('edit-password-input');
@@ -182,5 +197,33 @@ function validatePasswordUI(value, prefix) {
                 icon.classList.add('fa-times-circle');
             }
         }
+    }
+}
+
+// Restore source toggle (Settings Backup Tab)
+function toggleSettingsRestoreInput(value) {
+    const fileSection = document.getElementById('settings-file-section');
+    const historySection = document.getElementById('settings-history-section');
+    if (!fileSection || !historySection) return;
+    if (value === 'history') {
+        fileSection.classList.add('hidden');
+        historySection.classList.remove('hidden');
+    } else {
+        fileSection.classList.remove('hidden');
+        historySection.classList.add('hidden');
+    }
+}
+
+// Restore source toggle (Dedicated Backup & Restore Page)
+function toggleRestoreInput(value) {
+    const fileSection = document.getElementById('file-upload-section');
+    const historySection = document.getElementById('history-section');
+    if (!fileSection || !historySection) return;
+    if (value === 'history') {
+        fileSection.classList.add('hidden');
+        historySection.classList.remove('hidden');
+    } else {
+        fileSection.classList.remove('hidden');
+        historySection.classList.add('hidden');
     }
 }
