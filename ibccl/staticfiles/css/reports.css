@@ -13,8 +13,8 @@
 
     /* Stat cards */
     .stat-card {
-        border-radius: 1.1rem;
-        padding: 1.4rem 1.6rem;
+        border-radius: .9rem;
+        padding: .85rem 1rem;
         color: #fff;
         position: relative;
         overflow: hidden;
@@ -28,22 +28,22 @@
     }
 
     .stat-card .big-num {
-        font-size: 2.4rem;
+        font-size: 1.6rem;
         font-weight: 800;
         line-height: 1;
     }
 
     .stat-card .sub-label {
-        font-size: .78rem;
+        font-size: .70rem;
         opacity: .85;
-        margin-top: .3rem;
+        margin-top: .2rem;
     }
 
     .stat-card .icon-bg {
         position: absolute;
-        right: -12px;
-        bottom: -10px;
-        font-size: 4.5rem;
+        right: -8px;
+        bottom: -8px;
+        font-size: 3rem;
         opacity: .15;
         line-height: 1;
     }

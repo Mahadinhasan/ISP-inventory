@@ -753,6 +753,7 @@ class MacSerialNumber(models.Model):
     quantity = models.IntegerField(default=1, help_text="Quantity for this mac/serial")
     assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_mac_serials', help_text="Branch user this is assigned to")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Active', help_text="Current status of this Mac/Serial entry")
+    is_ever_accepted = models.BooleanField(default=False, help_text="True once this serial has been accepted at least once; prevents re-use after rejection")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     added_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='added_mac_serials', help_text="NOC user who added this")

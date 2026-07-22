@@ -32,8 +32,8 @@
             <button onclick="selectUser({{ u.id }}, '{{ u.username|escapejs }}', '{{ u.username|default:u.username|escapejs }}', this)" 
                 class="user-item w-full flex items-center p-4 hover:bg-indigo-50/50 dark:hover:bg-indigo-500/10 transition-all duration-200 relative group border-l-4 border-transparent">
                 <div class="relative flex-shrink-0">
-                    {% if u.userprofile.image %}
-                        <img src="{{ u.userprofile.image.url }}" class="w-12 h-12 rounded-full object-cover border-2 border-transparent group-hover:border-indigo-500 transition-colors duration-200 shadow-sm">
+                    {% if u.userprofile.profile_image_url %}
+                        <img src="{{ u.userprofile.profile_image_url }}" class="w-12 h-12 rounded-full object-cover border-2 border-transparent group-hover:border-indigo-500 transition-colors duration-200 shadow-sm">
                     {% else %}
                         <img src="https://ui-avatars.com/api/?name={{ u.username }}&background=6366f1&color=fff&bold=true" class="w-12 h-12 rounded-full border-2 border-transparent group-hover:border-indigo-500 transition-colors duration-200 shadow-sm">
                     {% endif %}

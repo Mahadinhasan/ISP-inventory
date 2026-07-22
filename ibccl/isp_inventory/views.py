@@ -3730,13 +3730,13 @@ def used_materials_view(request):
                 
                 if prefix == 's':
                     try:
-                        mac = MacSerialNumber.objects.get(id=pk, assigned_to=request.user)
+                        mac = MacSerialNumber.objects.get(id=pk, assigned_to=request.user, status='Active')
                         material = mac.material
                         mac_serial = mac
                         # Force quantity to 1 for serialized items
                         quantity = 1
                     except MacSerialNumber.DoesNotExist:
-                        messages.error(request, "Selected Mac/Serial not found or not assigned to you.")
+                        messages.error(request, "Selected Mac/Serial not found, not assigned to you, or no longer available (it may have been retired).")
                         return redirect('dashboard' if is_pop else 'used_materials')
                 else:
                     try:
@@ -3784,12 +3784,19 @@ def used_materials_view(request):
                 um.is_pop_entry = is_pop
                 um.save()
                 
-                # Update MacSerial status based on status
+                # Update MacSerial status based on UsedMaterial status.
+                # Rule: once a serial is ever accepted it is permanently consumed —
+                # rejecting/pending afterwards retires it so it cannot be reused.
                 if um.mac_serial:
                     if um.status == 'Accepted':
                         um.mac_serial.status = 'Used'
+                        um.mac_serial.is_ever_accepted = True
                     else:
-                        um.mac_serial.status = 'Active'
+                        # Not yet accepted — keep Active so branch can still edit/cancel
+                        if not um.mac_serial.is_ever_accepted:
+                            um.mac_serial.status = 'Active'
+                        # If already accepted before, leave as-is (still 'Used'); status
+                        # will be set to 'Retired' only when explicitly rejected/deleted.
                     um.mac_serial.save()
                     
                 messages.success(request, "Used Material recorded successfully!")
@@ -3816,12 +3823,12 @@ def used_materials_view(request):
                     
                     if prefix == 's':
                         try:
-                            mac = MacSerialNumber.objects.get(id=pk, assigned_to=request.user)
+                            mac = MacSerialNumber.objects.get(id=pk, assigned_to=request.user, status='Active')
                             material = mac.material
                             new_mac = mac
                             new_qty = 1
                         except MacSerialNumber.DoesNotExist:
-                            messages.error(request, "Selected Mac/Serial not found.")
+                            messages.error(request, "Selected Mac/Serial not found, not assigned to you, or no longer available (it may have been retired).")
                             return redirect('used_materials')
                     else:
                         try:
@@ -3867,16 +3874,23 @@ def used_materials_view(request):
 
                     try:
                         with transaction.atomic():
-                            # Handle MacSerial return/deduction
+                            # Release old Mac/Serial:
+                            # If it was ever accepted it becomes Retired (permanently consumed);
+                            # otherwise return to Active so it can be reused.
                             if old_mac:
-                                old_mac.status = 'Active'
+                                if old_mac.is_ever_accepted:
+                                    old_mac.status = 'Retired'
+                                else:
+                                    old_mac.status = 'Active'
                                 old_mac.save()
                                 
                             if new_mac:
                                 if new_status == 'Accepted':
                                     new_mac.status = 'Used'
+                                    new_mac.is_ever_accepted = True
                                 else:
-                                    new_mac.status = 'Active'
+                                    if not new_mac.is_ever_accepted:
+                                        new_mac.status = 'Active'
                                 new_mac.save()
                                 
                             um.material = material
@@ -3909,9 +3923,14 @@ def used_materials_view(request):
             try:
                 um = UsedMaterial.objects.get(pk=um_id, technician=request.user)
                 
-                # Return Mac/Serial if applicable
+                # Return Mac/Serial if applicable.
+                # If serial was ever accepted it is permanently consumed → Retired.
+                # Otherwise return to Active so the branch can reuse it.
                 if um.mac_serial:
-                    um.mac_serial.status = 'Active'
+                    if um.mac_serial.is_ever_accepted:
+                        um.mac_serial.status = 'Retired'
+                    else:
+                        um.mac_serial.status = 'Active'
                     um.mac_serial.save()
                 
                 um.delete()
@@ -3933,6 +3952,7 @@ def used_materials_view(request):
                         with transaction.atomic():
                             if used_material.mac_serial:
                                 used_material.mac_serial.status = 'Used'
+                                used_material.mac_serial.is_ever_accepted = True
                                 used_material.mac_serial.save()
                             
                             used_material.status = 'Accepted'
@@ -3956,10 +3976,17 @@ def used_materials_view(request):
                     try:
                         with transaction.atomic():
                             if used_material.mac_serial:
-                                used_material.mac_serial.status = 'Active'
+                                # Serial was previously accepted → permanently Retired.
+                                # Serial was never accepted → return to Active.
+                                if used_material.mac_serial.is_ever_accepted:
+                                    used_material.mac_serial.status = 'Retired'
+                                    messages.success(request, "Rejected. Serial is permanently retired and cannot be reused.")
+                                else:
+                                    used_material.mac_serial.status = 'Active'
+                                    messages.success(request, "Rejected and serial returned to available pool.")
                                 used_material.mac_serial.save()
-                                
-                            messages.success(request, "Rejected and serial returned.")
+                            else:
+                                messages.success(request, "Rejected and serial returned.")
                             
                             used_material.status = 'Rejected'
                             used_material.admin_note = admin_note
@@ -4083,9 +4110,10 @@ def manage_used_material_api(request, pk):
                 used_material.admin_note = admin_note
                 used_material.save()
                 
-                # Update Mac/Serial status to 'Used'
+                # Mark Mac/Serial as Used and flag it as ever-accepted
                 if used_material.mac_serial:
                     used_material.mac_serial.status = 'Used'
+                    used_material.mac_serial.is_ever_accepted = True
                     used_material.mac_serial.save()
                 
                 return JsonResponse({'success': True, 'message': 'Usage confirmed and serial locked.'})
@@ -4096,16 +4124,25 @@ def manage_used_material_api(request, pk):
                     used_material.save()
                     return JsonResponse({'success': True, 'message': 'Status is already Rejected. Note updated.'})
 
-                # Return Mac/Serial status to 'Active'
+                # Return Mac/Serial:
+                # If ever accepted → permanently Retired (cannot be reused).
+                # If never accepted → return to Active.
                 if used_material.mac_serial:
-                    used_material.mac_serial.status = 'Active'
+                    if used_material.mac_serial.is_ever_accepted:
+                        used_material.mac_serial.status = 'Retired'
+                        msg = 'Rejected. Serial is permanently retired and cannot be reused.'
+                    else:
+                        used_material.mac_serial.status = 'Active'
+                        msg = 'Rejected and serial released.'
                     used_material.mac_serial.save()
+                else:
+                    msg = 'Rejected.'
                 
                 used_material.status = 'Rejected'
                 used_material.admin_note = admin_note
                 used_material.save()
 
-                return JsonResponse({'success': True, 'message': 'Rejected and serial released.'})
+                return JsonResponse({'success': True, 'message': msg})
             else:
                 return JsonResponse({'error': 'Invalid action'}, status=400)
 
