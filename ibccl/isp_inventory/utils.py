@@ -65,6 +65,39 @@ def restore_material_stock(material, qty):
     material.save()
 
 
+def sync_mac_serial_status(mac_serial):
+    """
+    Synchronizes the status of a MacSerialNumber based on all UsedMaterial and DamageMaterial records.
+
+    Rules:
+    1. If used in any Accepted UsedMaterial -> status = 'Used', is_ever_accepted = True
+    2. Else if used in any Confirmed DamageMaterial -> status = 'Retired'
+    3. Else -> status = 'Active'
+    """
+    if not mac_serial:
+        return
+
+    from .models import UsedMaterial, DamageMaterial
+
+    # Check if attached to any Accepted UsedMaterial
+    if UsedMaterial.objects.filter(mac_serial=mac_serial, status='Accepted', is_archived=False).exists():
+        mac_serial.status = 'Used'
+        mac_serial.is_ever_accepted = True
+        mac_serial.save(update_fields=['status', 'is_ever_accepted'])
+        return
+
+    # Check if attached to any Confirmed DamageMaterial
+    if DamageMaterial.objects.filter(mac_serial=mac_serial, status='Confirmed').exists():
+        mac_serial.status = 'Retired'
+        mac_serial.save(update_fields=['status'])
+        return
+
+    # Otherwise return to Active pool
+    mac_serial.status = 'Active'
+    mac_serial.save(update_fields=['status'])
+
+
+
 # ==================== MONTHLY COUNT UTILITIES ====================
 
 def get_current_month_date():

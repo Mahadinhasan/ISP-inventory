@@ -5,8 +5,7 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, logout, login as django_login
 from rest_framework_simplejwt.tokens import RefreshToken
 from isp_inventory.models import UserProfile, Material, MaterialRequest, UsedMaterial, InternalMessage, MacSerialNumber, MaterialMacSerialImport, RefundableMaterial, RefundableMaterialUsage, DamageMaterial
-
-from isp_inventory.utils import deduct_material_stock, restore_material_stock
+from isp_inventory.utils import deduct_material_stock, restore_material_stock, sync_mac_serial_status
 from django.db.models import Sum, Count, Q
 from django.db.models.functions import TruncDate
 from django.utils import timezone
@@ -637,12 +636,15 @@ def noc_used_materials(request):
             if action == 'accept':
                 if used_mat.status == 'Accepted':
                     messages.warning(request, "Usage record already accepted.")
+                elif used_mat.mac_serial and used_mat.mac_serial.is_ever_accepted:
+                    messages.error(request, f"This MAC/Serial ({used_mat.mac_serial.mac_serial}) has already been used at a client site. It cannot be accepted again.")
                 elif used_mat.material.quantity + used_mat.material.Remaining_stock >= used_mat.quantity:
                     with transaction.atomic():
                         deduct_material_stock(used_mat.material, used_mat.quantity)
                         used_mat.status = 'Accepted'
                         used_mat.admin_note = request.POST.get('admin_note', used_mat.admin_note)
                         used_mat.save()
+                        sync_mac_serial_status(used_mat.mac_serial)
                     messages.success(request, "Usage record accepted and stock deducted.")
                 else:
                     messages.error(request, f"Insufficient stock for {used_mat.material.name}.")
@@ -653,15 +655,36 @@ def noc_used_materials(request):
                         used_mat.status = 'Rejected'
                         used_mat.admin_note = request.POST.get('admin_note', used_mat.admin_note)
                         used_mat.save()
-                    messages.success(request, "Usage record rejected and stock returned.")
+                        sync_mac_serial_status(used_mat.mac_serial)
+                    messages.success(request, "Usage record rejected, stock returned, and serial status synchronized.")
                 else:
-                    used_mat.status = 'Rejected'
-                    used_mat.admin_note = request.POST.get('admin_note', used_mat.admin_note)
-                    used_mat.save()
-                    messages.success(request, "Usage record rejected.")
+                    with transaction.atomic():
+                        used_mat.status = 'Rejected'
+                        used_mat.admin_note = request.POST.get('admin_note', used_mat.admin_note)
+                        used_mat.save()
+                        sync_mac_serial_status(used_mat.mac_serial)
+                    messages.success(request, "Usage record rejected and serial status synchronized.")
+
             elif action == 'delete':
-                used_mat.delete()
-                messages.success(request, "Usage record deleted.")
+                used_ids_str = request.POST.get('used_ids', '') or request.POST.get('used_id', '') or request.POST.get('um_id', '')
+                used_ids = [int(i.strip()) for i in used_ids_str.split(',') if i.strip().isdigit()]
+                if used_ids:
+                    try:
+                        with transaction.atomic():
+                            used_materials = list(UsedMaterial.objects.filter(pk__in=used_ids, material__created_by=request.user))
+                            count = len(used_materials)
+                            macs_to_sync = [um.mac_serial for um in used_materials if um.mac_serial]
+                            
+                            UsedMaterial.objects.filter(pk__in=[um.pk for um in used_materials]).delete()
+                            
+                            for mac in set(macs_to_sync):
+                                sync_mac_serial_status(mac)
+                            messages.success(request, f"Successfully deleted {count} consumption record(s).")
+                    except Exception as e:
+                        messages.error(request, f"Delete error: {str(e)}")
+                else:
+                    messages.error(request, "No record selected for deletion.")
+
         return redirect('noc:used_materials')
 
     # GET Logic
@@ -1606,4 +1629,4 @@ def noc_logs(request):
         'log_type_filter': log_type_filter,
         'profile': profile,
     }
-    return render(request, 'noc/logs.html', context)
+    return render(request, 'noc/logs.html', context)

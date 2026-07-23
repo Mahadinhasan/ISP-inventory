@@ -14,9 +14,14 @@
         </div>
 
         <div class="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+            <button id="radio-delete-btn" onclick="deleteSelectedItems()" type="button" class="hidden bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white px-4 py-2 rounded-xl font-bold transition-all shadow-lg items-center gap-2 text-sm whitespace-nowrap">
+                <i class="fas fa-trash-alt"></i> Delete Selected (<span id="selected-count">0</span>)
+            </button>
+
             <div class="font-medium text-gray-700 dark:text-gray-200 bg-gradient-to-r from-pink-100 via-white to-purple-100 dark:from-pink-900/20 dark:via-midnight-900/20 dark:to-purple-900/20 border border-gray-200 dark:border-midnight-800 px-3 py-2 rounded-lg shadow-sm whitespace-nowrap flex items-center text-sm">
                 Total Used Materials: <span class="font-bold text-pink-600 dark:text-pink-400 text-base ml-2">{{ total_count }}</span>
             </div>
+
 
             <form method="get" id="filter-form" class="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
                 <!-- Preserve tab_id for session consistency -->
@@ -53,6 +58,9 @@
             <table class="min-w-full divide-y divide-gray-900 dark:divide-midnight-800">
                 <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
                     <tr>
+                        <th scope="col" class="px-3 py-3 text-center text-xs font-medium text-gray-900 dark:text-white uppercase tracking-wider w-12">
+                            <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)" title="Select All" class="w-4 h-4 text-indigo-600 focus:ring-indigo-500 rounded cursor-pointer accent-indigo-600">
+                        </th>
                         <th scope="col"
                             class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
                             Branch</th>
@@ -88,7 +96,12 @@
                 <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
                     {% for item in used_materials %}
                     <tr class="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition duration-300">
+                        <td class="px-3 py-4 text-center whitespace-nowrap">
+                            <input type="checkbox" class="used-material-checkbox w-4 h-4 text-indigo-600 focus:ring-indigo-500 rounded cursor-pointer accent-indigo-600" value="{{ item.id }}" onchange="updateSelectionState()">
+                        </td>
+
                         <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ item.technician.username }}</td>
+
                         <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                             <div class="flex items-center justify-between gap-2">
                                 <span class="truncate">{{ item.material.name }}</span>
@@ -170,7 +183,85 @@
 </div>
 {% endif %}
 
+<!-- Delete Confirmation Modal for NOC -->
+<div id="deleteModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4">
+    <div class="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-xl shadow-2xl max-w-sm w-full border border-gray-200 dark:border-slate-700">
+        <div class="p-6 text-center">
+            <div class="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-exclamation-triangle text-2xl text-red-600 dark:text-red-400"></i>
+            </div>
+            <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Delete Entry?</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">This action cannot be undone. You're about to delete this used material record.</p>
+            
+            <form method="POST" action="{% url 'noc:used_materials' %}" class="inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="used_id" id="deleteUmId" value="">
+                <input type="hidden" name="used_ids" id="deleteUmIds" value="">
+                
+                <div class="flex gap-2">
+                    <button type="button" onclick="closeDeleteModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 font-semibold transition">
+                        Cancel
+                    </button>
+                    <button type="submit" class="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition">
+                        <i class="fas fa-trash mr-1"></i>Delete
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
+    function updateSelectionState() {
+        const checkboxes = document.querySelectorAll('.used-material-checkbox:checked');
+        const count = checkboxes.length;
+        const delBtn = document.getElementById('radio-delete-btn');
+        const countSpan = document.getElementById('selected-count');
+        
+        if (countSpan) countSpan.textContent = count;
+        
+        if (delBtn) {
+            if (count > 0) {
+                delBtn.classList.remove('hidden');
+                delBtn.classList.add('inline-flex');
+            } else {
+                delBtn.classList.add('hidden');
+                delBtn.classList.remove('inline-flex');
+            }
+        }
+
+        const allCheckboxes = document.querySelectorAll('.used-material-checkbox:not(:disabled)');
+        const selectAll = document.getElementById('selectAllCheckbox');
+        if (selectAll && allCheckboxes.length > 0) {
+            selectAll.checked = (checkboxes.length === allCheckboxes.length);
+        }
+    }
+
+    function toggleSelectAll(selectAllEl) {
+        const checkboxes = document.querySelectorAll('.used-material-checkbox:not(:disabled)');
+        checkboxes.forEach(cb => {
+            cb.checked = selectAllEl.checked;
+        });
+        updateSelectionState();
+    }
+
+    function deleteSelectedItems() {
+        const checkedBoxes = document.querySelectorAll('.used-material-checkbox:checked');
+        const ids = Array.from(checkedBoxes).map(cb => cb.value).join(',');
+        if (ids) {
+            document.getElementById('deleteUmId').value = ids;
+            const idsInput = document.getElementById('deleteUmIds');
+            if (idsInput) idsInput.value = ids;
+            document.getElementById('deleteModal').classList.remove('hidden');
+        }
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('deleteModal').classList.add('hidden');
+    }
+
+
     // Helper function to ensure tab_id is always in the form before submission
     function submitFilterForm() {
         const form = document.getElementById('filter-form');
@@ -194,6 +285,7 @@
         form.submit();
     }
 </script>
+
 
 <style>
     .glass-card {

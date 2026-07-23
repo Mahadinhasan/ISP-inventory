@@ -95,11 +95,19 @@
                 <h2 class="text-lg font-bold text-gray-900 dark:text-white">Used Materials</h2>
                 <p class="text-sm text-gray-500 dark:text-gray-400">Records of refundable materials that were used.</p>
             </div>
+            {% if role == 'Branch' %}
+            <button id="usage-delete-btn" onclick="deleteSelectedUsageItems()" type="button" class="hidden bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white px-4 py-2 rounded-xl font-bold transition-all shadow-lg items-center gap-2 text-sm whitespace-nowrap">
+                <i class="fas fa-trash-alt"></i> Delete Selected (<span id="usage-selected-count">0</span>)
+            </button>
+            {% endif %}
         </div>
         <div class="overflow-x-auto p-6">
             <table class="min-w-full divide-y divide-gray-200 dark:divide-midnight-800">
                 <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
                     <tr>
+                        <th scope="col" class="px-3 py-2 text-center text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest w-12">
+                            <input type="checkbox" id="selectAllUsageCheckbox" onchange="toggleSelectAllUsage(this)" title="Select All" class="w-4 h-4 text-indigo-600 focus:ring-indigo-500 rounded cursor-pointer accent-indigo-600">
+                        </th>
                         {% if role != 'Branch' %}
                         <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Branch</th>
                         {% endif %}
@@ -119,6 +127,13 @@
                 <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
                     {% for usage in usage_page %}
                     <tr class="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition duration-300">
+                        <td class="px-3 py-2 text-center whitespace-nowrap">
+                            {% if role == 'Branch' and usage.used_by == user %}
+                            <input type="checkbox" class="usage-checkbox w-4 h-4 text-indigo-600 focus:ring-indigo-500 rounded cursor-pointer accent-indigo-600" value="{{ usage.id }}" onchange="updateUsageSelectionState()">
+                            {% else %}
+                            <input type="checkbox" disabled class="w-4 h-4 text-gray-300 opacity-40 cursor-not-allowed">
+                            {% endif %}
+                        </td>
                         {% if role != 'Branch' %}
                         <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ usage.refundable_material.branch_user_name }}</td>
                         {% endif %}
@@ -143,6 +158,7 @@
                             {% endif %}
                         </td>
                     </tr>
+
                     {% empty %}
                     <tr>
                         <td colspan="{% if role == 'Branch' %}9{% else %}10{% endif %}" class="px-3 py-8 text-center text-gray-500 dark:text-gray-400">
@@ -222,6 +238,9 @@
                     </div>
                 </form>
                 {% if role == 'Branch' %}
+                <button id="rf-delete-btn" onclick="deleteSelectedRfItems()" type="button" class="hidden bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white px-3 py-2 rounded-md text-sm font-bold transition-all shadow-lg items-center gap-1 whitespace-nowrap">
+                    <i class="fas fa-trash-alt"></i> Delete Selected (<span id="rf-selected-count">0</span>)
+                </button>
                 <button type="button" onclick="openRefundableModal()" class="w-full sm:w-auto justify-center px-3 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-md text-sm font-bold transition-all inline-flex items-center gap-2 shadow-lg hover:shadow-indigo-200">
                     <i class="fas fa-plus"></i>Input Returnable Material
                 </button>
@@ -237,6 +256,9 @@
                     <table class="min-w-full divide-y divide-gray-200 dark:divide-midnight-800">
                         <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
                             <tr>
+                                <th scope="col" class="px-3 py-2 sm:px-6 sm:py-4 text-center text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest w-12">
+                                    <input type="checkbox" id="selectAllRfCheckbox" onchange="toggleSelectAllRf(this)" title="Select All" class="w-4 h-4 text-indigo-600 focus:ring-indigo-500 rounded cursor-pointer accent-indigo-600">
+                                </th>
                                 <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm font-bold text-indigo-600">#</td>
                                 {% if role != 'Branch' %}
                                 <th scope="col" class="px-3 py-2 sm:px-6 sm:py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Branch</th>
@@ -253,7 +275,15 @@
                         <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
                             {% for item in refundable_materials %}
                             <tr class="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition duration-300">
+                                <td class="px-3 py-2 sm:px-6 sm:py-4 text-center whitespace-nowrap">
+                                    {% if role == 'Branch' and item.branch_user == user %}
+                                    <input type="checkbox" class="rf-checkbox w-4 h-4 text-indigo-600 focus:ring-indigo-500 rounded cursor-pointer accent-indigo-600" value="{{ item.id }}" onchange="updateRfSelectionState()">
+                                    {% else %}
+                                    <input type="checkbox" disabled class="w-4 h-4 text-gray-300 opacity-40 cursor-not-allowed">
+                                    {% endif %}
+                                </td>
                                 <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm font-bold text-indigo-600">{{ forloop.counter }}</td>
+
                                 {% if role != 'Branch' %}
                                 <td class="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ item.branch_user_name }}</td>
                                 {% endif %}
@@ -427,7 +457,9 @@
                 {% csrf_token %}
                 <input type="hidden" name="action" id="deleteFormAction" value="delete">
                 <input type="hidden" name="rf_id" id="deleteRfId" value="">
+                <input type="hidden" name="rf_ids" id="deleteRfIds" value="">
                 <input type="hidden" name="usage_id" id="deleteUsageId" value="">
+                <input type="hidden" name="usage_ids" id="deleteUsageIds" value="">
                 
                 <div class="flex gap-2">
                     <button type="button" onclick="closeDeleteModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 font-semibold transition">
@@ -445,6 +477,80 @@
 
 <!-- Admin/Storekeeper Review & Process Modal -->
 <script>
+    // Usage selection state
+    function updateUsageSelectionState() {
+        const checkboxes = document.querySelectorAll('.usage-checkbox:checked');
+        const count = checkboxes.length;
+        const delBtn = document.getElementById('usage-delete-btn');
+        const countSpan = document.getElementById('usage-selected-count');
+        if (countSpan) countSpan.textContent = count;
+        if (delBtn) {
+            if (count > 0) {
+                delBtn.classList.remove('hidden');
+                delBtn.classList.add('inline-flex');
+            } else {
+                delBtn.classList.add('hidden');
+                delBtn.classList.remove('inline-flex');
+            }
+        }
+        const allCheckboxes = document.querySelectorAll('.usage-checkbox:not(:disabled)');
+        const selectAll = document.getElementById('selectAllUsageCheckbox');
+        if (selectAll && allCheckboxes.length > 0) {
+            selectAll.checked = (checkboxes.length === allCheckboxes.length);
+        }
+    }
+
+    function toggleSelectAllUsage(selectAllEl) {
+        const checkboxes = document.querySelectorAll('.usage-checkbox:not(:disabled)');
+        checkboxes.forEach(cb => cb.checked = selectAllEl.checked);
+        updateUsageSelectionState();
+    }
+
+    function deleteSelectedUsageItems() {
+        const checked = document.querySelectorAll('.usage-checkbox:checked');
+        const ids = Array.from(checked).map(cb => cb.value).join(',');
+        if (ids) {
+            confirmUsageDelete(ids);
+        }
+    }
+
+    // Returnable material selection state
+    function updateRfSelectionState() {
+        const checkboxes = document.querySelectorAll('.rf-checkbox:checked');
+        const count = checkboxes.length;
+        const delBtn = document.getElementById('rf-delete-btn');
+        const countSpan = document.getElementById('rf-selected-count');
+        if (countSpan) countSpan.textContent = count;
+        if (delBtn) {
+            if (count > 0) {
+                delBtn.classList.remove('hidden');
+                delBtn.classList.add('inline-flex');
+            } else {
+                delBtn.classList.add('hidden');
+                delBtn.classList.remove('inline-flex');
+            }
+        }
+        const allCheckboxes = document.querySelectorAll('.rf-checkbox:not(:disabled)');
+        const selectAll = document.getElementById('selectAllRfCheckbox');
+        if (selectAll && allCheckboxes.length > 0) {
+            selectAll.checked = (checkboxes.length === allCheckboxes.length);
+        }
+    }
+
+    function toggleSelectAllRf(selectAllEl) {
+        const checkboxes = document.querySelectorAll('.rf-checkbox:not(:disabled)');
+        checkboxes.forEach(cb => cb.checked = selectAllEl.checked);
+        updateRfSelectionState();
+    }
+
+    function deleteSelectedRfItems() {
+        const checked = document.querySelectorAll('.rf-checkbox:checked');
+        const ids = Array.from(checked).map(cb => cb.value).join(',');
+        if (ids) {
+            confirmDelete(ids);
+        }
+    }
+
     function openReturnModal() {
         document.getElementById('returnModal').classList.remove('hidden');
     }
@@ -452,6 +558,7 @@
     function closeReturnModal() {
         document.getElementById('returnModal').classList.add('hidden');
     }
+
 
     function openRefundableModal() {
         document.getElementById('formAction').value = 'create';
@@ -665,10 +772,12 @@
     function confirmDelete(rfId) {
         document.getElementById('deleteFormAction').value = 'delete';
         document.getElementById('deleteRfId').value = rfId;
+        const bulkRf = document.getElementById('deleteRfIds');
+        if (bulkRf) bulkRf.value = rfId;
         document.getElementById('deleteUsageId').value = '';
         
         document.getElementById('deleteModalTitle').innerText = 'Delete Entry?';
-        document.getElementById('deleteModalMessage').innerText = "This action cannot be undone. You're about to delete this refundable material record.";
+        document.getElementById('deleteModalMessage').innerText = "This action cannot be undone. You're about to delete refundable material record(s).";
         
         document.getElementById('deleteModal').classList.remove('hidden');
     }
@@ -676,13 +785,16 @@
     function confirmUsageDelete(usageId) {
         document.getElementById('deleteFormAction').value = 'delete_usage';
         document.getElementById('deleteUsageId').value = usageId;
+        const bulkUsage = document.getElementById('deleteUsageIds');
+        if (bulkUsage) bulkUsage.value = usageId;
         document.getElementById('deleteRfId').value = '';
         
         document.getElementById('deleteModalTitle').innerText = 'Delete Used Material Record?';
-        document.getElementById('deleteModalMessage').innerText = "This action cannot be undone. You're about to delete this used material record.";
+        document.getElementById('deleteModalMessage').innerText = "This action cannot be undone. You're about to delete used material record(s).";
         
         document.getElementById('deleteModal').classList.remove('hidden');
     }
+
 
     function closeDeleteModal() {
         document.getElementById('deleteModal').classList.add('hidden');

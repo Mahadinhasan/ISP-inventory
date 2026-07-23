@@ -7,7 +7,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from .forms import RegisterForm, MaterialForm, RequestForm, SystemSettingForm, NotificationSettingForm, UsedMaterialForm, LogSettingsForm, RefundableMaterialForm, RefundableMaterialUsageForm, DamageMaterialForm
 from .models import Material, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial, MaterialMonthlyCount, InternalMessage, ActivityLog, LogSettings, MacSerialNumber, RefundableMaterial, RefundableMaterialUsage, DamageMaterial
-from .utils import ensure_userprofile
+from .utils import ensure_userprofile, sync_mac_serial_status
 from django.db.models import Sum, Q, F, Case, When, IntegerField, Count, FloatField
 from django.db.models.functions import Coalesce
 from django.db import transaction
@@ -396,20 +396,18 @@ def dashboard(request):
             is_archived=False
         ).aggregate(s=Sum('quantity'))['s'] or 0
         
+        # Bug Fix: Only count 'Accepted' used materials when calculating remaining stock.
+        # Previously, Pending and Rejected records were also being deducted, causing
+        # stock to appear lower than actual and not restoring correctly on delete.
         total_out = UsedMaterial.objects.filter(
             technician=request.user,
-            is_archived=False
+            is_archived=False,
+            status='Accepted'  # Fixed: exclude Pending/Rejected from stock deduction
         ).aggregate(s=Sum('quantity'))['s'] or 0
         
         my_stock_count = total_in - total_out
         
-        # Used materials quantity sum for current month
-        used_materials_count = UsedMaterial.objects.filter(
-            technician=request.user,
-            status='Accepted',
-            is_archived=False
-        ).aggregate(s=Sum('quantity'))['s'] or 0
-        # Used materials record count for current month (number of entries)
+        # Used materials record count (number of Accepted entries — duplicate removed)
         used_materials_count = UsedMaterial.objects.filter(
             technician=request.user,
             status='Accepted',
@@ -3823,7 +3821,18 @@ def used_materials_view(request):
                     
                     if prefix == 's':
                         try:
-                            mac = MacSerialNumber.objects.get(id=pk, assigned_to=request.user, status='Active')
+                            serial_pk = int(pk)
+                            # If the user kept the SAME serial that's already on this record,
+                            # allow it regardless of its current status (could be 'Used' if
+                            # previously Accepted). Only require 'Active' for a brand-new serial.
+                            if um.mac_serial and um.mac_serial.id == serial_pk:
+                                mac = um.mac_serial  # keep existing serial — bypass status check
+                            else:
+                                mac = MacSerialNumber.objects.get(
+                                    id=serial_pk,
+                                    assigned_to=request.user,
+                                    status='Active'
+                                )
                             material = mac.material
                             new_mac = mac
                             new_qty = 1
@@ -3839,60 +3848,53 @@ def used_materials_view(request):
                             messages.error(request, "Selected material not found.")
                             return redirect('used_materials')
 
-                    total_approved = MaterialRequest.objects.filter(
-                        requester=request.user,
-                        material=material,
-                        status='Received',
-                        is_archived=False
-                    ).aggregate(total=Sum('quantity'))['total'] or 0
+                    new_status = form.cleaned_data.get('status')
 
-                    total_used = UsedMaterial.objects.filter(
-                        technician=request.user,
-                        material=material
-                    ).exclude(pk=um.pk).exclude(status='Rejected').aggregate(total=Sum('quantity'))['total'] or 0
-                    total_damaged = DamageMaterial.objects.filter(
-                        branch_user=request.user,
-                        material=material,
-                        status__in=['Pending', 'Confirmed']
-                    ).aggregate(total=Sum('quantity'))['total'] or 0
-                    total_refundable = RefundableMaterial.objects.filter(
-                        branch_user=request.user,
-                        material_name=material.name
-                    ).aggregate(total=Sum('quantity'))['total'] or 0
-                    available_qty = total_approved - total_used - total_damaged - total_refundable
+                    # Skip stock availability check when the branch is rejecting their own entry:
+                    # rejecting means the material is NOT being consumed, so no available_qty needed.
+                    if new_status != 'Rejected':
+                        total_approved = MaterialRequest.objects.filter(
+                            requester=request.user,
+                            material=material,
+                            status='Received',
+                            is_archived=False
+                        ).aggregate(total=Sum('quantity'))['total'] or 0
 
-                    if prefix == 's':
-                        available_qty = 1
+                        total_used = UsedMaterial.objects.filter(
+                            technician=request.user,
+                            material=material
+                        ).exclude(pk=um.pk).exclude(status='Rejected').aggregate(total=Sum('quantity'))['total'] or 0
+                        total_damaged = DamageMaterial.objects.filter(
+                            branch_user=request.user,
+                            material=material,
+                            status__in=['Pending', 'Confirmed']
+                        ).aggregate(total=Sum('quantity'))['total'] or 0
+                        total_refundable = RefundableMaterial.objects.filter(
+                            branch_user=request.user,
+                            material_name=material.name
+                        ).aggregate(total=Sum('quantity'))['total'] or 0
+                        available_qty = total_approved - total_used - total_damaged - total_refundable
 
-                    if available_qty <= 0 or new_qty > available_qty:
-                        messages.error(request, f"No approved available stock for {material.name}. Available: {available_qty}.")
-                        return redirect('used_materials')
+                        if prefix == 's':
+                            available_qty = 1
+
+                        if available_qty <= 0 or new_qty > available_qty:
+                            messages.error(request, f"No approved available stock for {material.name}. Available: {available_qty}.")
+                            return redirect('used_materials')
+
 
                     old_um = UsedMaterial.objects.get(pk=um.pk)
                     old_mac = old_um.mac_serial
-                    new_status = form.cleaned_data.get('status')
+                    # new_status already resolved above (before stock check)
+
+                    # Block re-accepting serials that were ever accepted previously
+                    if new_status == 'Accepted' and new_mac and new_mac.is_ever_accepted:
+                        if old_um.status != 'Accepted' or new_mac != old_mac:
+                            messages.error(request, f"This MAC/Serial ({new_mac.mac_serial}) has already been used at a client site. It cannot be accepted again. Please select a different serial.")
+                            return redirect('used_materials')
 
                     try:
                         with transaction.atomic():
-                            # Release old Mac/Serial:
-                            # If it was ever accepted it becomes Retired (permanently consumed);
-                            # otherwise return to Active so it can be reused.
-                            if old_mac:
-                                if old_mac.is_ever_accepted:
-                                    old_mac.status = 'Retired'
-                                else:
-                                    old_mac.status = 'Active'
-                                old_mac.save()
-                                
-                            if new_mac:
-                                if new_status == 'Accepted':
-                                    new_mac.status = 'Used'
-                                    new_mac.is_ever_accepted = True
-                                else:
-                                    if not new_mac.is_ever_accepted:
-                                        new_mac.status = 'Active'
-                                new_mac.save()
-                                
                             um.material = material
                             um.mac_serial = new_mac
                             um.quantity = new_qty
@@ -3902,6 +3904,13 @@ def used_materials_view(request):
                             um.client_address = form.cleaned_data.get('client_address', '') or ''
                             um.issue = form.cleaned_data.get('issue', '') or ''
                             um.save()
+
+                            # Synchronize MAC serial status for both old and new serials
+                            if old_mac:
+                                sync_mac_serial_status(old_mac)
+                            if new_mac:
+                                sync_mac_serial_status(new_mac)
+
                             messages.success(request, "Used Material updated successfully.")
                     except Exception as e:
                         messages.error(request, f"Update error: {str(e)}")
@@ -3919,25 +3928,29 @@ def used_materials_view(request):
                 messages.error(request, "Only Branch users can delete used materials.")
                 return redirect('used_materials')
                 
-            um_id = request.POST.get('um_id')
-            try:
-                um = UsedMaterial.objects.get(pk=um_id, technician=request.user)
-                
-                # Return Mac/Serial if applicable.
-                # If serial was ever accepted it is permanently consumed → Retired.
-                # Otherwise return to Active so the branch can reuse it.
-                if um.mac_serial:
-                    if um.mac_serial.is_ever_accepted:
-                        um.mac_serial.status = 'Retired'
-                    else:
-                        um.mac_serial.status = 'Active'
-                    um.mac_serial.save()
-                
-                um.delete()
-                messages.success(request, "Used Material deleted.")
-            except UsedMaterial.DoesNotExist:
-                messages.error(request, "Record not found.")
+            um_ids_str = request.POST.get('um_ids', '') or request.POST.get('um_id', '')
+            um_ids = [int(i.strip()) for i in um_ids_str.split(',') if i.strip().isdigit()]
+            
+            if um_ids:
+                try:
+                    with transaction.atomic():
+                        used_materials = list(UsedMaterial.objects.filter(pk__in=um_ids, technician=request.user))
+                        count = len(used_materials)
+                        macs_to_sync = [um.mac_serial for um in used_materials if um.mac_serial]
+                        
+                        UsedMaterial.objects.filter(pk__in=[um.pk for um in used_materials]).delete()
+                        
+                        for mac in set(macs_to_sync):
+                            sync_mac_serial_status(mac)
+                            
+                        messages.success(request, f"Successfully deleted {count} Used Material entry/entries.")
+                except Exception as e:
+                    messages.error(request, f"Delete error: {str(e)}")
+            else:
+                messages.error(request, "No record selected for deletion.")
             return redirect('used_materials')
+
+
 
         # BRANCH USER ACTIONS: accept, reject (Now allowed for Branch as requested)
         elif action == 'accept':
@@ -3948,16 +3961,22 @@ def used_materials_view(request):
                 if used_material.status == 'Accepted':
                     messages.warning(request, "Already accepted.")
                 else:
+                    # Block: if the serial was EVER accepted before (even if later rejected),
+                    # it cannot be accepted again — it was physically used at a client site.
+                    if used_material.mac_serial and used_material.mac_serial.is_ever_accepted:
+                        messages.error(request,
+                            f"This MAC/Serial ({used_material.mac_serial.mac_serial}) has already been "
+                            "used at a client site. It cannot be accepted again. "
+                            "Please select a different serial.")
+                        return redirect('used_materials')
+
                     try:
                         with transaction.atomic():
-                            if used_material.mac_serial:
-                                used_material.mac_serial.status = 'Used'
-                                used_material.mac_serial.is_ever_accepted = True
-                                used_material.mac_serial.save()
-                            
                             used_material.status = 'Accepted'
                             used_material.admin_note = admin_note
                             used_material.save()
+                            if used_material.mac_serial:
+                                sync_mac_serial_status(used_material.mac_serial)
                             messages.success(request, "Usage confirmed.")
                     except Exception as e:
                         messages.error(request, f"Error: {str(e)}")
@@ -3975,27 +3994,19 @@ def used_materials_view(request):
                 else:
                     try:
                         with transaction.atomic():
-                            if used_material.mac_serial:
-                                # Serial was previously accepted → permanently Retired.
-                                # Serial was never accepted → return to Active.
-                                if used_material.mac_serial.is_ever_accepted:
-                                    used_material.mac_serial.status = 'Retired'
-                                    messages.success(request, "Rejected. Serial is permanently retired and cannot be reused.")
-                                else:
-                                    used_material.mac_serial.status = 'Active'
-                                    messages.success(request, "Rejected and serial returned to available pool.")
-                                used_material.mac_serial.save()
-                            else:
-                                messages.success(request, "Rejected and serial returned.")
-                            
                             used_material.status = 'Rejected'
                             used_material.admin_note = admin_note
                             used_material.save()
+                            if used_material.mac_serial:
+                                sync_mac_serial_status(used_material.mac_serial)
+                            messages.success(request, "Rejected and serial status synchronized.")
                     except Exception as e:
                         messages.error(request, f"Error: {str(e)}")
             except UsedMaterial.DoesNotExist:
                 messages.error(request, "Record not found.")
             return redirect('used_materials')
+
+
 
     else:
         form = UsedMaterialForm(user=request.user)
@@ -4106,15 +4117,22 @@ def manage_used_material_api(request, pk):
                     used_material.save()
                     return JsonResponse({'success': True, 'message': 'Status is already Accepted. Note updated.'})
 
+                # Block: if the serial was EVER accepted before (even if later rejected),
+                # it cannot be accepted again — it was physically installed at a client site.
+                if used_material.mac_serial and used_material.mac_serial.is_ever_accepted:
+                    return JsonResponse({
+                        'success': False,
+                        'error': f"This MAC/Serial ({used_material.mac_serial.mac_serial}) has already been "
+                                 "used at a client site. It cannot be accepted again. "
+                                 "Please select a different serial."
+                    }, status=400)
+
                 used_material.status = 'Accepted'
                 used_material.admin_note = admin_note
                 used_material.save()
                 
-                # Mark Mac/Serial as Used and flag it as ever-accepted
                 if used_material.mac_serial:
-                    used_material.mac_serial.status = 'Used'
-                    used_material.mac_serial.is_ever_accepted = True
-                    used_material.mac_serial.save()
+                    sync_mac_serial_status(used_material.mac_serial)
                 
                 return JsonResponse({'success': True, 'message': 'Usage confirmed and serial locked.'})
 
@@ -4124,23 +4142,15 @@ def manage_used_material_api(request, pk):
                     used_material.save()
                     return JsonResponse({'success': True, 'message': 'Status is already Rejected. Note updated.'})
 
-                # Return Mac/Serial:
-                # If ever accepted → permanently Retired (cannot be reused).
-                # If never accepted → return to Active.
-                if used_material.mac_serial:
-                    if used_material.mac_serial.is_ever_accepted:
-                        used_material.mac_serial.status = 'Retired'
-                        msg = 'Rejected. Serial is permanently retired and cannot be reused.'
-                    else:
-                        used_material.mac_serial.status = 'Active'
-                        msg = 'Rejected and serial released.'
-                    used_material.mac_serial.save()
-                else:
-                    msg = 'Rejected.'
-                
                 used_material.status = 'Rejected'
                 used_material.admin_note = admin_note
                 used_material.save()
+
+                if used_material.mac_serial:
+                    sync_mac_serial_status(used_material.mac_serial)
+                    msg = 'Rejected. Serial status synchronized.'
+                else:
+                    msg = 'Rejected.'
 
                 return JsonResponse({'success': True, 'message': msg})
             else:
@@ -4451,15 +4461,20 @@ def refundable_materials_view(request):
                 messages.error(request, "Only Branch users can delete Refundable Materials.")
                 return redirect(modal_redirect_url)
 
-            rf_id = request.POST.get('rf_id')
-            try:
-                rf = RefundableMaterial.objects.get(pk=rf_id, branch_user=request.user)
-                rf.delete()
-                messages.success(request, "Refundable Material record deleted.")
-                return redirect(modal_redirect_url)
-            except RefundableMaterial.DoesNotExist:
-                messages.error(request, "Record not found or access denied.")
-                return redirect(modal_redirect_url)
+            rf_ids_str = request.POST.get('rf_ids', '') or request.POST.get('rf_id', '')
+            rf_ids = [int(i.strip()) for i in rf_ids_str.split(',') if i.strip().isdigit()]
+            if rf_ids:
+                try:
+                    with transaction.atomic():
+                        items = RefundableMaterial.objects.filter(pk__in=rf_ids, branch_user=request.user)
+                        count = items.count()
+                        items.delete()
+                        messages.success(request, f"Successfully deleted {count} returnable material item(s).")
+                except Exception as e:
+                    messages.error(request, f"Delete error: {str(e)}")
+            else:
+                messages.error(request, "No item selected for deletion.")
+            return redirect(modal_redirect_url)
 
         elif action == 'edit_usage':
             if role != 'Branch':
@@ -4489,14 +4504,21 @@ def refundable_materials_view(request):
                 messages.error(request, "Only Branch users can delete Used Materials.")
                 return redirect('refundable_materials')
 
-            usage_id = request.POST.get('usage_id')
-            try:
-                usage = RefundableMaterialUsage.objects.get(pk=usage_id, used_by=request.user)
-                usage.delete()
-                messages.success(request, "Used material record deleted.")
-            except RefundableMaterialUsage.DoesNotExist:
-                messages.error(request, "Record not found or access denied.")
+            usage_ids_str = request.POST.get('usage_ids', '') or request.POST.get('usage_id', '')
+            usage_ids = [int(i.strip()) for i in usage_ids_str.split(',') if i.strip().isdigit()]
+            if usage_ids:
+                try:
+                    with transaction.atomic():
+                        items = RefundableMaterialUsage.objects.filter(pk__in=usage_ids, used_by=request.user)
+                        count = items.count()
+                        items.delete()
+                        messages.success(request, f"Successfully deleted {count} used material record(s).")
+                except Exception as e:
+                    messages.error(request, f"Delete error: {str(e)}")
+            else:
+                messages.error(request, "No record selected for deletion.")
             return redirect('refundable_materials')
+
         
     # Returnable materials (inside modal) pagination: 10 (Point 9)
     paginator = Paginator(refundable_qs, 10)

@@ -97,21 +97,27 @@ class MaterialsMonitoringConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         self.user = self.scope.get('user')
         role = await get_user_role(self.user) if self.user else None
-        if not self.user or not self.user.is_authenticated or role != 'Admin':
+        if not self.user or not self.user.is_authenticated or role not in ('Admin', 'NOC'):
             await self.close(code=4403)
             return
-            
-        self.monitoring_group = MATERIALS_MONITORING_GROUP
-            
+
+        if role == 'NOC':
+            # NOC users join their own scoped group (filtered to their materials)
+            self.monitoring_group = f"materials_monitoring_noc_{self.user.id}"
+        else:
+            # Admin joins the global monitoring group
+            self.monitoring_group = MATERIALS_MONITORING_GROUP
+
         await self.channel_layer.group_add(self.monitoring_group, self.channel_name)
         await self.accept()
-        # Send initial snapshot
+        # Send initial snapshot filtered for this user's role
         data = await get_initial_data(self.user)
         await self.send_json({'type': 'initial', 'payload': data})
 
     async def disconnect(self, close_code):
         if hasattr(self, 'monitoring_group'):
             await self.channel_layer.group_discard(self.monitoring_group, self.channel_name)
+
 
     async def used_material_update(self, event):
         """Broadcast from channel layer: new or updated used material."""

@@ -118,11 +118,19 @@ def subtract_used_material_from_inventory(sender, instance, created, **kwargs):
     if created:
         # Instead of generic subtraction here, we handle it explicitly in views.py based on Accepted/Rejected status.
         # This prevents double deduction and honors the Remaining_stock logic.
-        # Self-notification for Branch users if their available personal stock is Low or Out of Stock
-        total_in = MaterialRequest.objects.filter(requester=instance.technician, status='Approved').aggregate(s=Sum('quantity'))['s'] or 0
-        total_out = UsedMaterial.objects.filter(technician=instance.technician).aggregate(s=Sum('quantity'))['s'] or 0
+
+        # Self-notification for Branch users if their available personal stock is Low or Out of Stock.
+        # Fix: Only count 'Received' MaterialRequests and 'Accepted' UsedMaterials to correctly reflect stock.
+        total_in = MaterialRequest.objects.filter(
+            requester=instance.technician,
+            status='Received'
+        ).aggregate(s=Sum('quantity'))['s'] or 0
+        total_out = UsedMaterial.objects.filter(
+            technician=instance.technician,
+            status='Accepted'
+        ).aggregate(s=Sum('quantity'))['s'] or 0
         branch_stock = total_in - total_out
-        
+
         # Consider <= 2 as Low Stock for branch, and 0 as Out of Stock
         if branch_stock <= 2:
             status_text = "Out of Stock" if branch_stock <= 0 else "Low Stock"
@@ -134,31 +142,45 @@ def subtract_used_material_from_inventory(sender, instance, created, **kwargs):
             }
             _notify_user(instance.technician, payload)
 
-        # Notify the NOC user who created the material when a branch user reports using it
+        # Notify the NOC user who created the material when a branch user reports using it.
+        # Check NotificationSetting before sending so NOC can opt-out if desired.
         if instance.material and instance.material.created_by:
             noc_user = instance.material.created_by
             try:
                 if hasattr(noc_user, 'userprofile') and noc_user.userprofile.role == 'NOC':
-                    technician_name = (instance.technician.get_full_name() or instance.technician.username) if instance.technician else 'Unknown'
-                    material_name = instance.material.name if instance.material else 'Unknown'
-                    noc_payload = {
-                        "category": "request",
-                        "event": "used_material",
-                        "title": "New Used Material Report",
-                        "message": f"{technician_name} reported using {instance.quantity}x {material_name}.",
-                    }
-                    _notify_user(noc_user, noc_payload)
+                    # Check NOC notification preference (new_request_alert covers used-material alerts)
+                    should_notify = True
+                    try:
+                        from isp_inventory.models import NotificationSetting
+                        noc_setting = NotificationSetting.objects.get(user=noc_user)
+                        should_notify = noc_setting.new_request_alert
+                    except NotificationSetting.DoesNotExist:
+                        pass  # Default: enabled
+
+                    if should_notify:
+                        technician_name = (instance.technician.get_full_name() or instance.technician.username) if instance.technician else 'Unknown'
+                        material_name = instance.material.name if instance.material else 'Unknown'
+                        noc_payload = {
+                            "category": "request",
+                            "event": "used_material",
+                            "title": "New Used Material Report",
+                            "message": f"{technician_name} reported using {instance.quantity}x {material_name}.",
+                        }
+                        _notify_user(noc_user, noc_payload)
             except Exception:
                 pass
 
-    # Also notify NOC when status changes (Accepted/Rejected by NOC)
+    # On status change (Accepted/Rejected):
+    # - Notify the branch user (technician) of the NOC decision
+    # - Also notify the NOC user themselves as a confirmation of their action
     if not created and instance.status in ('Accepted', 'Rejected') and instance.material and instance.material.created_by:
         try:
             noc_user = instance.material.created_by
             if hasattr(noc_user, 'userprofile') and noc_user.userprofile.role == 'NOC':
                 technician_name = (instance.technician.get_full_name() or instance.technician.username) if instance.technician else 'Unknown'
                 material_name = instance.material.name if instance.material else 'Unknown'
-                # Notify technician (branch user) of the NOC decision
+
+                # 1. Notify the branch user (technician) of the decision
                 if instance.technician:
                     branch_payload = {
                         "category": "request",
@@ -167,20 +189,44 @@ def subtract_used_material_from_inventory(sender, instance, created, **kwargs):
                         "message": f"Your used material report for {material_name} was {instance.status} by NOC.",
                     }
                     _notify_user(instance.technician, branch_payload)
+
+                # 2. Confirm to NOC user that their action was saved
+                # (This ensures NOC receives their own WebSocket notification for real-time UI feedback)
+                noc_confirm_payload = {
+                    "category": "stock",
+                    "event": f"used_material_{instance.status.lower()}",
+                    "title": f"Usage {instance.status}",
+                    "message": f"You {instance.status.lower()} {technician_name}'s usage of {instance.quantity}x {material_name}.",
+                }
+                _notify_user(noc_user, noc_confirm_payload)
         except Exception:
             pass
+
 
 
 
 @receiver(post_delete, sender=UsedMaterial)
 def restore_used_material_to_inventory(sender, instance, **kwargs):
     """
-    Automatically restore used materials back to inventory when a UsedMaterial record is deleted.
-    This ensures we don't lose track of material quantities if a record is removed.
+    NOTE: No stock restoration is needed here.
+
+    Branch stock is NOT stored as a field in the database.
+    It is calculated dynamically every time as:
+        available = MaterialRequest(Received).quantity
+                  - UsedMaterial(Accepted).quantity
+                  - DamageMaterial(Pending/Confirmed).quantity
+                  - RefundableMaterial.quantity
+
+    When a UsedMaterial record is deleted, it simply disappears from the
+    UsedMaterial table, and the next dynamic calculation will automatically
+    reflect the correct (higher) available stock — no manual restoration needed.
+
+    If stock was NOT returning correctly after delete, the root cause was Bug #1:
+    `my_stock_count` was counting Pending/Rejected UsedMaterial records in `total_out`
+    (missing status='Accepted' filter). That bug has been fixed in views.py.
     """
-    # We shouldn't blindly restore on delete if it was already Rejected/Returned previously.
-    # We will handle stock restoration cleanly where deleted.
-    pass
+    pass  # Dynamic calculation handles this automatically.
+
 
 
 @receiver(post_save, sender=MaterialRequest)
@@ -216,9 +262,38 @@ def material_request_notifications(sender, instance, created, **kwargs):
                 }
                 _notify_users(admin_store_users, payload)
 
+            # If this material was created by a NOC user, notify them too
+            if instance.material and instance.material.created_by:
+                noc_user = instance.material.created_by
+                try:
+                    if hasattr(noc_user, 'userprofile') and noc_user.userprofile.role == 'NOC':
+                        should_notify = True
+                        try:
+                            from isp_inventory.models import NotificationSetting
+                            noc_setting = NotificationSetting.objects.get(user=noc_user)
+                            should_notify = noc_setting.new_request_alert
+                        except NotificationSetting.DoesNotExist:
+                            pass
+                        if should_notify:
+                            requester_name = instance.requester.get_full_name() or instance.requester.username if instance.requester else 'Unknown'
+                            noc_req_payload = {
+                                "category": "request",
+                                "event": "created",
+                                "request_id": instance.id,
+                                "material": instance.material.name if instance.material else "",
+                                "quantity": instance.quantity,
+                                "status": instance.status,
+                                "request_type": instance.request_type,
+                                "message": f"New request for {instance.material.name} from {requester_name}.",
+                            }
+                            _notify_user(noc_user, noc_req_payload)
+                except Exception:
+                    pass
+
         # Status-based notifications to requester
         if instance.status in ("Approved", "Rejected") and instance.requester:
             try:
+                from isp_inventory.models import NotificationSetting
                 notif_setting = NotificationSetting.objects.get(user=instance.requester)
                 if not notif_setting.new_request_alert:
                     return
