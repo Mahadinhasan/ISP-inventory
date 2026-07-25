@@ -350,9 +350,11 @@
                         </td>
                         <td>
                             <span class="badge
-                                {% if req.status == 'Approved' %}badge-approved
-                                {% elif req.status == 'Pending' %}badge-pending
-                                {% else %}badge-rejected{% endif %}">
+                                {% if req.status == 'Pending' %}badge-pending
+                                {% elif req.status == 'Approved' %}badge-approved
+                                {% elif req.status == 'Received' %}badge-received
+                                {% elif req.status == 'Rejected' %}badge-rejected
+                                {% else %}badge-approved{% endif %}">
                                 {{ req.status }}
                             </span>
                         </td>

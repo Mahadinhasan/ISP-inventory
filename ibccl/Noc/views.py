@@ -1,11 +1,12 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.utils import timezone
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import authenticate, logout, login as django_login
 from rest_framework_simplejwt.tokens import RefreshToken
-from isp_inventory.models import UserProfile, Material, MaterialRequest, UsedMaterial, InternalMessage, MacSerialNumber, MaterialMacSerialImport, RefundableMaterial, RefundableMaterialUsage, DamageMaterial
-from isp_inventory.utils import deduct_material_stock, restore_material_stock, sync_mac_serial_status
+from isp_inventory.models import UserProfile, Material, MaterialRequest, UsedMaterial, InternalMessage, MacSerialNumber, MaterialMacSerialImport, RefundableMaterial, RefundableMaterialUsage, DamageMaterial, TrashItem
+from isp_inventory.utils import deduct_material_stock, restore_material_stock, sync_mac_serial_status, move_to_trash, restore_trash_item, cleanup_expired_trash
 from django.db.models import Sum, Count, Q
 from django.db.models.functions import TruncDate
 from django.utils import timezone
@@ -19,7 +20,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from functools import wraps
 import json as _json
-from isp_inventory.views import process_month_end_reset
+from isp_inventory.views import process_month_end_reset, trash_view
 
 # Create your views here.
 
@@ -416,7 +417,8 @@ def edit_material(request, pk):
         material.rate = int(request.POST.get('rate', material.rate))
         material.min_stock_level = int(request.POST.get('min_stock_level', material.min_stock_level))
         material.total_price = material.quantity * material.rate
-        material.save()
+        material.added_at = timezone.now()  # Update date to current datetime on edit
+        material.save(update_fields=['quantity', 'rate', 'min_stock_level', 'total_price', 'added_at'])
         messages.success(request, "Material updated successfully.")
         return redirect('noc:materials')
     return render(request, 'noc/edit_material.html', {'material': material})
@@ -474,28 +476,32 @@ def noc_requests(request):
                         mat_request.admin_note = request.POST.get('admin_note', mat_request.admin_note)
                         mat_request.save()
                     messages.success(request, f"Request for {mat_request.material.name} rejected and stock returned.")
-                else:
-                    mat_request.status = 'Rejected'
-                    mat_request.admin_note = request.POST.get('admin_note', mat_request.admin_note)
-                    mat_request.save()
-                    messages.success(request, f"Request for {mat_request.material.name} rejected.")
-            elif action == 'save_note':
-                mat_request.admin_note = request.POST.get('admin_note', mat_request.admin_note)
+        mat_request = get_object_or_404(MaterialRequest, pk=req_id)
+
+        if action in ['Dispatched', 'Rejected']:
+            mat_request.status = action
+            mat_request.admin_note = request.POST.get('admin_note', mat_request.admin_note)
+            mat_request.save()
+            messages.success(request, f"Request status updated to {action}.")
+        elif action == 'save_note':
+            mat_request.admin_note = request.POST.get('admin_note', mat_request.admin_note)
+            mat_request.save()
+            messages.success(request, "Note updated successfully.")
+        elif action == 'delete':
+            if mat_request.status in ['Received', 'Dispatched']:
+                mat_request.is_hidden_by_noc = True
                 mat_request.save()
-                messages.success(request, "Note updated successfully.")
-            elif action == 'delete':
-                if mat_request.status in ['Received', 'Dispatched']:
-                    mat_request.is_hidden_by_noc = True
-                    mat_request.save()
-                    messages.success(request, "Request hidden from your view (Branch data preserved).")
-                elif mat_request.status == 'Approved':
-                    with transaction.atomic():
-                        restore_material_stock(mat_request.material, mat_request.quantity)
-                        mat_request.delete()
-                    messages.success(request, "Request deleted and stock returned.")
-                else:
+                messages.success(request, "Request hidden from your view (Branch data preserved).")
+            elif mat_request.status == 'Approved':
+                with transaction.atomic():
+                    restore_material_stock(mat_request.material, mat_request.quantity)
+                    move_to_trash(request.user, "Material Request", f"{mat_request.material.name} ({mat_request.quantity} units)", instance=mat_request)
                     mat_request.delete()
-                    messages.success(request, "Request permanently deleted.")
+                messages.success(request, "Request deleted and moved to trash.")
+            else:
+                move_to_trash(request.user, "Material Request", f"{mat_request.material.name} ({mat_request.quantity} units)", instance=mat_request)
+                mat_request.delete()
+                messages.success(request, "Request moved to trash.")
         return redirect('noc:requests')
 
     # ── Month-end archive logic ─────────────────────────────────────────────
@@ -675,11 +681,14 @@ def noc_used_materials(request):
                             count = len(used_materials)
                             macs_to_sync = [um.mac_serial for um in used_materials if um.mac_serial]
                             
+                            for um in used_materials:
+                                move_to_trash(request.user, "Used Material", f"{um.material.name} ({um.quantity} units)", instance=um)
+
                             UsedMaterial.objects.filter(pk__in=[um.pk for um in used_materials]).delete()
                             
                             for mac in set(macs_to_sync):
                                 sync_mac_serial_status(mac)
-                            messages.success(request, f"Successfully deleted {count} consumption record(s).")
+                            messages.success(request, f"Successfully moved {count} consumption record(s) to trash.")
                     except Exception as e:
                         messages.error(request, f"Delete error: {str(e)}")
                 else:
@@ -1217,9 +1226,10 @@ def delete_mac_serial(request, pk):
     mac_serial = get_object_or_404(MacSerialNumber, pk=pk, added_by=request.user)
     
     if request.method == 'POST':
-        material_name = mac_serial.material.name
+        material_name = mac_serial.material.name if mac_serial.material else 'N/A'
+        move_to_trash(request.user, "MAC/Serial Number", f"{mac_serial.mac_serial} ({material_name})", instance=mac_serial)
         mac_serial.delete()
-        messages.success(request, f"Mac/Serial number deleted for {material_name}.")
+        messages.success(request, f"Mac/Serial number moved to trash for {material_name}.")
         return redirect('noc:list_mac_serials')
     
     return render(request, 'noc/confirm_delete_mac_serial.html', {'mac_serial': mac_serial})

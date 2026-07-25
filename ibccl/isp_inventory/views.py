@@ -6,8 +6,8 @@ from django.contrib.auth.models import User, Group
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from .forms import RegisterForm, MaterialForm, RequestForm, SystemSettingForm, NotificationSettingForm, UsedMaterialForm, LogSettingsForm, RefundableMaterialForm, RefundableMaterialUsageForm, DamageMaterialForm
-from .models import Material, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial, MaterialMonthlyCount, InternalMessage, ActivityLog, LogSettings, MacSerialNumber, RefundableMaterial, RefundableMaterialUsage, DamageMaterial
-from .utils import ensure_userprofile, sync_mac_serial_status
+from .models import Material, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial, MaterialMonthlyCount, InternalMessage, ActivityLog, LogSettings, MacSerialNumber, RefundableMaterial, RefundableMaterialUsage, DamageMaterial, TrashItem
+from .utils import ensure_userprofile, sync_mac_serial_status, move_to_trash, restore_trash_item, cleanup_expired_trash
 from django.db.models import Sum, Q, F, Case, When, IntegerField, Count, FloatField
 from django.db.models.functions import Coalesce
 from django.db import transaction
@@ -1482,13 +1482,15 @@ def requests_view(request):
                                 mat = Material.objects.select_for_update().get(pk=req.material.id)
                                 mat.quantity += req.quantity
                                 mat.save()
+                                move_to_trash(request.user, "Material Request", f"{req.material.name} ({req.quantity} units - Approved)", instance=req)
                                 req.delete()
-                                messages.success(request, f"Approved request deleted. {req.quantity} units returned to {mat.name}.")
+                                messages.success(request, f"Approved request moved to trash. {req.quantity} units returned to {mat.name}.")
                         except Exception as e:
                             messages.error(request, f"Internal error during stock return: {str(e)}")
                     else:
+                        move_to_trash(request.user, "Material Request", f"{req.material.name} ({req.quantity} units - {req.status})", instance=req)
                         req.delete()
-                        messages.success(request, "Request deleted successfully.")
+                        messages.success(request, "Request moved to trash successfully.")
                 except MaterialRequest.DoesNotExist:
                     messages.error(request, "Request not found.")
                 return redirect('requests')
@@ -3090,8 +3092,10 @@ def settings_view(request):
                         messages.error(request, "You cannot delete your own account.")
                     else:
                         del_username = del_user.username
+                        user_role = del_user.userprofile.role if hasattr(del_user, 'userprofile') else 'User'
+                        move_to_trash(request.user, "User Account", f"{del_username} ({user_role})", instance=del_user, extra_data={'profile_role': user_role, 'email': del_user.email})
                         del_user.delete()
-                        messages.success(request, f"User '{del_username}' deleted successfully.")
+                        messages.success(request, f"User '{del_username}' moved to trash.")
                 except User.DoesNotExist:
                     messages.error(request, "User not found.")
             return redirect('settings')
@@ -3938,12 +3942,15 @@ def used_materials_view(request):
                         count = len(used_materials)
                         macs_to_sync = [um.mac_serial for um in used_materials if um.mac_serial]
                         
+                        for um in used_materials:
+                            move_to_trash(request.user, "Used Material", f"{um.material.name} ({um.quantity} units - {um.client_name or 'N/A'})", instance=um)
+
                         UsedMaterial.objects.filter(pk__in=[um.pk for um in used_materials]).delete()
                         
                         for mac in set(macs_to_sync):
                             sync_mac_serial_status(mac)
                             
-                        messages.success(request, f"Successfully deleted {count} Used Material entry/entries.")
+                        messages.success(request, f"Successfully moved {count} Used Material entry/entries to trash.")
                 except Exception as e:
                     messages.error(request, f"Delete error: {str(e)}")
             else:
@@ -4466,10 +4473,12 @@ def refundable_materials_view(request):
             if rf_ids:
                 try:
                     with transaction.atomic():
-                        items = RefundableMaterial.objects.filter(pk__in=rf_ids, branch_user=request.user)
-                        count = items.count()
-                        items.delete()
-                        messages.success(request, f"Successfully deleted {count} returnable material item(s).")
+                        items = list(RefundableMaterial.objects.filter(pk__in=rf_ids, branch_user=request.user))
+                        count = len(items)
+                        for item in items:
+                            move_to_trash(request.user, "Refundable Material", f"{item.material_name} ({item.quantity} units)", instance=item)
+                        RefundableMaterial.objects.filter(pk__in=[i.pk for i in items]).delete()
+                        messages.success(request, f"Successfully moved {count} returnable material item(s) to trash.")
                 except Exception as e:
                     messages.error(request, f"Delete error: {str(e)}")
             else:
@@ -4509,10 +4518,13 @@ def refundable_materials_view(request):
             if usage_ids:
                 try:
                     with transaction.atomic():
-                        items = RefundableMaterialUsage.objects.filter(pk__in=usage_ids, used_by=request.user)
-                        count = items.count()
-                        items.delete()
-                        messages.success(request, f"Successfully deleted {count} used material record(s).")
+                        items = list(RefundableMaterialUsage.objects.filter(pk__in=usage_ids, used_by=request.user))
+                        count = len(items)
+                        for item in items:
+                            mat_name = item.refundable_material.material_name if item.refundable_material else 'N/A'
+                            move_to_trash(request.user, "Refundable Usage", f"{mat_name} ({item.quantity_used} units)", instance=item)
+                        RefundableMaterialUsage.objects.filter(pk__in=[i.pk for i in items]).delete()
+                        messages.success(request, f"Successfully moved {count} used material record(s) to trash.")
                 except Exception as e:
                     messages.error(request, f"Delete error: {str(e)}")
             else:
@@ -4764,8 +4776,9 @@ def damaged_materials_view(request):
                             if dm.mac_serial:
                                 dm.mac_serial.status = 'Active'
                                 dm.mac_serial.save()
+                            move_to_trash(request.user, "Damaged Material", f"{dm.material.name} ({dm.quantity} units)", instance=dm)
                             dm.delete()
-                        messages.success(request, "Damaged Material record deleted.")
+                        messages.success(request, "Damaged Material record moved to trash.")
                     except Exception as e:
                         messages.error(request, f"Error: {str(e)}")
                 else:
@@ -5264,4 +5277,104 @@ def logs_view(request):
         'logs': page_obj,
         'log_type_filter': log_type_filter,
     }
-    return render(request, 'inventory/logs.html', context)
+    return render(request, 'noc/logs.html' if role == 'NOC' else 'inventory/logs.html', context)
+
+
+@login_required
+def trash_view(request):
+    """
+    Displays trash items strictly separated by user role (Admin, Storekeeper, NOC, Branch).
+    Allows restoring (undo) items within 30 days or permanent deletion.
+    Automatically purges items older than 30 days.
+    """
+    profile = ensure_userprofile(request.user)
+    role = profile.role if profile else 'Branch'
+
+    # Auto purge expired trash (>30 days)
+    cleanup_expired_trash()
+
+    # Base queryset for non-restored and non-permanently-deleted items
+    trash_qs = TrashItem.objects.filter(is_restored=False, is_permanently_deleted=False)
+
+    role_filter = request.GET.get('role_filter', 'all').strip()
+
+    # Strict role-based scoping:
+    if role == 'Admin' or request.user.is_superuser:
+        if role_filter != 'all':
+            trash_qs = trash_qs.filter(user_role=role_filter)
+    elif role == 'Storekeeper':
+        trash_qs = trash_qs.filter(user_role='Storekeeper')
+    elif role == 'NOC':
+        trash_qs = trash_qs.filter(user_role='NOC')
+    else:  # Branch
+        trash_qs = trash_qs.filter(Q(user_role='Branch') | Q(user=request.user))
+
+    search_q = request.GET.get('q', '').strip()
+    type_filter = request.GET.get('type', 'all').strip()
+
+    if search_q:
+        trash_qs = trash_qs.filter(
+            Q(item_name__icontains=search_q) |
+            Q(item_type__icontains=search_q) |
+            Q(user__username__icontains=search_q)
+        )
+
+    if type_filter != 'all':
+        trash_qs = trash_qs.filter(item_type__iexact=type_filter)
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        item_id = request.POST.get('item_id')
+
+        if action == 'restore' and item_id:
+            try:
+                item = trash_qs.get(pk=item_id)
+                success, msg = restore_trash_item(item, user=request.user)
+                if success:
+                    messages.success(request, msg)
+                else:
+                    messages.error(request, msg)
+            except TrashItem.DoesNotExist:
+                messages.error(request, "Trash item not found or access denied.")
+
+        elif action == 'delete_permanently' and item_id:
+            try:
+                item = trash_qs.get(pk=item_id)
+                item.is_permanently_deleted = True
+                item.save()
+                messages.success(request, f"Permanently deleted '{item.item_name}'.")
+            except TrashItem.DoesNotExist:
+                messages.error(request, "Trash item not found or access denied.")
+
+        elif action == 'empty_trash':
+            count = trash_qs.count()
+            trash_qs.update(is_permanently_deleted=True)
+            messages.success(request, f"Trash emptied successfully ({count} item(s) permanently removed).")
+
+        if role == 'NOC':
+            return redirect('noc:trash')
+        return redirect('trash')
+
+    total_count = trash_qs.count()
+
+    paginator = Paginator(trash_qs, 15)
+    page_number = request.GET.get('page')
+    trash_page = paginator.get_page(page_number)
+
+    # Distinct item types scoped to current role's queryset
+    item_types = trash_qs.values_list('item_type', flat=True).distinct()
+    available_roles = ['Admin', 'Storekeeper', 'NOC', 'Branch']
+
+    template_name = 'noc/trash.html' if role == 'NOC' else 'inventory/trash.html'
+
+    context = {
+        'trash_items': trash_page,
+        'search_q': search_q,
+        'type_filter': type_filter,
+        'role_filter': role_filter,
+        'item_types': item_types,
+        'available_roles': available_roles,
+        'total_trash_count': total_count,
+        'role': role,
+    }
+    return render(request, template_name, context)

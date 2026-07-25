@@ -22,6 +22,7 @@ urlpatterns = [
     path('notifications/', views.noc_notifications, name='notifications'),
     path('profile/', views.noc_profile, name='profile'),
     path('logs/', views.noc_logs, name='logs'),
+    path('trash/', views.trash_view, name='trash'),
     # Mac/Serial Numbers
     path('mac-serials/add/', views.add_mac_serials, name='add_mac_serials'),
     path('mac-serials/edit/<int:pk>/', views.edit_mac_serials, name='edit_mac_serials'),

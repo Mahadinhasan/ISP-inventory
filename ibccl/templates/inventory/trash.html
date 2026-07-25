@@ -1,0 +1,228 @@
+{% extends 'inventory/base.html' %}
+{% load static %}
+
+{% block title %}Trash Bin — ISP Inventory{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6 max-w-7xl">
+    <!-- Header Section -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+        <div class="flex items-center gap-4">
+            <div class="h-14 w-14 rounded-2xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center text-white shadow-lg shadow-red-200 dark:shadow-red-900/40">
+                <i class="fas fa-trash-alt text-2xl"></i>
+            </div>
+            <div>
+                <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white flex items-center gap-3">
+                    Trash Bin & Recovery
+                    <span class="text-xs font-semibold px-3 py-1 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 rounded-full border border-red-200 dark:border-red-800">
+                        30-Day Auto Purge
+                    </span>
+                </h1>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Deleted items from Admin, Storekeeper, NOC, and Branch roles are retained for 30 days. You can restore (undo) items anytime before they expire.
+                </p>
+            </div>
+        </div>
+
+        {% if total_trash_count > 0 %}
+        <div class="flex items-center gap-3">
+            <button onclick="document.getElementById('emptyTrashModal').classList.remove('hidden')" class="px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-700 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-300 font-bold rounded-xl border border-red-200 dark:border-red-800/50 text-sm transition-all flex items-center gap-2">
+                <i class="fas fa-dumpster"></i> Empty Trash
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Filter & Search Bar -->
+    <div class="bg-white dark:bg-midnight-900 rounded-2xl shadow-sm border border-slate-200/70 dark:border-midnight-800 p-4 mb-6">
+        <form method="GET" action="{% url 'trash' %}" class="flex flex-col md:flex-row gap-4 justify-between items-center">
+            <div class="flex flex-1 flex-col sm:flex-row gap-3 w-full">
+                <!-- Search Input -->
+                <div class="relative flex-1">
+                    <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                    <input type="text" name="q" value="{{ search_q }}" placeholder="Search by item name, type, or username..." class="w-full pl-10 pr-4 py-2.5 border border-slate-200 dark:border-midnight-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-midnight-950 dark:text-white text-sm">
+                </div>
+
+                <!-- Type Filter -->
+                <select name="type" onchange="this.form.submit()" class="px-4 py-2.5 border border-slate-200 dark:border-midnight-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-midnight-950 dark:text-white text-sm min-w-[170px]">
+                    <option value="all" {% if type_filter == 'all' %}selected{% endif %}>All Item Types</option>
+                    {% for t in item_types %}
+                    <option value="{{ t }}" {% if type_filter == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+
+                {% if role == 'Admin' %}
+                <!-- Role Filter (Admin Only) -->
+                <select name="role_filter" onchange="this.form.submit()" class="px-4 py-2.5 border border-slate-200 dark:border-midnight-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-midnight-950 dark:text-white text-sm min-w-[160px]">
+                    <option value="all" {% if role_filter == 'all' %}selected{% endif %}>All Roles</option>
+                    {% for r in available_roles %}
+                    <option value="{{ r }}" {% if role_filter == r %}selected{% endif %}>Role: {{ r }}</option>
+                    {% endfor %}
+                </select>
+                {% endif %}
+            </div>
+
+            <div class="flex gap-2 w-full md:w-auto">
+                <button type="submit" class="flex-1 md:flex-none px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition shadow-sm">
+                    Filter
+                </button>
+                {% if search_q or type_filter != 'all' %}
+                <a href="{% url 'trash' %}" class="px-4 py-2.5 bg-slate-100 dark:bg-midnight-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-sm transition hover:bg-slate-200 dark:hover:bg-midnight-700 flex items-center">
+                    Reset
+                </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <!-- Trash Table -->
+    <div class="bg-white dark:bg-midnight-900 rounded-2xl shadow-sm border border-slate-200/70 dark:border-midnight-800 overflow-hidden mb-8">
+        {% if trash_items %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-midnight-800">
+                <thead class="bg-slate-50/70 dark:bg-midnight-950/40">
+                    <tr>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Item Details</th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Type</th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Deleted By</th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Deleted Date</th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Auto Purge Status</th>
+                        <th class="px-6 py-4 text-right text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-midnight-800 bg-white dark:bg-midnight-900">
+                    {% for item in trash_items %}
+                    <tr class="hover:bg-slate-50/60 dark:hover:bg-midnight-800/40 transition-colors">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-3">
+                                <div class="h-9 w-9 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center justify-center font-bold text-sm">
+                                    {% if 'Material Request' in item.item_type %}<i class="fas fa-boxes"></i>
+                                    {% elif 'Used Material' in item.item_type %}<i class="fas fa-tools"></i>
+                                    {% elif 'Refundable' in item.item_type %}<i class="fas fa-undo-alt"></i>
+                                    {% elif 'Damaged' in item.item_type %}<i class="fas fa-dumpster"></i>
+                                    {% elif 'MAC' in item.item_type %}<i class="fas fa-barcode"></i>
+                                    {% elif 'User' in item.item_type %}<i class="fas fa-user-slash"></i>
+                                    {% else %}<i class="fas fa-box"></i>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <div class="text-sm font-bold text-gray-900 dark:text-white">{{ item.item_name }}</div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">ID #{{ item.object_id|default:"N/A" }} &bull; Model: {{ item.model_name }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-800/40">
+                                {{ item.item_type }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ item.user.username|default:"System" }}</span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-midnight-800 text-slate-600 dark:text-slate-300">
+                                    {{ item.user_role|default:"User" }}
+                                </span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            {{ item.deleted_at|date:"d M Y, h:i A" }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if item.days_remaining <= 5 %}
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                                <i class="fas fa-clock text-amber-600 animate-pulse"></i> {{ item.days_remaining }} days left
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                                <i class="fas fa-calendar-check"></i> {{ item.days_remaining }} days left
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            <div class="flex items-center justify-end gap-2">
+                                <!-- Restore (Undo) Button -->
+                                <form method="POST" action="{% url 'trash' %}" class="inline">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="restore">
+                                    <input type="hidden" name="item_id" value="{{ item.id }}">
+                                    <button type="submit" onclick="return confirm('Restore (undo delete) this item?')" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 dark:text-emerald-300 text-xs font-bold rounded-lg border border-emerald-200 dark:border-emerald-800 transition flex items-center gap-1.5" title="Restore item back to active database">
+                                        <i class="fas fa-undo"></i> Undo / Restore
+                                    </button>
+                                </form>
+
+                                <!-- Delete Permanently Button -->
+                                <form method="POST" action="{% url 'trash' %}" class="inline">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="delete_permanently">
+                                    <input type="hidden" name="item_id" value="{{ item.id }}">
+                                    <button type="submit" onclick="return confirm('Permanently delete this item? This action CANNOT be undone.')" class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-300 text-xs font-bold rounded-lg border border-red-200 dark:border-red-800 transition flex items-center gap-1.5" title="Permanently remove item from trash">
+                                        <i class="fas fa-times"></i> Permanent Delete
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if trash_items.has_other_pages %}
+        <div class="px-6 py-4 border-t border-slate-200/70 dark:border-midnight-800 flex items-center justify-between">
+            <div class="text-xs text-slate-500 dark:text-slate-400">
+                Page {{ trash_items.number }} of {{ trash_items.paginator.num_pages }}
+            </div>
+            <div class="flex gap-2">
+                {% if trash_items.has_previous %}
+                <a href="?page={{ trash_items.previous_page_number }}&q={{ search_q }}&type={{ type_filter }}" class="px-3 py-1.5 bg-slate-100 dark:bg-midnight-800 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold hover:bg-slate-200 transition">
+                    &larr; Previous
+                </a>
+                {% endif %}
+                {% if trash_items.has_next %}
+                <a href="?page={{ trash_items.next_page_number }}&q={{ search_q }}&type={{ type_filter }}" class="px-3 py-1.5 bg-slate-100 dark:bg-midnight-800 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold hover:bg-slate-200 transition">
+                    Next &rarr;
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <!-- Empty State -->
+        <div class="p-12 text-center">
+            <div class="h-20 w-20 rounded-full bg-slate-100 dark:bg-midnight-800 flex items-center justify-center mx-auto mb-4 text-slate-400 dark:text-slate-500">
+                <i class="fas fa-trash-restore text-3xl"></i>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 dark:text-white">Trash Bin is Empty</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto mt-1">
+                There are no deleted items in the trash bin. When items are deleted by Admin, Storekeeper, NOC, or Branch, they will appear here for 30 days.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal: Empty Trash Confirmation -->
+<div id="emptyTrashModal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-midnight-900 rounded-2xl shadow-2xl max-w-md w-full border border-gray-100 dark:border-midnight-800 overflow-hidden p-6 text-center">
+        <div class="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
+            <i class="fas fa-exclamation-triangle text-2xl"></i>
+        </div>
+        <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Empty Entire Trash Bin?</h3>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+            This action will permanently delete all {{ total_trash_count }} item(s) currently in your trash bin. This action <strong>CANNOT</strong> be undone.
+        </p>
+        <form method="POST" action="{% url 'trash' %}" class="flex gap-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="empty_trash">
+            <button type="button" onclick="document.getElementById('emptyTrashModal').classList.add('hidden')" class="flex-1 px-4 py-2.5 border border-slate-200 dark:border-midnight-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-100 dark:hover:bg-midnight-800 transition text-sm">
+                Cancel
+            </button>
+            <button type="submit" class="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition text-sm shadow-md shadow-red-200 dark:shadow-none">
+                Yes, Empty Trash
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

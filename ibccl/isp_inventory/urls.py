@@ -15,6 +15,7 @@ urlpatterns = [
     path('settings/', views.settings_view, name='settings'),
     path('backup-restore/', views.backup_restore_view, name='backup_restore'),
     path('logs/', views.logs_view, name='logs'),
+    path('trash/', views.trash_view, name='trash'),
     path('reports/', views.reports_view, name='reports'),
     path('reports/export/excel/', views.reports_export_excel, name='reports_export_excel'),
     path('reports/export/pdf/', views.reports_export_pdf, name='reports_export_pdf'),

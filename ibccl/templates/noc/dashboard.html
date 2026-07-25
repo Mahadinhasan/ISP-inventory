@@ -14,15 +14,15 @@
             </div>
         </div>
 
-        <!-- Total Inventory Value -->
-        {% if user.userprofile.role != 'Branch' %}
+        <!-- Total Inventory Value — NOC / Admin / Storekeeper only -->
+        {% if user.userprofile.role == 'NOC' or user.userprofile.role == 'Admin' or user.userprofile.role == 'Storekeeper' %}
         <div class="inline-flex items-center gap-3 px-5 py-3 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-200 dark:shadow-indigo-900/40">
             <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
-                <i class="fas fa-taka-sign text-lg"></i>
+                <i class="fas fa-taka-sign text-lg">৳</i>
             </span>
             <span class="leading-tight">
                 <span class="block text-[10px] font-semibold uppercase tracking-widest text-indigo-100">Total Inventory Value</span>
-                <span class="block text-xl font-extrabold">{{ total_price1|floatformat:2 }}৳</span>
+                <span class="block text-xl font-extrabold">{{ total_price1|floatformat:2 }}</span>
             </span>
         </div>
         {% endif %}

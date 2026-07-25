@@ -945,3 +945,43 @@ class DamageMaterial(models.Model):
     def branch_user_name(self):
         """Return branch user's full name"""
         return self.branch_user.get_full_name() or self.branch_user.username
+
+
+class TrashItem(models.Model):
+    """Stores deleted items for 30 days allowing restoration/undo."""
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='trash_items')
+    user_role = models.CharField(max_length=50, blank=True)
+    item_type = models.CharField(max_length=100)
+    item_name = models.CharField(max_length=255)
+    model_name = models.CharField(max_length=100)
+    object_id = models.IntegerField(null=True, blank=True)
+    serialized_data = models.TextField(blank=True)
+    deleted_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField()
+    is_restored = models.BooleanField(default=False)
+    is_permanently_deleted = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-deleted_at']
+        verbose_name = 'Trash Item'
+        verbose_name_plural = 'Trash Items'
+        indexes = [
+            models.Index(fields=['user', '-deleted_at']),
+            models.Index(fields=['expires_at']),
+            models.Index(fields=['is_restored', 'is_permanently_deleted']),
+        ]
+
+    def __str__(self):
+        return f"{self.item_type}: {self.item_name} (Deleted by {self.user})"
+
+    @property
+    def days_remaining(self):
+        now = timezone.now()
+        if self.expires_at > now:
+            diff = (self.expires_at - now).days
+            return max(diff, 0)
+        return 0
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
