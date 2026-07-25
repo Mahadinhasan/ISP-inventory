@@ -899,20 +899,44 @@ def get_branch_stock_data(branch_user):
 
 @login_required
 def materials_view(request):
-    """Materials management: Admin and Storekeeper can create, edit, delete; others read-only."""
+    """Materials management: Restricted to Admin and Storekeeper roles ONLY. Branch and NOC users cannot access."""
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
 
-    if role == 'NOC':
-        return redirect('noc:dashboard')
+    if role not in ['Admin', 'Storekeeper']:
+        if role == 'NOC':
+            return redirect('noc:dashboard')
+        messages.error(request, "Permission denied: Branch users cannot access the Materials page.")
+        return redirect('dashboard')
 
     # Base queryset - Admin/Storekeeper see all; Branch sees all (read-only)
     materials = Material.objects.all().order_by('-added_at')
 
+    # NOC materials filter condition
+    noc_q = Q(category='Internet') | Q(created_by__userprofile__role='NOC')
+
+    # Calculate Storekeeper vs NOC separate stats for Admin
+    noc_materials_qs = Material.objects.filter(noc_q).distinct()
+    storekeeper_materials_qs = Material.objects.exclude(noc_q).distinct()
+
+    noc_total_price = noc_materials_qs.aggregate(total=Sum('total_price'))['total'] or 0
+    noc_total_count = noc_materials_qs.count()
+
+    storekeeper_total_price = storekeeper_materials_qs.aggregate(total=Sum('total_price'))['total'] or 0
+    storekeeper_total_count = storekeeper_materials_qs.count()
+
+    # 1-click Store Type Filter for Admin (all, storekeeper, noc)
+    store_type = request.GET.get('store_type', 'all').strip().lower()
+    if role == 'Admin':
+        if store_type == 'storekeeper':
+            materials = storekeeper_materials_qs.order_by('-added_at')
+        elif store_type == 'noc':
+            materials = noc_materials_qs.order_by('-added_at')
+
     # Stock counts (Admin/Storekeeper only)
-    total_normal_stock = Material.objects.filter(status='Normal').count()
-    total_low_stock = Material.objects.filter(status='Low Stock').count()
-    total_out_of_stock = Material.objects.filter(status='Out of Stock').count()
+    total_normal_stock = materials.filter(status='Normal').count()
+    total_low_stock = materials.filter(status='Low Stock').count()
+    total_out_of_stock = materials.filter(status='Out of Stock').count()
 
     # Search: name, category, status
     search = request.GET.get('search', '').strip()
@@ -944,19 +968,6 @@ def materials_view(request):
 
         action = request.POST.get('action')
         material_id = request.POST.get('material_id', '').strip()
-
-        # Delete Material (Storekeeper can delete any material)
-        # if action == 'delete':
-        #     if not material_id or not material_id.isdigit():
-        #         messages.error(request, "Invalid material specified.")
-        #         return redirect('materials')
-        #     try:
-        #         mat = Material.objects.get(pk=material_id)
-        #         mat.soft_delete()
-        #         messages.success(request, "Material deleted successfully.")
-        #     except Material.DoesNotExist:
-        #         messages.error(request, "Material not found.")
-        #     return redirect('materials')
 
         # Create/Edit Material (Storekeeper can edit any material)
         instance = None
@@ -1001,14 +1012,15 @@ def materials_view(request):
             min_stock=Sum('min_stock_level')
         ))
 
-    #Total price
+    # Total price of current view
     total_price_agg = materials.aggregate(total=Sum('total_price'))['total']
     total_price = total_price_agg if total_price_agg is not None else 0
-    
+
     context = {
         'search': search,
         'category': category,
         'stock_status': stock_status,
+        'store_type': store_type,
         'total_normal_stock': total_normal_stock,
         'total_low_stock': total_low_stock,
         'total_out_of_stock': total_out_of_stock,
@@ -1019,6 +1031,10 @@ def materials_view(request):
         'materials_page': materials_page,
         'type_summary': type_summary,
         'total_price': total_price,
+        'noc_total_price': noc_total_price,
+        'noc_total_count': noc_total_count,
+        'storekeeper_total_price': storekeeper_total_price,
+        'storekeeper_total_count': storekeeper_total_count,
     }
     return render(request, 'inventory/materials.html', context)
 
