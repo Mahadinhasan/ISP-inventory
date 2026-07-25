@@ -1,4 +1,5 @@
 {% extends 'inventory/base.html' %}
+{% load humanize %}
 {% block title %}Material Requests{% endblock %}
 {% block content %}
 <div class="fade-in">
@@ -7,7 +8,7 @@
             <h1 class="text-4xl font-black text-gray-900 dark:text-white tracking-tight">Material Requests</h1>
             <p class="text-gray-500 dark:text-gray-400 font-medium">Manage branch material requests</p>
         </div>
-        
+
         <div class="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:w-auto">
             <form method="get" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                 <input type="text" name="search" placeholder="Search..." value="{{ request.GET.search }}"
@@ -31,11 +32,12 @@
             {% if role == 'Admin' or role == 'Storekeeper' %}
             <form method="get" class="flex items-center" id="userFilterForm">
                 <input type="hidden" name="tab_id" id="userFilterTabId">
-                <select name="user" onchange="document.getElementById('userFilterTabId').value = sessionStorage.getItem('tab_id'); this.form.submit()"
+                <select name="user"
+                    onchange="document.getElementById('userFilterTabId').value = sessionStorage.getItem('tab_id'); this.form.submit()"
                     class="border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="">All Users</option>
                     {% for user in users %}
-                    <option value="{{ user.id }}" {% if request.GET.user == user.id %}selected{% endif %}>
+                    <option value="{{ user.id }}" {% if request.GET.user and request.GET.user|add:0 == user.id %}selected{% endif %}>
                         {{ user.username }}</option>
                     {% endfor %}
                 </select>
@@ -46,529 +48,567 @@
     <!--Request count-->
     <div class="flex flex-wrap gap-2 mb-8 px-4">
         {% if pending_count > 0 %}
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 rounded-lg border border-yellow-100 dark:border-yellow-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
+        <div
+            class="flex items-center gap-2 px-3 py-1.5 bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 rounded-lg border border-yellow-100 dark:border-yellow-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
             <i class="fas fa-hourglass-half text-xs"></i>
             <span>Pending: <span class="font-extrabold">{{ pending_count }}</span></span>
         </div>
         {% endif %}
         {% if approved_count > 0 %}
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 rounded-lg border border-green-100 dark:border-green-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
+        <div
+            class="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 rounded-lg border border-green-100 dark:border-green-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
             <i class="fas fa-check text-xs"></i>
             <span>Approved: <span class="font-extrabold">{{ approved_count }}</span></span>
         </div>
         {% endif %}
         {% if dispatched_count > 0 %}
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded-lg border border-blue-100 dark:border-blue-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
+        <div
+            class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded-lg border border-blue-100 dark:border-blue-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
             <i class="fas fa-truck text-xs"></i>
             <span>Dispatched: <span class="font-extrabold">{{ dispatched_count }}</span></span>
         </div>
         {% endif %}
         {% if received_count > 0 %}
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-lg border border-emerald-100 dark:border-emerald-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
+        <div
+            class="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-lg border border-emerald-100 dark:border-emerald-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
             <i class="fas fa-box-open text-xs"></i>
             <span>Received: <span class="font-extrabold">{{ received_count }}</span></span>
         </div>
         {% endif %}
         {% if rejected_count > 0 %}
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 rounded-lg border border-red-100 dark:border-red-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
+        <div
+            class="flex items-center gap-2 px-3 py-1.5 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 rounded-lg border border-red-100 dark:border-red-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
             <i class="fas fa-times text-xs"></i>
             <span>Rejected: <span class="font-extrabold">{{ rejected_count }}</span></span>
         </div>
         {% endif %}
         {% if advance_count > 0 %}
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 rounded-lg border border-indigo-100 dark:border-indigo-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
+        <div
+            class="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 rounded-lg border border-indigo-100 dark:border-indigo-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
             <i class="fas fa-star text-xs"></i>
             <span>Advance: <span class="font-extrabold">{{ advance_count }}</span></span>
         </div>
         {% endif %}
     </div>
     <!-----------Unified Requests Table----------->
-    <div class="bg-white/40 dark:bg-midnight-900/40 glass-card rounded-[0.6rem] shadow-2xl border border-gray-100 dark:border-midnight-800 mx-4">
+    <div
+        class="bg-white/40 dark:bg-midnight-900/40 glass-card rounded-[0.6rem] shadow-2xl border border-gray-100 dark:border-midnight-800 mx-4">
         <div class="overflow-x-auto w-full">
             <table class="min-w-[980px] w-full table-auto divide-y divide-gray-900 dark:divide-midnight-800">
                 <thead class="bg-gray-50/80 dark:bg-midnight-950/80">
                     <tr>
                         {% if user.userprofile.role == 'Branch' %}
-                        <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">ID</th>
+                        <th
+                            class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">
+                            ID</th>
                         {% endif %}
-                    {% if user.userprofile.role == 'Admin' or user.userprofile.role == 'Storekeeper' %}
-                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Branch</th>
-                    {% endif %}
-                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Material</th>
-                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Qty</th>
-                    {% if user.userprofile.role != 'Branch' %}
-                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Est. Amount</th>
-                    {% endif %}
-                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Date</th>
-                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Send By</th>
-                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Status</th>
-                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Type</th>
-                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Admin Note</th>
-                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Pass on</th>
-                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Received By</th>
-                    {% if user.userprofile.role == 'Admin' %}
-                    <th class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">Actions</th>
-                    {% endif %}
-                </tr>
-            </thead>
-            <tbody class="bg-white dark:bg-midnight-950 divide-y divide-gray-200 dark:divide-midnight-800">
-                {% for req in requests %}
-                {% if user.userprofile.role == 'Branch' %}
-                <tr class="hover:bg-gray-50 dark:hover:bg-midnight-900 transition duration-150 {% if req.request_type == 'Advance' %}border-l-4 border-indigo-400{% endif %}">
-                    <td class="px-2 py-2 text-sm font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">
-                        {% if req.request_type == 'Advance' %}
-                            ADV-{{ page_obj.start_index|add:forloop.counter0 }}
-                        {% else %}
-                            REQ-{{ page_obj.start_index|add:forloop.counter0 }}
+                        {% if user.userprofile.role == 'Admin' or user.userprofile.role == 'Storekeeper' %}
+                        <th
+                            class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">
+                            Branch</th>
                         {% endif %}
-                    </td>
-                {% endif %}
-                {% if user.userprofile.role == 'Admin' or user.userprofile.role == 'Storekeeper' %}
-                    <td class="px-4 py-4 text-sm text-gray-900">{{ req.user.get_full_name|default:req.requester.username }}</td>
-                {% endif %}
-                    <td class="px-4 py-4 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap">{{ req.material.name }}</td>
-                    <td class="px-4 py-4 text-sm font-semibold text-gray-900 bg-gray-50 rounded text-center dark:bg-midnight-900">{{ req.quantity }}</td>
-                    {% if user.userprofile.role != 'Branch' %}
-                    <td class="px-4 py-4 text-sm whitespace-nowrap font-semibold {% if req.estimated_amount %}text-emerald-700 dark:text-emerald-400{% else %}text-gray-400{% endif %}">
-                        {{ req.estimated_amount|default:"0" }}/-
-                    </td>
-                    {% endif %}
-                    <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">{{ req.requested_at|date:"d-m-Y" }}</td>
-                    <td class="px-4 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.send_by|default:"Unknown" }}</td>
-                    <td class="px-4 py-4">
-                        <span class="px-3 py-1 text-xs font-semibold rounded-full border 
-                            {% if req.status == 'Pending' %}bg-yellow-100 text-yellow-800 border-yellow-200
-                            {% elif req.status == 'Approved' %}bg-green-100 text-green-800 border-green-200
-                            {% elif req.status == 'Dispatched' %}bg-blue-100 text-blue-800 border-blue-200
-                            {% elif req.status == 'Received' %}bg-emerald-100 text-emerald-800 border-emerald-200
-                            {% else %}bg-red-100 text-red-800 border-red-200{% endif %}">
-                            {{ req.status }}
-                        </span>
-                    </td>
-                    <td class="px-5 py-3 text-sm text-gray-900">
-                        <span class="px-3 py-1 text-xs font-bold rounded-full border
-                            {% if req.request_type == 'Advance' %}bg-indigo-100 text-indigo-800 border-indigo-300
-                            {% else %}bg-blue-100 text-blue-800 border-blue-300{% endif %}">
+                        <th
+                            class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">
+                            Material</th>
+                        <th
+                            class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">
+                            Qty</th>
+                        {% if user.userprofile.role != 'Branch' %}
+                        <th
+                            class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">
+                            Est. Amount</th>
+                        {% endif %}
+                        <th
+                            class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">
+                            Date</th>
+                        <th
+                            class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">
+                            Send By</th>
+                        <th
+                            class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">
+                            Status</th>
+                        <th
+                            class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">
+                            Type</th>
+                        <th
+                            class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">
+                            Admin Note</th>
+                        <th
+                            class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">
+                            Pass on</th>
+                        <th
+                            class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">
+                            Received By</th>
+                        {% if user.userprofile.role == 'Admin' %}
+                        <th
+                            class="px-5 py-4 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky top-0 bg-gray-50/90 dark:bg-midnight-950/90">
+                            Actions</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-midnight-950 divide-y divide-gray-200 dark:divide-midnight-800">
+                    {% for req in requests %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-midnight-900 transition duration-150 {% if req.request_type == 'Advance' %}border-l-4 border-indigo-400{% endif %}">
+                        {% if user.userprofile.role == 'Branch' %}
+                        <td class="px-2 py-2 text-sm font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">
                             {% if req.request_type == 'Advance' %}
-                                <i class="fas fa-star mr-1"></i>Advance
+                            ADV-{{ page_obj.start_index|add:forloop.counter0 }}
                             {% else %}
-                                <i class="fas fa-envelope mr-1"></i>Regular
+                            REQ-{{ page_obj.start_index|add:forloop.counter0 }}
                             {% endif %}
-                        </span>
-                    </td>
-                    <td class="px-4 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.admin_note|default:"N/A" }}</td>
-                    <td class="px-4 py-4 text-sm">
-                        <div class="flex items-center justify-between">
-                            {% if req.is_noc_material %}
-                            <span class="text-orange-600 font-semibold">NOC Required</span>
-                            {% else %}
-                            <span class="text-gray-500 italic max-w-xs truncate">{{ req.pass_on|default:"Not Dispatched" }}</span>
-                            {% endif %}
-                            {% if role == 'Storekeeper' and userprofile.role != 'Admin' and not req.is_noc_material %}
+                        </td>
+                        {% endif %}
+                        {% if user.userprofile.role == 'Admin' or user.userprofile.role == 'Storekeeper' %}
+                        <td class="px-4 py-4 text-sm text-gray-900 dark:text-gray-100">{{ req.requester.get_full_name|default:req.requester.username }}</td>
+                        {% endif %}
+                        <td class="px-4 py-4 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                            <div class="flex items-center gap-2">
+                                <span>{{ req.material.name }}</span>
+                                {% if req.is_noc_material or req.material.category == 'Internet' %}
+                                <span class="px-2 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 rounded-full border border-purple-200 dark:border-purple-800">NOC</span>
+                                {% else %}
+                                <span class="px-2 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 rounded-full border border-blue-200 dark:border-blue-800">Storekeeper</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="px-4 py-4 text-sm font-semibold text-gray-900 bg-gray-50 rounded text-center dark:bg-midnight-900">{{ req.quantity }}</td>
+                        {% if user.userprofile.role != 'Branch' %}
+                        <td class="px-4 py-4 text-sm whitespace-nowrap font-semibold {% if req.estimated_amount %}text-emerald-700 dark:text-emerald-400{% else %}text-gray-400{% endif %}">
+                            {{ req.estimated_amount|default:"0" }}/-
+                        </td>
+                        {% endif %}
+                        <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">{{ req.requested_at|date:"d-m-Y" }}</td>
+                        <td class="px-4 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.send_by|default:"Unknown" }}</td>
+                        <td class="px-4 py-4">
+                            <span class="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded-full border whitespace-nowrap {% if req.status == 'Pending' %}bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-950/50 dark:text-yellow-300 dark:border-yellow-800{% elif req.status == 'Approved' %}bg-green-100 text-green-800 border-green-200 dark:bg-green-950/50 dark:text-green-300 dark:border-green-800{% elif req.status == 'Dispatched' %}bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800{% elif req.status == 'Received' %}bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800{% else %}bg-red-100 text-red-800 border-red-200 dark:bg-red-950/50 dark:text-red-300 dark:border-red-800{% endif %}">
+                                {{ req.status }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-4 text-sm text-gray-900">
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full border whitespace-nowrap {% if req.request_type == 'Advance' %}bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800{% else %}bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800{% endif %}">
+                                {% if req.request_type == 'Advance' %}
+                                <i class="fas fa-star text-[11px]"></i><span>Advance</span>
+                                {% else %}
+                                <i class="fas fa-envelope text-[11px]"></i><span>Regular</span>
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td class="px-4 py-4 text-sm text-gray-500 italic max-w-xs truncate">{{ req.admin_note|default:"N/A" }}</td>
+                        <td class="px-4 py-4 text-sm">
+                            <div class="flex items-center justify-between">
+                                {% if req.is_noc_material %}
+                                <span class="text-orange-600 font-semibold">NOC Required</span>
+                                {% else %}
+                                <span class="text-gray-500 italic max-w-xs truncate">{{ req.pass_on|default:"Not Dispatched" }}</span>
+                                {% endif %}
+                                {% if role == 'Storekeeper' and not req.is_noc_material %}
                                 {% if req.status == 'Approved' %}
                                 <button onclick="openPassOnModal('{{ req.id }}')"
                                     class="ml-1 text-blue-600 hover:text-blue-900 font-medium bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition text-xs whitespace-nowrap">
                                     Pass on
                                 </button>
                                 {% endif %}
-                            {% endif %}
-                        </div>
-                    </td>
-                    <td class="px-4 py-4 text-sm">
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-500 italic max-w-xs truncate">{{ req.received_by|default:"Not Received" }}</span>
-                            {% if role == 'Branch' and req.requester == user %}
-                                {% if req.status == 'Dispatched' %}
-                                <button onclick="openReceivedByModal('{{ req.id }}')"
-                                    class="ml-1 text-green-600 hover:text-green-900 font-medium bg-green-50 px-2 py-1 rounded hover:bg-green-100 transition text-xs whitespace-nowrap">
-                                    <i class="fas fa-plus"></i> Add
-                                </button>
-                                {% elif req.status == 'Approved' and req.material.created_by.userprofile.role == 'NOC' %}
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="px-4 py-4 text-sm">
+                            <div class="flex items-center justify-between">
+                                <span class="text-gray-500 italic max-w-xs truncate">{{ req.received_by|default:"Not Received" }}</span>
+                                {% if role == 'Branch' and req.requester == user %}
+                                {% if req.status == 'Dispatched' or req.status == 'Approved' and req.is_noc_material %}
                                 <button onclick="openReceivedByModal('{{ req.id }}')"
                                     class="ml-1 text-green-600 hover:text-green-900 font-medium bg-green-50 px-2 py-1 rounded hover:bg-green-100 transition text-xs whitespace-nowrap">
                                     <i class="fas fa-plus"></i> Add
                                 </button>
                                 {% endif %}
+                                {% endif %}
+                            </div>
+                        </td>
+                        {% if role == 'Admin' %}
+                        <td class="px-6 py-4 text-sm">
+                            {% if req.is_noc_material %}
+                            <span class="text-orange-600 font-semibold">NOC Required</span>
+                            {% elif req.status == 'Received' %}
+                            <span class="text-emerald-600 font-semibold">Received</span>
+                            {% else %}
+                            <button
+                                onclick="openAdminModal('{{ req.id }}', '{{ req.admin_note|escapejs }}', '{{ req.quantity }}')"
+                                class="text-indigo-600 hover:text-indigo-900 font-medium bg-indigo-50 px-3 py-1 rounded hover:bg-indigo-100 transition">
+                                Manage
+                            </button>
                             {% endif %}
-                        </div>
-                    </td>
-                    {% if role == 'Admin' %}
-                    <td class="px-6 py-4 text-sm">
-                        {% if req.is_noc_material %}
-                        <span class="text-orange-600 font-semibold">NOC Required</span>
-                        {% elif req.status == 'Received' %}
-                        <span class="text-emerald-600 font-semibold">Received</span>
-                        {% else %}
-                        <button onclick="openAdminModal('{{ req.id }}', '{{ req.admin_note|escapejs }}', '{{ req.quantity }}')"
-                            class="text-indigo-600 hover:text-indigo-900 font-medium bg-indigo-50 px-3 py-1 rounded hover:bg-indigo-100 transition">
-                            Manage
-                        </button>
+                        </td>
                         {% endif %}
-                    </td>
-                    {% endif %}
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="{% if role == 'Admin' %}10{% else %}9{% endif %}" class="px-6 py-12 text-center text-gray-500 text-xl">
-                        <i class="fas fa-inbox text-4xl mb-3 text-gray-300"></i><br>
-                        No requests found
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-<div id="requestModal"
-    class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm">
-    <div class="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md transform transition-all scale-100">
-        <h3 class="text-2xl font-bold mb-2 flex items-center text-gray-800" id="modalTitle">
-            <i class="fas fa-paper-plane mr-2 text-indigo-600"></i> Request Material
-        </h3>
-        <p class="text-sm text-gray-600 mb-6" id="modalSubtitle">Submit a regular material request</p>
-        
-        <div class="bg-blue-50 p-3 rounded-lg mb-4 hidden" id="typeIndicator">
-            <p class="text-xs font-medium text-blue-800"><i class="fas fa-info-circle mr-2"></i><span id="typeText">Regular Request</span></p>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="{% if role == 'Admin' %}10{% else %}9{% endif %}"
+                            class="px-6 py-12 text-center text-gray-500 text-xl">
+                            <i class="fas fa-inbox text-4xl mb-3 text-gray-300"></i><br>
+                            No requests found
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-        
-        <form method="post">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="create">
-            <input type="hidden" name="request_type" id="requestType" value="Regular">
-            
-            <div class="space-y-4">
-                <div class="form-group">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Material</label>
-                    {{ form.material }}
+    </div>
+    <div id="requestModal"
+        class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md transform transition-all scale-100">
+            <h3 class="text-2xl font-bold mb-2 flex items-center text-gray-800" id="modalTitle">
+                <i class="fas fa-paper-plane mr-2 text-indigo-600"></i> Request Material
+            </h3>
+            <p class="text-sm text-gray-600 mb-6" id="modalSubtitle">Submit a regular material request</p>
+
+            <div class="bg-blue-50 p-3 rounded-lg mb-4 hidden" id="typeIndicator">
+                <p class="text-xs font-medium text-blue-800"><i class="fas fa-info-circle mr-2"></i><span
+                        id="typeText">Regular Request</span></p>
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create">
+                <input type="hidden" name="request_type" id="requestType" value="Regular">
+
+                <div class="space-y-4">
+                    <div class="form-group">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Material</label>
+                        {{ form.material }}
+                    </div>
+                    <div class="form-group">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                        <input type="number" name="quantity"
+                            class="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2"
+                            required>
+                    </div>
+                    <div class="form-group">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Send By</label>
+                        <textarea name="send_by" rows="3"
+                            class="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2"></textarea>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-                    <input type="number" name="quantity"
+                <div class="flex justify-end space-x-4 mt-8">
+                    <button type="button" onclick="document.getElementById('requestModal').classList.add('hidden')"
+                        class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium">Cancel</button>
+                    <button type="submit" id="submitBtn"
+                        class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium shadow-md">Submit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Manage Modal -->
+    <div id="adminModal"
+        class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all">
+            <h3 class="text-xl font-bold mb-4 text-gray-800">Manage Request</h3>
+            <form id="adminForm" method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="req_id" id="adminReqId">
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Admin Note/Response</label>
+                    <input type="text" name="admin_note" id="adminNote"
                         class="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2"
-                        required>
+                        placeholder="Enter reason or comments...">
                 </div>
-                <div class="form-group">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Send By</label>
-                    <textarea name="send_by" rows="3"
-                        class="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2"></textarea>
+                <!--request quantity Input (-) materials quantity value-->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+                    <input type="text" name="quantity" id="adminQuantity"
+                        class="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2"
+                        placeholder="Enter quantity...">
                 </div>
-            </div>
-            <div class="flex justify-end space-x-4 mt-8">
-                <button type="button" onclick="document.getElementById('requestModal').classList.add('hidden')"
-                    class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium">Cancel</button>
-                <button type="submit" id="submitBtn"
-                    class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium shadow-md">Submit</button>
-            </div>
-        </form>
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <button type="submit" name="action" value="accept"
+                        class="flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition">
+                        <i class="fas fa-check mr-2"></i> Approve
+                    </button>
+                    <button type="submit" name="action" value="reject"
+                        class="flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition">
+                        <i class="fas fa-times mr-2"></i> Reject
+                    </button>
+                </div>
+                <button type="submit" name="action" value="save_note"
+                    class="w-full flex justify-center items-center py-2 px-4 border border-indigo-600 rounded-md shadow-sm text-sm font-medium text-indigo-600 bg-white hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition mb-3">
+                    Save Note Only
+                </button>
+                <button type="submit" name="action" value="delete"
+                    onclick="return confirm('Are you sure you want to PERMANENTLY delete this request?')"
+                    class="w-full flex justify-center items-center py-2 px-4 border border-red-300 rounded-md shadow-sm text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition mb-3">
+                    <i class="fas fa-trash-alt mr-2"></i> Delete Request
+                </button>
+
+                <button type="button" onclick="document.getElementById('adminModal').classList.add('hidden')"
+                    class="w-full py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition text-sm font-medium">
+                    Close
+                </button>
+            </form>
+        </div>
     </div>
-</div>
 
-<!-- Admin Manage Modal -->
-<div id="adminModal"
-    class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm">
-    <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all">
-        <h3 class="text-xl font-bold mb-4 text-gray-800">Manage Request</h3>
-        <form id="adminForm" method="POST">
-            {% csrf_token %}
-            <input type="hidden" name="req_id" id="adminReqId">
+    <!-- Received By Modal (for Branch users to fill in received_by info for dispatched requests) -->
+    <div id="receivedByModal"
+        class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all">
+            <h3 class="text-xl font-bold mb-4 text-gray-800 flex items-center">
+                <i class="fas fa-check-circle mr-2 text-green-600"></i> Record Receipt
+            </h3>
+            <p class="text-sm text-gray-600 mb-4">Please enter who received the materials:</p>
+            <form id="receivedByForm">
+                {% csrf_token %}
+                <input type="hidden" name="req_id" id="receivedByReqId">
+                <input type="hidden" name="action" value="save_received_by">
 
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Admin Note/Response</label>
-                <input type="text" name="admin_note" id="adminNote"
-                    class="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2"
-                    placeholder="Enter reason or comments...">
-            </div>
-            <!--request quantity Input (-) materials quantity value-->
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
-                <input type="text" name="quantity" id="adminQuantity"
-                    class="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2"
-                    placeholder="Enter quantity...">
-            </div>
-            <div class="grid grid-cols-2 gap-3 mb-3">
-                <button type="submit" name="action" value="accept"
-                    class="flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition">
-                    <i class="fas fa-check mr-2"></i> Approve
-                </button>
-                <button type="submit" name="action" value="reject"
-                    class="flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition">
-                    <i class="fas fa-times mr-2"></i> Reject
-                </button>
-            </div>
-            <button type="submit" name="action" value="save_note"
-                class="w-full flex justify-center items-center py-2 px-4 border border-indigo-600 rounded-md shadow-sm text-sm font-medium text-indigo-600 bg-white hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition mb-3">
-                Save Note Only
-            </button>
-            <button type="submit" name="action" value="delete"
-                onclick="return confirm('Are you sure you want to PERMANENTLY delete this request?')"
-                class="w-full flex justify-center items-center py-2 px-4 border border-red-300 rounded-md shadow-sm text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition mb-3">
-                <i class="fas fa-trash-alt mr-2"></i> Delete Request
-            </button>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Received By (Name/Details)</label>
+                    <textarea name="received_by" id="receivedByText"
+                        class="w-full border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 p-3"
+                        rows="4"
+                        placeholder="Enter name, date, and any other relevant details about who received the materials..."
+                        required></textarea>
+                </div>
 
-            <button type="button" onclick="document.getElementById('adminModal').classList.add('hidden')"
-                class="w-full py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition text-sm font-medium">
-                Close
-            </button>
-        </form>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="document.getElementById('receivedByModal').classList.add('hidden')"
+                        class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium">
+                        <i class="fas fa-save mr-1"></i> Save
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
-</div>
 
-<!-- Received By Modal (for Branch users to fill in received_by info for dispatched requests) -->
-<div id="receivedByModal"
-    class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm">
-    <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all">
-        <h3 class="text-xl font-bold mb-4 text-gray-800 flex items-center">
-            <i class="fas fa-check-circle mr-2 text-green-600"></i> Record Receipt
-        </h3>
-        <p class="text-sm text-gray-600 mb-4">Please enter who received the materials:</p>
-        <form id="receivedByForm">
-            {% csrf_token %}
-            <input type="hidden" name="req_id" id="receivedByReqId">
-            <input type="hidden" name="action" value="save_received_by">
+    <!-- Pass On Modal (for Storekeepers to fill in pass_on info for approved requests) -->
+    <div id="passOnModal"
+        class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all">
+            <h3 class="text-xl font-bold mb-4 text-gray-800 flex items-center">
+                <i class="fas fa-truck mr-2 text-blue-600"></i> Pass On Material
+            </h3>
+            <p class="text-sm text-gray-600 mb-4">Please enter dispatch details:</p>
+            <form id="passOnForm">
+                {% csrf_token %}
+                <input type="hidden" name="req_id" id="passOnReqId">
+                <input type="hidden" name="action" value="save_pass_on">
 
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Received By (Name/Details)</label>
-                <textarea name="received_by" id="receivedByText"
-                    class="w-full border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 p-3"
-                    rows="4"
-                    placeholder="Enter name, date, and any other relevant details about who received the materials..."
-                    required></textarea>
-            </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Pass On Details
+                        (Name/Vehicle/Note)</label>
+                    <textarea name="pass_on" id="passOnText"
+                        class="w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-3"
+                        rows="4" placeholder="Enter who is taking the material or any dispatch notes..."
+                        required></textarea>
+                </div>
 
-            <div class="flex justify-end space-x-3">
-                <button type="button" onclick="document.getElementById('receivedByModal').classList.add('hidden')"
-                    class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium">
-                    Cancel
-                </button>
-                <button type="submit"
-                    class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium">
-                    <i class="fas fa-save mr-1"></i> Save
-                </button>
-            </div>
-        </form>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="document.getElementById('passOnModal').classList.add('hidden')"
+                        class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">
+                        <i class="fas fa-paper-plane mr-1"></i> Dispatch
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
-</div>
 
-<!-- Pass On Modal (for Storekeepers to fill in pass_on info for approved requests) -->
-<div id="passOnModal"
-    class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm">
-    <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all">
-        <h3 class="text-xl font-bold mb-4 text-gray-800 flex items-center">
-            <i class="fas fa-truck mr-2 text-blue-600"></i> Pass On Material
-        </h3>
-        <p class="text-sm text-gray-600 mb-4">Please enter dispatch details:</p>
-        <form id="passOnForm">
-            {% csrf_token %}
-            <input type="hidden" name="req_id" id="passOnReqId">
-            <input type="hidden" name="action" value="save_pass_on">
+    <!-- Compact Non-Overflowing Pagination Controls -->
+    {% if page_obj.has_other_pages %}
+    <div class="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 px-4 pb-6">
+        <div class="text-sm font-medium text-gray-500 dark:text-gray-400">
+            Showing <span class="font-bold text-gray-900 dark:text-white">{{ page_obj.start_index }}</span> to <span class="font-bold text-gray-900 dark:text-white">{{ page_obj.end_index }}</span> of <span class="font-bold text-gray-900 dark:text-white">{{ page_obj.paginator.count|intcomma }}</span> entries
+        </div>
+        <nav class="inline-flex items-center gap-1.5 p-1 bg-white/60 dark:bg-midnight-900/60 glass-card rounded-2xl border border-gray-100 dark:border-midnight-800 shadow-sm overflow-x-auto max-w-full" aria-label="Pagination">
+            <!-- Left Arrow (Previous) -->
+            {% if page_obj.has_previous %}
+            <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user %}user={{ request.GET.user }}&{% endif %}page={{ page_obj.previous_page_number }}"
+                class="flex items-center justify-center w-9 h-9 text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white transition shadow-xs" title="Previous Page">
+                <i class="fas fa-chevron-left text-xs"></i>
+            </a>
+            {% else %}
+            <span class="flex items-center justify-center w-9 h-9 text-gray-300 dark:text-gray-700 bg-gray-50/50 dark:bg-midnight-950/50 border border-gray-100 dark:border-midnight-900 rounded-xl cursor-not-allowed">
+                <i class="fas fa-chevron-left text-xs"></i>
+            </span>
+            {% endif %}
 
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Pass On Details (Name/Vehicle/Note)</label>
-                <textarea name="pass_on" id="passOnText"
-                    class="w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-3"
-                    rows="4"
-                    placeholder="Enter who is taking the material or any dispatch notes..."
-                    required></textarea>
-            </div>
+            <!-- Page Numbers Window (Truncated & Compact) -->
+            {% for num in page_obj.paginator.page_range %}
+                {% if num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+                    {% if page_obj.number == num %}
+                    <span class="flex items-center justify-center min-w-[2.25rem] h-9 px-3 text-xs font-black text-white bg-indigo-600 rounded-xl shadow-md border border-indigo-600">{{ num }}</span>
+                    {% else %}
+                    <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user %}user={{ request.GET.user }}&{% endif %}page={{ num }}"
+                        class="flex items-center justify-center min-w-[2.25rem] h-9 px-3 text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 transition shadow-xs">
+                        {{ num }}
+                    </a>
+                    {% endif %}
+                {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
+                    <span class="flex items-center justify-center w-7 h-9 text-xs font-extrabold text-gray-400 dark:text-gray-600 select-none">...</span>
+                {% endif %}
+            {% endfor %}
 
-            <div class="flex justify-end space-x-3">
-                <button type="button" onclick="document.getElementById('passOnModal').classList.add('hidden')"
-                    class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium">
-                    Cancel
-                </button>
-                <button type="submit"
-                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">
-                    <i class="fas fa-paper-plane mr-1"></i> Dispatch
-                </button>
-            </div>
-        </form>
+            <!-- Right Arrow (Next) -->
+            {% if page_obj.has_next %}
+            <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user %}user={{ request.GET.user }}&{% endif %}page={{ page_obj.next_page_number }}"
+                class="flex items-center justify-center w-9 h-9 text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white transition shadow-xs" title="Next Page">
+                <i class="fas fa-chevron-right text-xs"></i>
+            </a>
+            {% else %}
+            <span class="flex items-center justify-center w-9 h-9 text-gray-300 dark:text-gray-700 bg-gray-50/50 dark:bg-midnight-950/50 border border-gray-100 dark:border-midnight-900 rounded-xl cursor-not-allowed">
+                <i class="fas fa-chevron-right text-xs"></i>
+            </span>
+            {% endif %}
+        </nav>
     </div>
-</div>
+    {% endif %}
 
-<!-- Pagination Controls -->
-<div class="flex justify-end mt-6">
-    <nav class="inline-flex -space-x-px" aria-label="Pagination">
-        {% if page_obj.has_previous %}
-        <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}page={{ page_obj.previous_page_number }}"
-            class="px-3 py-2 ml-0 leading-tight text-gray-500 bg-white border border-gray-300 rounded-l-lg hover:bg-gray-100 hover:text-gray-700 transition">
-            <span class="sr-only">Previous</span>
-            <i class="fas fa-chevron-left"></i>
-        </a>
-        {% else %}
-        <span
-            class="px-3 py-2 ml-0 leading-tight text-gray-300 bg-gray-100 border border-gray-300 rounded-l-lg cursor-not-allowed">
-            <span class="sr-only">Previous</span>
-            <i class="fas fa-chevron-left"></i>
-        </span>
-        {% endif %}
+    <script>
 
-        {% for num in page_obj.paginator.page_range %}
-        {% if page_obj.number == num %}
-        <span
-            class="px-3 py-2 leading-tight text-white bg-indigo-600 border border-indigo-600">{{ num }}</span>
-        {% else %}
-        <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}page={{ num }}"
-            class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 hover:bg-gray-100 hover:text-gray-700 transition">
-            {{ num }}
-        </a>
-        {% endif %}
-        {% endfor %}
-
-        {% if page_obj.has_next %}
-        <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}page={{ page_obj.next_page_number }}"
-            class="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 rounded-r-lg hover:bg-gray-100 hover:text-gray-700 transition">
-            <span class="sr-only">Next</span>
-            <i class="fas fa-chevron-right"></i>
-        </a>
-        {% else %}
-        <span
-            class="px-3 py-2 leading-tight text-gray-300 bg-gray-100 border border-gray-300 rounded-r-lg cursor-not-allowed">
-            <span class="sr-only">Next</span>
-            <i class="fas fa-chevron-right"></i>
-        </span>
-        {% endif %}
-    </nav>
-</div>
-
-<script>
-
-    document.addEventListener('DOMContentLoaded', () => {
-        const selects = document.querySelectorAll('select');
-        selects.forEach(s => {
-            s.classList.add('w-full', 'border-gray-300', 'rounded-md', 'shadow-sm', 'focus:ring-indigo-500', 'focus:border-indigo-500', 'border', 'p-2');
+        document.addEventListener('DOMContentLoaded', () => {
+            const selects = document.querySelectorAll('select');
+            selects.forEach(s => {
+                s.classList.add('w-full', 'border-gray-300', 'rounded-md', 'shadow-sm', 'focus:ring-indigo-500', 'focus:border-indigo-500', 'border', 'p-2');
+            });
         });
-    });
 
-    function openAdminModal(id, note, quantity) {
-        document.getElementById('adminReqId').value = id;
-        document.getElementById('adminNote').value = note;
-        document.getElementById('adminQuantity').value = quantity;
-        document.getElementById('adminModal').classList.remove('hidden');
-    }
-
-    function openReceivedByModal(id) {
-        document.getElementById('receivedByReqId').value = id;
-        document.getElementById('receivedByText').value = '';
-        document.getElementById('receivedByModal').classList.remove('hidden');
-    }
-
-    function openPassOnModal(id) {
-        document.getElementById('passOnReqId').value = id;
-        document.getElementById('passOnText').value = '';
-        document.getElementById('passOnModal').classList.remove('hidden');
-    }
-
-    // Handle pass_on form submission via AJAX
-    document.getElementById('passOnForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const formData = new FormData(this);
-        let fetchUrl = '{% url "requests" %}';
-        const tabId = sessionStorage.getItem('tab_id');
-        if (tabId) {
-            fetchUrl += `?tab_id=${tabId}`;
-            formData.append('tab_id', tabId);
+        function openAdminModal(id, note, quantity) {
+            document.getElementById('adminReqId').value = id;
+            document.getElementById('adminNote').value = note;
+            document.getElementById('adminQuantity').value = quantity;
+            document.getElementById('adminModal').classList.remove('hidden');
         }
 
-        fetch(fetchUrl, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+        function openReceivedByModal(id) {
+            document.getElementById('receivedByReqId').value = id;
+            document.getElementById('receivedByText').value = '';
+            document.getElementById('receivedByModal').classList.remove('hidden');
+        }
+
+        function openPassOnModal(id) {
+            document.getElementById('passOnReqId').value = id;
+            document.getElementById('passOnText').value = '';
+            document.getElementById('passOnModal').classList.remove('hidden');
+        }
+
+        // Handle pass_on form submission via AJAX
+        document.getElementById('passOnForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            let fetchUrl = '{% url "requests" %}';
+            const tabId = sessionStorage.getItem('tab_id');
+            if (tabId) {
+                fetchUrl += `?tab_id=${tabId}`;
+                formData.append('tab_id', tabId);
             }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('Dispatch information saved successfully!');
+
+            fetch(fetchUrl, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Dispatch information saved successfully!');
+                        document.getElementById('passOnModal').classList.add('hidden');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while saving. Please try again.');
+                });
+        });
+
+        // Handle received_by form submission via AJAX
+        document.getElementById('receivedByForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+
+            let fetchUrl = '{% url "requests" %}';
+            const tabId = sessionStorage.getItem('tab_id');
+            if (tabId) {
+                fetchUrl += `?tab_id=${tabId}`;
+                formData.append('tab_id', tabId);
+            }
+
+            fetch(fetchUrl, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Receipt information saved successfully!');
+                        document.getElementById('receivedByModal').classList.add('hidden');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while saving. Please try again.');
+                });
+        });
+
+        function openRequestModal(type) {
+            const modal = document.getElementById('requestModal');
+            const typeInput = document.getElementById('requestType');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalSubtitle = document.getElementById('modalSubtitle');
+            const typeIndicator = document.getElementById('typeIndicator');
+            const typeText = document.getElementById('typeText');
+            const submitBtn = document.getElementById('submitBtn');
+
+            typeInput.value = type;
+
+            if (type === 'Advance') {
+                modalTitle.innerHTML = '<i class="fas fa-star mr-2 text-indigo-600"></i> Advance Materials';
+                modalSubtitle.textContent = 'Submit an advance material request';
+                typeIndicator.classList.remove('hidden');
+                typeIndicator.className = 'bg-indigo-50 p-3 rounded-lg mb-4';
+                typeIndicator.querySelector('p').className = 'text-xs font-medium text-indigo-800';
+                typeText.textContent = 'Advance Request';
+                submitBtn.className = 'px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium shadow-md';
+            } else {
+                modalTitle.innerHTML = '<i class="fas fa-paper-plane mr-2 text-blue-600"></i> Request Material';
+                modalSubtitle.textContent = 'Submit a regular material request';
+                typeIndicator.classList.remove('hidden');
+                typeIndicator.className = 'bg-blue-50 p-3 rounded-lg mb-4';
+                typeIndicator.querySelector('p').className = 'text-xs font-medium text-blue-800';
+                typeText.textContent = 'Regular Request';
+                submitBtn.className = 'px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-md';
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        // Close on outside click
+        window.onclick = function (event) {
+            if (event.target.id === 'requestModal') {
+                document.getElementById('requestModal').classList.add('hidden');
+            }
+            if (event.target.id === 'passOnModal') {
                 document.getElementById('passOnModal').classList.add('hidden');
-                location.reload();
-            } else {
-                alert('Error: ' + (data.error || 'Unknown error'));
             }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred while saving. Please try again.');
-        });
-    });
-
-    // Handle received_by form submission via AJAX
-    document.getElementById('receivedByForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const formData = new FormData(this);
-        
-        let fetchUrl = '{% url "requests" %}';
-        const tabId = sessionStorage.getItem('tab_id');
-        if (tabId) {
-            fetchUrl += `?tab_id=${tabId}`;
-            formData.append('tab_id', tabId);
         }
+    </script>
 
-        fetch(fetchUrl, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('Receipt information saved successfully!');
-                document.getElementById('receivedByModal').classList.add('hidden');
-                location.reload();
-            } else {
-                alert('Error: ' + (data.error || 'Unknown error'));
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred while saving. Please try again.');
-        });
-    });
-
-    function openRequestModal(type) {
-        const modal = document.getElementById('requestModal');
-        const typeInput = document.getElementById('requestType');
-        const modalTitle = document.getElementById('modalTitle');
-        const modalSubtitle = document.getElementById('modalSubtitle');
-        const typeIndicator = document.getElementById('typeIndicator');
-        const typeText = document.getElementById('typeText');
-        const submitBtn = document.getElementById('submitBtn');
-        
-        typeInput.value = type;
-        
-        if (type === 'Advance') {
-            modalTitle.innerHTML = '<i class="fas fa-star mr-2 text-indigo-600"></i> Advance Materials';
-            modalSubtitle.textContent = 'Submit an advance material request';
-            typeIndicator.classList.remove('hidden');
-            typeIndicator.className = 'bg-indigo-50 p-3 rounded-lg mb-4';
-            typeIndicator.querySelector('p').className = 'text-xs font-medium text-indigo-800';
-            typeText.textContent = 'Advance Request';
-            submitBtn.className = 'px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium shadow-md';
-        } else {
-            modalTitle.innerHTML = '<i class="fas fa-paper-plane mr-2 text-blue-600"></i> Request Material';
-            modalSubtitle.textContent = 'Submit a regular material request';
-            typeIndicator.classList.remove('hidden');
-            typeIndicator.className = 'bg-blue-50 p-3 rounded-lg mb-4';
-            typeIndicator.querySelector('p').className = 'text-xs font-medium text-blue-800';
-            typeText.textContent = 'Regular Request';
-            submitBtn.className = 'px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-md';
-        }
-        
-        modal.classList.remove('hidden');
-    }
-
-    // Close on outside click
-    window.onclick = function (event) {
-        if (event.target.id === 'requestModal') {
-            document.getElementById('requestModal').classList.add('hidden');
-        }
-        if (event.target.id === 'passOnModal') {
-            document.getElementById('passOnModal').classList.add('hidden');
-        }
-    }
-</script>
-
-{% endblock %}
+    {% endblock %}

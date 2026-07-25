@@ -105,32 +105,48 @@
         </div>
     </div>
 
-    <!-- Pagination -->
+    <!-- Compact Non-Overflowing Pagination Controls -->
     {% if mac_serials.has_other_pages %}
-    <div class="mt-8 flex justify-center gap-2">
-        {% if mac_serials.has_previous %}
-            <a href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}" 
-                class="px-4 py-2 bg-gray-200 dark:bg-midnight-800 rounded-lg hover:bg-gray-300 dark:hover:bg-midnight-700">
-                <i class="fas fa-chevron-left mr-2"></i>First
+    <div class="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 px-4 pb-6">
+        <div class="text-sm font-medium text-gray-500 dark:text-gray-400">
+            Showing <span class="font-bold text-gray-900 dark:text-white">{{ mac_serials.start_index }}</span> to <span class="font-bold text-gray-900 dark:text-white">{{ mac_serials.end_index }}</span> of <span class="font-bold text-gray-900 dark:text-white">{{ mac_serials.paginator.count }}</span> records
+        </div>
+        <nav class="inline-flex items-center gap-1.5 p-1 bg-white/60 dark:bg-midnight-900/60 glass-card rounded-2xl border border-gray-100 dark:border-midnight-800 shadow-sm overflow-x-auto max-w-full ml-auto" aria-label="MAC Serials Pagination">
+            {% if mac_serials.has_previous %}
+            <a href="?page={{ mac_serials.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+                class="flex items-center justify-center w-9 h-9 text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl hover:bg-indigo-600 hover:text-white transition shadow-xs" title="Previous Page">
+                <i class="fas fa-chevron-left text-xs"></i>
             </a>
-            <a href="?page={{ mac_serials.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}" 
-                class="px-4 py-2 bg-gray-200 dark:bg-midnight-800 rounded-lg hover:bg-gray-300 dark:hover:bg-midnight-700">
-                <i class="fas fa-angle-left"></i>
-            </a>
-        {% endif %}
+            {% else %}
+            <span class="flex items-center justify-center w-9 h-9 text-gray-300 dark:text-gray-700 bg-gray-50/50 dark:bg-midnight-950/50 border border-gray-100 dark:border-midnight-900 rounded-xl cursor-not-allowed">
+                <i class="fas fa-chevron-left text-xs"></i>
+            </span>
+            {% endif %}
 
-        <span class="px-4 py-2">Page {{ mac_serials.number }} of {{ mac_serials.paginator.num_pages }}</span>
+            {% for num in mac_serials.paginator.page_range %}
+                {% if num == 1 or num == mac_serials.paginator.num_pages or num >= mac_serials.number|add:"-2" and num <= mac_serials.number|add:"2" %}
+                    {% if mac_serials.number == num %}
+                    <span class="flex items-center justify-center min-w-[2.25rem] h-9 px-3 text-xs font-black text-white bg-indigo-600 rounded-xl shadow-md border border-indigo-600">{{ num }}</span>
+                    {% else %}
+                    <a href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+                        class="flex items-center justify-center min-w-[2.25rem] h-9 px-3 text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 transition shadow-xs">{{ num }}</a>
+                    {% endif %}
+                {% elif num == mac_serials.number|add:"-3" or num == mac_serials.number|add:"3" %}
+                <span class="flex items-center justify-center w-7 h-9 text-xs font-extrabold text-gray-400 dark:text-gray-600 select-none">...</span>
+                {% endif %}
+            {% endfor %}
 
-        {% if mac_serials.has_next %}
-            <a href="?page={{ mac_serials.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}" 
-                class="px-4 py-2 bg-gray-200 dark:bg-midnight-800 rounded-lg hover:bg-gray-300 dark:hover:bg-midnight-700">
-                <i class="fas fa-angle-right"></i>
+            {% if mac_serials.has_next %}
+            <a href="?page={{ mac_serials.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+                class="flex items-center justify-center w-9 h-9 text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl hover:bg-indigo-600 hover:text-white transition shadow-xs" title="Next Page">
+                <i class="fas fa-chevron-right text-xs"></i>
             </a>
-            <a href="?page={{ mac_serials.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}" 
-                class="px-4 py-2 bg-gray-200 dark:bg-midnight-800 rounded-lg hover:bg-gray-300 dark:hover:bg-midnight-700">
-                Last<i class="fas fa-chevron-right ml-2"></i>
-            </a>
-        {% endif %}
+            {% else %}
+            <span class="flex items-center justify-center w-9 h-9 text-gray-300 dark:text-gray-700 bg-gray-50/50 dark:bg-midnight-950/50 border border-gray-100 dark:border-midnight-900 rounded-xl cursor-not-allowed">
+                <i class="fas fa-chevron-right text-xs"></i>
+            </span>
+            {% endif %}
+        </nav>
     </div>
     {% endif %}
 </div>

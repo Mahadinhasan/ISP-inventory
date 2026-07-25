@@ -99,10 +99,42 @@
             transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1), color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        table,
-        th,
-        td {
+        /* ── Global Table Grid Lines ── */
+        table {
             font-family: 'Public Sans', sans-serif;
+            border-collapse: collapse !important;
+        }
+        th, td {
+            font-family: 'Public Sans', sans-serif;
+        }
+        /* column dividers on header cells */
+        thead th {
+            border-right: 1px solid #cbd5e1 !important;
+            border-bottom: 2px solid #cbd5e1 !important;
+        }
+        thead th:last-child {
+            border-right: none !important;
+        }
+        .dark thead th {
+            border-right-color: #334155 !important;
+            border-bottom-color: #475569 !important;
+        }
+        /* column dividers on data cells */
+        tbody td {
+            border-right: 1px solid #e2e8f0 !important;
+        }
+        tbody td:last-child {
+            border-right: none !important;
+        }
+        .dark tbody td {
+            border-right-color: #1e293b !important;
+        }
+        /* row dividers – keep divide-y visible */
+        tbody tr {
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .dark tbody tr {
+            border-bottom-color: #1e293b;
         }
 
         /* Premium Dark Mode Glassmorphism */

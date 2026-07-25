@@ -712,9 +712,11 @@ def noc_used_materials(request):
     if search_query:
         used_qs = used_qs.filter(
             Q(material__name__icontains=search_query) |
+            Q(mac_serial__mac_serial__icontains=search_query) |
             Q(technician__username__icontains=search_query) |
             Q(client_name__icontains=search_query) |
             Q(client_phone__icontains=search_query) |
+            Q(client_address__icontains=search_query)|
             Q(client_address__icontains=search_query)
         )
     
@@ -842,13 +844,21 @@ def noc_reports(request):
     total_used_records = used_qs.count()
     total_used_qty     = used_qs.aggregate(total=Sum('quantity'))['total'] or 0
 
-    # ── Top 10 materials by approved quantity ────────
-    top_materials = (
+    # ── Top materials by approved quantity - Paginated at 10 per page ────────
+    top_materials_qs = (
         requests_qs.filter(status='Approved')
         .values('material__name')
         .annotate(total_qty=Sum('quantity'), req_count=Count('id'))
-        .order_by('-total_qty')[:10]
+        .order_by('-total_qty')
     )
+    top_qty_paginator = Paginator(top_materials_qs, 10)
+    top_qty_page_obj = top_qty_paginator.get_page(request.GET.get('top_qty_page'))
+    top_materials = top_qty_page_obj.object_list
+
+    top_qty_gp = request.GET.copy()
+    if 'top_qty_page' in top_qty_gp:
+        del top_qty_gp['top_qty_page']
+    top_qty_query_string = top_qty_gp.urlencode()
 
     # ── Chart data: daily request counts ────────
     daily_data = (
@@ -903,6 +913,15 @@ def noc_reports(request):
         for item in daily_damaged_summary
     ]
 
+    damage_paginator = Paginator(daily_damaged_materials, 5)
+    damage_page_obj = damage_paginator.get_page(request.GET.get('damage_page'))
+    daily_damaged_materials_display = damage_page_obj.object_list
+
+    damage_gp = request.GET.copy()
+    if 'damage_page' in damage_gp:
+        del damage_gp['damage_page']
+    damage_query_string = damage_gp.urlencode()
+
     damaged_daily_data = (
         daily_damaged_qs
         .annotate(day=TruncDate('added_at'))
@@ -923,13 +942,31 @@ def noc_reports(request):
     cat_labels = [d['material__name'] or 'Unknown' for d in category_data][:10]
     cat_values = [d['qty'] or 0 for d in category_data][:10]
 
-    # ── Recent requests (up to 50 for table) ────────
-    recent_requests = requests_qs.order_by('-requested_at')[:50]
+    # ── Recent requests (Paginated at 10 per page) ────────
+    recent_requests_qs = requests_qs.order_by('-requested_at')
+    paginator = Paginator(recent_requests_qs, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    recent_requests = page_obj.object_list
 
-    # ── Low-stock materials list ────────
-    low_stock_list = noc_materials_qs.filter(
+    get_params = request.GET.copy()
+    if 'page' in get_params:
+        del get_params['page']
+    query_string = get_params.urlencode()
+
+    # ── Low-stock materials list (Paginated at 10 per page) ────────
+    low_stock_qs = noc_materials_qs.filter(
         status__in=['Low Stock', 'Out of Stock']
-    ).order_by('status', 'name')[:20]
+    ).order_by('status', 'name')
+    low_stock_paginator = Paginator(low_stock_qs, 10)
+    low_stock_page_number = request.GET.get('low_stock_page')
+    low_stock_page_obj = low_stock_paginator.get_page(low_stock_page_number)
+    low_stock_list_display = low_stock_page_obj.object_list
+
+    low_stock_get_params = request.GET.copy()
+    if 'low_stock_page' in low_stock_get_params:
+        del low_stock_get_params['low_stock_page']
+    low_stock_query_string = low_stock_get_params.urlencode()
 
     context = {
         # Date range
@@ -952,12 +989,23 @@ def noc_reports(request):
         'low_stock_items': low_stock_items,
         'out_of_stock':    out_of_stock,
         'normal_stock':    normal_stock,
-        # Tables
+        # Tables with 10-item pagination
         'top_materials':    top_materials,
+        'top_qty_page_obj': top_qty_page_obj,
+        'top_qty_query_string': top_qty_query_string,
+
         'recent_requests':  recent_requests,
-        'low_stock_list':   low_stock_list,
+        'page_obj':         page_obj,
+        'query_string':     query_string,
+
+        'low_stock_list':   low_stock_list_display,
+        'low_stock_page_obj': low_stock_page_obj,
+        'low_stock_query_string': low_stock_query_string,
+
         # Damaged materials
-        'daily_damaged_materials': daily_damaged_materials,
+        'daily_damaged_materials': daily_damaged_materials_display,
+        'damage_page_obj': damage_page_obj,
+        'damage_query_string': damage_query_string,
         # Chart data (serialised for JS)
         'chart_labels_json':   _json.dumps(chart_labels),
         'chart_approved_json': _json.dumps(chart_approved),

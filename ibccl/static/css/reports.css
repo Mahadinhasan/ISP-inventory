@@ -101,36 +101,42 @@
         border-color: #6d28d9;
     }
 
-    /* Table */
+    /* Table with full row and column grid lines */
     .rpt-table {
         width: 100%;
         border-collapse: collapse;
         font-size: .83rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.5rem;
+        overflow: hidden;
     }
 
     .rpt-table th {
         background: linear-gradient(135deg, #4f46e5, #7c3aed);
         color: #fff;
-        padding: .65rem 1rem;
+        padding: .75rem 1rem;
         text-align: left;
         font-weight: 700;
         font-size: .72rem;
         letter-spacing: .06em;
         text-transform: uppercase;
-    }
-
-    .rpt-table th:first-child {
-        border-radius: .5rem 0 0 .5rem;
+        border-right: 1px solid rgba(255, 255, 255, 0.2);
+        border-bottom: 2px solid #c7d2fe;
     }
 
     .rpt-table th:last-child {
-        border-radius: 0 .5rem .5rem 0;
+        border-right: none;
     }
 
     .rpt-table td {
-        padding: .6rem 1rem;
-        border-bottom: 1px solid #f3f4f6;
+        padding: .65rem 1rem;
+        border-bottom: 1px solid #e2e8f0;
+        border-right: 1px solid #e2e8f0;
         color: #374151;
+    }
+
+    .rpt-table td:last-child {
+        border-right: none;
     }
 
     .rpt-table tr:last-child td {
@@ -138,15 +144,15 @@
     }
 
     .rpt-table tr:hover td {
-        background: #faf5ff;
+        background: #f1f5f9;
     }
 
     .rpt-table tr:nth-child(even) td {
-        background: #f9fafb;
+        background: #f8fafc;
     }
 
     .rpt-table tr:nth-child(even):hover td {
-        background: #faf5ff;
+        background: #f1f5f9;
     }
 
     /* Status badge */
@@ -263,9 +269,26 @@
         color: #e0e7ff;
     }
 
+    .dark .rpt-table {
+        border-color: #334155;
+    }
+
+    .dark .rpt-table th {
+        border-right: 1px solid rgba(255, 255, 255, 0.15);
+        border-bottom: 2px solid #475569;
+    }
+
+    .dark .rpt-table th:last-child {
+        border-right: none;
+    }
+
     .dark .rpt-table td {
         color: #cbd5e1;
-        border-color: #2d2b55;
+        border-color: #334155;
+    }
+
+    .dark .rpt-table td:last-child {
+        border-right: none;
     }
 
     .dark .rpt-table tr:nth-child(even) td {

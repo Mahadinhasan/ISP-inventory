@@ -176,23 +176,33 @@
         
         <!-- Pagination for Used Materials -->
         {% if usage_page.paginator.num_pages > 1 %}
-        <div class="flex justify-end mt-4 items-center px-6 pb-6">
-            <nav class="inline-flex gap-1 bg-white dark:bg-slate-800 p-2 rounded-lg border border-gray-200 dark:border-slate-700 shadow-sm">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 px-6 pb-6">
+            <div class="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                Showing <span class="font-bold text-gray-900 dark:text-white">{{ usage_page.start_index }}</span>–<span class="font-bold text-gray-900 dark:text-white">{{ usage_page.end_index }}</span> of <span class="font-bold text-gray-900 dark:text-white">{{ usage_page.paginator.count }}</span> items
+            </div>
+            <nav class="inline-flex items-center gap-1.5 p-1 bg-white/60 dark:bg-midnight-900/60 glass-card rounded-2xl border border-gray-100 dark:border-midnight-800 shadow-sm overflow-x-auto max-w-full ml-auto" aria-label="Usage Pagination">
                 {% if usage_page.has_previous %}
-                <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}usage_page={{ usage_page.previous_page_number }}" class="px-3 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition">
-                    <i class="fas fa-chevron-left"></i>
+                <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}usage_page={{ usage_page.previous_page_number }}"
+                    class="flex items-center justify-center w-8 h-8 text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl hover:bg-indigo-600 hover:text-white transition shadow-xs">
+                    <i class="fas fa-chevron-left text-xs"></i>
                 </a>
                 {% endif %}
                 {% for num in usage_page.paginator.page_range %}
-                    {% if usage_page.number == num %}
-                        <span class="px-3 py-2 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg">{{ num }}</span>
-                    {% elif num > usage_page.number|add:'-3' and num < usage_page.number|add:'3' %}
-                        <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}usage_page={{ num }}" class="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition">{{ num }}</a>
+                    {% if num == 1 or num == usage_page.paginator.num_pages or num >= usage_page.number|add:"-2" and num <= usage_page.number|add:"2" %}
+                        {% if usage_page.number == num %}
+                        <span class="flex items-center justify-center min-w-[2rem] h-8 px-2.5 text-xs font-black text-white bg-indigo-600 rounded-xl shadow-md border border-indigo-600">{{ num }}</span>
+                        {% else %}
+                        <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}usage_page={{ num }}"
+                            class="flex items-center justify-center min-w-[2rem] h-8 px-2.5 text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 transition shadow-xs">{{ num }}</a>
+                        {% endif %}
+                    {% elif num == usage_page.number|add:"-3" or num == usage_page.number|add:"3" %}
+                    <span class="flex items-center justify-center w-6 h-8 text-xs font-bold text-gray-400">...</span>
                     {% endif %}
                 {% endfor %}
                 {% if usage_page.has_next %}
-                <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}usage_page={{ usage_page.next_page_number }}" class="px-3 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition">
-                    <i class="fas fa-chevron-right"></i>
+                <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}usage_page={{ usage_page.next_page_number }}"
+                    class="flex items-center justify-center w-8 h-8 text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl hover:bg-indigo-600 hover:text-white transition shadow-xs">
+                    <i class="fas fa-chevron-right text-xs"></i>
                 </a>
                 {% endif %}
             </nav>
@@ -322,22 +332,29 @@
             <!-- Pagination for Returnable Materials -->
             {% if page_obj.paginator.num_pages > 1 %}
             <div class="flex justify-end mt-4 items-center">
-                <nav class="inline-flex gap-1 bg-white dark:bg-slate-800 p-2 rounded-lg border border-gray-200 dark:border-slate-700 shadow-sm">
+                <nav class="inline-flex items-center gap-1.5 p-1 bg-white/60 dark:bg-midnight-900/60 glass-card rounded-2xl border border-gray-100 dark:border-midnight-800 shadow-sm overflow-x-auto max-w-full" aria-label="Returnable Pagination">
                     {% if page_obj.has_previous %}
-                    <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}page={{ page_obj.previous_page_number }}" class="px-3 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition">
-                        <i class="fas fa-chevron-left"></i>
+                    <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}page={{ page_obj.previous_page_number }}"
+                        class="flex items-center justify-center w-8 h-8 text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl hover:bg-indigo-600 hover:text-white transition shadow-xs">
+                        <i class="fas fa-chevron-left text-xs"></i>
                     </a>
                     {% endif %}
                     {% for num in page_obj.paginator.page_range %}
-                        {% if page_obj.number == num %}
-                            <span class="px-3 py-2 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg">{{ num }}</span>
-                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-                            <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}page={{ num }}" class="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition">{{ num }}</a>
+                        {% if num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+                            {% if page_obj.number == num %}
+                            <span class="flex items-center justify-center min-w-[2rem] h-8 px-2.5 text-xs font-black text-white bg-indigo-600 rounded-xl shadow-md border border-indigo-600">{{ num }}</span>
+                            {% else %}
+                            <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}page={{ num }}"
+                                class="flex items-center justify-center min-w-[2rem] h-8 px-2.5 text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 transition shadow-xs">{{ num }}</a>
+                            {% endif %}
+                        {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
+                        <span class="flex items-center justify-center w-6 h-8 text-xs font-bold text-gray-400">...</span>
                         {% endif %}
                     {% endfor %}
                     {% if page_obj.has_next %}
-                    <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}page={{ page_obj.next_page_number }}" class="px-3 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition">
-                        <i class="fas fa-chevron-right"></i>
+                    <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user_id %}user_id={{ request.GET.user_id }}&{% endif %}page={{ page_obj.next_page_number }}"
+                        class="flex items-center justify-center w-8 h-8 text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl hover:bg-indigo-600 hover:text-white transition shadow-xs">
+                        <i class="fas fa-chevron-right text-xs"></i>
                     </a>
                     {% endif %}
                 </nav>

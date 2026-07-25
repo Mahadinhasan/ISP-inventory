@@ -165,6 +165,21 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                    {% if est_amount_page_obj.paginator.num_pages > 1 %}
+                    <div class="mt-3 flex items-center justify-between gap-2 border-t border-gray-100 dark:border-midnight-800 pt-2">
+                        <span class="text-[11px] text-gray-500">Page {{ est_amount_page_obj.number }} of {{ est_amount_page_obj.paginator.num_pages }}</span>
+                        <div class="inline-flex gap-1">
+                            {% if est_amount_page_obj.has_previous %}
+                            <a href="?{% if est_amount_query_string %}{{ est_amount_query_string }}&{% endif %}est_amount_page={{ est_amount_page_obj.previous_page_number }}"
+                                class="px-2 py-1 text-xs font-semibold bg-gray-100 dark:bg-midnight-800 hover:bg-indigo-600 hover:text-white rounded transition"><i class="fas fa-chevron-left text-[10px]"></i></a>
+                            {% endif %}
+                            {% if est_amount_page_obj.has_next %}
+                            <a href="?{% if est_amount_query_string %}{{ est_amount_query_string }}&{% endif %}est_amount_page={{ est_amount_page_obj.next_page_number }}"
+                                class="px-2 py-1 text-xs font-semibold bg-gray-100 dark:bg-midnight-800 hover:bg-indigo-600 hover:text-white rounded transition"><i class="fas fa-chevron-right text-[10px]"></i></a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
                     {% else %}
                     <div class="text-center py-8 text-gray-400">No amount data available for the selected period.</div>
                     {% endif %}
@@ -200,6 +215,21 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                    {% if damage_page_obj.paginator.num_pages > 1 %}
+                    <div class="mt-3 flex items-center justify-between gap-2 border-t border-gray-100 dark:border-midnight-800 pt-2">
+                        <span class="text-[11px] text-gray-500">Page {{ damage_page_obj.number }} of {{ damage_page_obj.paginator.num_pages }}</span>
+                        <div class="inline-flex gap-1">
+                            {% if damage_page_obj.has_previous %}
+                            <a href="?{% if damage_query_string %}{{ damage_query_string }}&{% endif %}damage_page={{ damage_page_obj.previous_page_number }}"
+                                class="px-2 py-1 text-xs font-semibold bg-gray-100 dark:bg-midnight-800 hover:bg-indigo-600 hover:text-white rounded transition"><i class="fas fa-chevron-left text-[10px]"></i></a>
+                            {% endif %}
+                            {% if damage_page_obj.has_next %}
+                            <a href="?{% if damage_query_string %}{{ damage_query_string }}&{% endif %}damage_page={{ damage_page_obj.next_page_number }}"
+                                class="px-2 py-1 text-xs font-semibold bg-gray-100 dark:bg-midnight-800 hover:bg-indigo-600 hover:text-white rounded transition"><i class="fas fa-chevron-right text-[10px]"></i></a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
                     {% else %}
                     <div class="text-center py-8 text-gray-400">No damaged materials data available today.</div>
                     {% endif %}
@@ -232,7 +262,7 @@
                     <tbody>
                         {% for m in top_materials %}
                         <tr>
-                            <td class="font-bold text-indigo-600">{{ forloop.counter }}</td>
+                            <td class="font-bold text-indigo-600">{{ top_qty_page_obj.start_index|add:forloop.counter0 }}</td>
                             <td>{{ m.material__name }}</td>
                             <td>{{ m.req_count }}</td>
                             <td class="font-bold">{{ m.total_qty }}</td>
@@ -240,6 +270,21 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                {% if top_qty_page_obj.paginator.num_pages > 1 %}
+                <div class="mt-3 flex items-center justify-between gap-2 border-t border-gray-100 dark:border-midnight-800 pt-2">
+                    <span class="text-[11px] text-gray-500">Page {{ top_qty_page_obj.number }} of {{ top_qty_page_obj.paginator.num_pages }}</span>
+                    <div class="inline-flex gap-1">
+                        {% if top_qty_page_obj.has_previous %}
+                        <a href="?{% if top_qty_query_string %}{{ top_qty_query_string }}&{% endif %}top_qty_page={{ top_qty_page_obj.previous_page_number }}"
+                            class="px-2 py-1 text-xs font-semibold bg-gray-100 dark:bg-midnight-800 hover:bg-indigo-600 hover:text-white rounded transition"><i class="fas fa-chevron-left text-[10px]"></i></a>
+                        {% endif %}
+                        {% if top_qty_page_obj.has_next %}
+                        <a href="?{% if top_qty_query_string %}{{ top_qty_query_string }}&{% endif %}top_qty_page={{ top_qty_page_obj.next_page_number }}"
+                            class="px-2 py-1 text-xs font-semibold bg-gray-100 dark:bg-midnight-800 hover:bg-indigo-600 hover:text-white rounded transition"><i class="fas fa-chevron-right text-[10px]"></i></a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
             {% else %}
             <div class="text-center py-10 text-gray-400">
@@ -268,7 +313,7 @@
                     <tbody>
                         {% for u in user_breakdown %}
                         <tr>
-                            <td class="font-bold text-indigo-600">{{ forloop.counter }}</td>
+                            <td class="font-bold text-indigo-600">{{ user_summary_page_obj.start_index|add:forloop.counter0 }}</td>
                             <td>
                                 <span class="font-semibold">{{ u.requester__username }}</span>
                             </td>
@@ -280,6 +325,21 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                {% if user_summary_page_obj.paginator.num_pages > 1 %}
+                <div class="mt-3 flex items-center justify-between gap-2 border-t border-gray-100 dark:border-midnight-800 pt-2">
+                    <span class="text-[11px] text-gray-500">Page {{ user_summary_page_obj.number }} of {{ user_summary_page_obj.paginator.num_pages }}</span>
+                    <div class="inline-flex gap-1">
+                        {% if user_summary_page_obj.has_previous %}
+                        <a href="?{% if user_summary_query_string %}{{ user_summary_query_string }}&{% endif %}user_summary_page={{ user_summary_page_obj.previous_page_number }}"
+                            class="px-2 py-1 text-xs font-semibold bg-gray-100 dark:bg-midnight-800 hover:bg-indigo-600 hover:text-white rounded transition"><i class="fas fa-chevron-left text-[10px]"></i></a>
+                        {% endif %}
+                        {% if user_summary_page_obj.has_next %}
+                        <a href="?{% if user_summary_query_string %}{{ user_summary_query_string }}&{% endif %}user_summary_page={{ user_summary_page_obj.next_page_number }}"
+                            class="px-2 py-1 text-xs font-semibold bg-gray-100 dark:bg-midnight-800 hover:bg-indigo-600 hover:text-white rounded transition"><i class="fas fa-chevron-right text-[10px]"></i></a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
             {% else %}
             <div class="text-center py-10 text-gray-400">
@@ -354,22 +414,26 @@
         {% if low_stock_page_obj.paginator.num_pages > 1 %}
         <div class="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <p class="text-xs text-gray-500">Page {{ low_stock_page_obj.number }} of {{ low_stock_page_obj.paginator.num_pages }}</p>
-            <nav class="inline-flex -space-x-px" aria-label="Low stock pagination">
+            <nav class="inline-flex -space-x-px overflow-x-auto max-w-full" aria-label="Low stock pagination">
                 {% if low_stock_page_obj.has_previous %}
                 <a href="?{% if low_stock_query_string %}{{ low_stock_query_string }}&{% endif %}low_stock_page={{ low_stock_page_obj.previous_page_number }}"
-                    class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-l-lg hover:bg-gray-100">Previous</a>
+                    class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-l-lg hover:bg-gray-100"><i class="fas fa-chevron-left"></i></a>
                 {% endif %}
                 {% for num in low_stock_page_obj.paginator.page_range %}
-                    {% if low_stock_page_obj.number == num %}
-                    <span class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 border border-gray-200">{{ num }}</span>
-                    {% else %}
-                    <a href="?{% if low_stock_query_string %}{{ low_stock_query_string }}&{% endif %}low_stock_page={{ num }}"
-                        class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-100">{{ num }}</a>
+                    {% if num == 1 or num == low_stock_page_obj.paginator.num_pages or num >= low_stock_page_obj.number|add:"-2" and num <= low_stock_page_obj.number|add:"2" %}
+                        {% if low_stock_page_obj.number == num %}
+                        <span class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 border border-gray-200">{{ num }}</span>
+                        {% else %}
+                        <a href="?{% if low_stock_query_string %}{{ low_stock_query_string }}&{% endif %}low_stock_page={{ num }}"
+                            class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-100">{{ num }}</a>
+                        {% endif %}
+                    {% elif num == low_stock_page_obj.number|add:"-3" or num == low_stock_page_obj.number|add:"3" %}
+                        <span class="px-2 py-2 text-sm font-medium text-gray-400">...</span>
                     {% endif %}
                 {% endfor %}
                 {% if low_stock_page_obj.has_next %}
                 <a href="?{% if low_stock_query_string %}{{ low_stock_query_string }}&{% endif %}low_stock_page={{ low_stock_page_obj.next_page_number }}"
-                    class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-r-lg hover:bg-gray-100">Next</a>
+                    class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-r-lg hover:bg-gray-100"><i class="fas fa-chevron-right"></i></a>
                 {% endif %}
             </nav>
         </div>
@@ -402,7 +466,7 @@
                 <tbody>
                     {% for req in recent_requests %}
                     <tr>
-                        <td class="font-bold text-indigo-600">{{ forloop.counter }}</td>
+                        <td class="font-bold text-indigo-600">{{ page_obj.start_index|add:forloop.counter0 }}</td>
                         <td class="whitespace-nowrap text-gray-500">{{ req.requested_at|date:"d-m-Y" }}</td>
                         {% if role != 'Branch' %}
                         <td>{{ req.branch.name|default:req.requester.username }}</td>
@@ -411,11 +475,13 @@
                         <td class="text-gray-500">{{ req.material.category }}</td>
                         <td class="font-bold text-indigo-600">{{ req.quantity }}</td>
                         <td>
-                            {% if req.request_type == 'Advance' %}
-                            <span class="badge badge-advance">Advance</span>
-                            {% else %}
-                            <span class="text-gray-400 text-xs">Regular</span>
-                            {% endif %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-bold rounded-full border whitespace-nowrap {% if req.request_type == 'Advance' %}bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800{% else %}bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800{% endif %}">
+                                {% if req.request_type == 'Advance' %}
+                                <i class="fas fa-star text-[11px]"></i><span>Advance</span>
+                                {% else %}
+                                <i class="fas fa-envelope text-[11px]"></i><span>Regular</span>
+                                {% endif %}
+                            </span>
                         </td>
                         <td>
                             <span class="badge
@@ -441,22 +507,26 @@
         {% if page_obj.paginator.num_pages > 1 %}
         <div class="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <p class="text-xs text-gray-500">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</p>
-            <nav class="inline-flex -space-x-px" aria-label="Pagination">
+            <nav class="inline-flex -space-x-px overflow-x-auto max-w-full" aria-label="Pagination">
                 {% if page_obj.has_previous %}
                 <a href="?page={{ page_obj.previous_page_number }}{% if query_string %}&{{ query_string }}{% endif %}"
-                    class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-l-lg hover:bg-gray-100">Previous</a>
+                    class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-l-lg hover:bg-gray-100"><i class="fas fa-chevron-left"></i></a>
                 {% endif %}
                 {% for num in page_obj.paginator.page_range %}
-                    {% if page_obj.number == num %}
-                    <span class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 border border-gray-200">{{ num }}</span>
-                    {% else %}
-                    <a href="?page={{ num }}{% if query_string %}&{{ query_string }}{% endif %}"
-                        class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-100">{{ num }}</a>
+                    {% if num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+                        {% if page_obj.number == num %}
+                        <span class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 border border-gray-200">{{ num }}</span>
+                        {% else %}
+                        <a href="?page={{ num }}{% if query_string %}&{{ query_string }}{% endif %}"
+                            class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-100">{{ num }}</a>
+                        {% endif %}
+                    {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
+                        <span class="px-2 py-2 text-sm font-medium text-gray-400">...</span>
                     {% endif %}
                 {% endfor %}
                 {% if page_obj.has_next %}
                 <a href="?page={{ page_obj.next_page_number }}{% if query_string %}&{{ query_string }}{% endif %}"
-                    class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-r-lg hover:bg-gray-100">Next</a>
+                    class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-r-lg hover:bg-gray-100"><i class="fas fa-chevron-right"></i></a>
                 {% endif %}
             </nav>
         </div>

@@ -1309,6 +1309,12 @@ def requests_view(request):
         ).order_by('-requested_at')
     
 
+    # NOC vs Admin Role requests separation count
+    noc_req_q = Q(material__category='Internet') | Q(material__created_by__userprofile__role='NOC')
+    noc_requests_count = base_requests.filter(noc_req_q).distinct().count()
+    admin_requests_count = base_requests.exclude(noc_req_q).distinct().count()
+    total_requests_count = base_requests.count()
+
     #Request count (pending/approved/rejected)
     pending_count = base_requests.filter(status='Pending').count()
     approved_count = base_requests.filter(status='Approved').count()
@@ -1641,6 +1647,9 @@ def requests_view(request):
         'dispatched_count': dispatched_count,
         'received_count': received_count,
         'rejected_count': rejected_count,
+        'noc_requests_count': noc_requests_count,
+        'admin_requests_count': admin_requests_count,
+        'total_requests_count': total_requests_count,
         'requests': requests_page, 
         'form': form,
         'role': role,
@@ -1773,18 +1782,26 @@ def reports_view(request):
         out_of_stock     = Material.objects.filter(status='Out of Stock').count()
         normal_stock     = Material.objects.filter(status='Normal').count()
 
-    # ── Top 10 materials ──
-    top_materials = (
+    # ── Top materials (Approved Qty) - Paginated at 10 per page ──
+    top_materials_qs = (
         requests_qs.filter(status='Received')
         .values('material__name')
         .annotate(total_qty=Sum('quantity'), req_count=Count('id'))
-        .order_by('-total_qty')[:10]
+        .order_by('-total_qty')
     )
+    top_qty_paginator = Paginator(top_materials_qs, 10)
+    top_qty_page_obj = top_qty_paginator.get_page(request.GET.get('top_qty_page'))
+    top_materials = top_qty_page_obj.object_list
 
-    # ── Per-user breakdown (Admin/Storekeeper/NOC only) ──
-    user_breakdown = []
+    top_qty_gp = request.GET.copy()
+    if 'top_qty_page' in top_qty_gp:
+        del top_qty_gp['top_qty_page']
+    top_qty_query_string = top_qty_gp.urlencode()
+
+    # ── Per-user breakdown (Admin/Storekeeper/NOC only) - Paginated at 10 per page ──
+    user_breakdown_qs = []
     if not selected_user and role in ['Admin', 'Storekeeper', 'NOC']:
-        user_breakdown = (
+        user_breakdown_qs = (
             requests_qs
             .values('requester__username', 'requester__first_name', 'requester__last_name')
             .annotate(
@@ -1793,8 +1810,16 @@ def reports_view(request):
                 pending=Count('id', filter=Q(status='Pending')),
                 rejected=Count('id', filter=Q(status='Rejected')),
                 qty_issued=Sum('quantity', filter=Q(status='Received'))
-            ).order_by('-approved')[:15]
+            ).order_by('-approved')
         )
+    user_summary_paginator = Paginator(user_breakdown_qs, 10)
+    user_summary_page_obj = user_summary_paginator.get_page(request.GET.get('user_summary_page'))
+    user_breakdown = user_summary_page_obj.object_list
+
+    user_summary_gp = request.GET.copy()
+    if 'user_summary_page' in user_summary_gp:
+        del user_summary_gp['user_summary_page']
+    user_summary_query_string = user_summary_gp.urlencode()
 
     # ── Chart data ──
     # Daily activity for Material Requests (for compatibility)
@@ -1856,6 +1881,15 @@ def reports_view(request):
             for item in daily_damaged_summary
         ]
 
+    damage_paginator = Paginator(daily_damaged_materials, 10)
+    damage_page_obj = damage_paginator.get_page(request.GET.get('damage_page'))
+    daily_damaged_materials_display = damage_page_obj.object_list
+
+    damage_gp = request.GET.copy()
+    if 'damage_page' in damage_gp:
+        del damage_gp['damage_page']
+    damage_query_string = damage_gp.urlencode()
+
     damaged_daily_data = (
         daily_damaged_qs
         .annotate(day=TruncDate('added_at'))
@@ -1894,6 +1928,14 @@ def reports_view(request):
             est_labels.append(branch_name)
             est_values.append(round(float(amount), 2))
 
+    est_amount_paginator = Paginator(est_amounts, 5)
+    est_amount_page_obj = est_amount_paginator.get_page(request.GET.get('est_amount_page'))
+    est_amounts_display = est_amount_page_obj.object_list
+
+    est_amount_gp = request.GET.copy()
+    if 'est_amount_page' in est_amount_gp:
+        del est_amount_gp['est_amount_page']
+    est_amount_query_string = est_amount_gp.urlencode()
 
     recent_requests_qs = requests_qs.order_by('-requested_at')
     paginator = Paginator(recent_requests_qs, 10)
@@ -1983,15 +2025,31 @@ def reports_view(request):
         'low_stock_items': low_stock_items,
         'out_of_stock':    out_of_stock,
         'normal_stock':    normal_stock,
-        # Tables
+        # Tables with 10-item pagination
         'top_materials':    top_materials,
+        'top_qty_page_obj': top_qty_page_obj,
+        'top_qty_query_string': top_qty_query_string,
+
         'user_breakdown':   user_breakdown,
+        'user_summary_page_obj': user_summary_page_obj,
+        'user_summary_query_string': user_summary_query_string,
+
+        'daily_damaged_materials': daily_damaged_materials_display,
+        'damage_page_obj': damage_page_obj,
+        'damage_query_string': damage_query_string,
+
+        'est_amounts':         est_amounts_display,
+        'est_amount_page_obj': est_amount_page_obj,
+        'est_amount_query_string': est_amount_query_string,
+
         'recent_requests':  recent_requests,
         'page_obj':         page_obj,
         'query_string':     query_string,
+
         'low_stock_list':   low_stock_list_display,
         'low_stock_page_obj': low_stock_page_obj,
         'low_stock_query_string': low_stock_query_string,
+
         # Branch-specific data
         'in_stock_list': in_stock_list,
         'damaged_materials': damaged_qs,
@@ -2004,8 +2062,6 @@ def reports_view(request):
         'branch_um_pending':   branch_um_pending,
         'branch_um_accepted':  branch_um_accepted,
         'branch_um_rejected':  branch_um_rejected,
-        # Daily Damaged Materials summary
-        'daily_damaged_materials': daily_damaged_materials,
         # Chart data (serialised for JS)
         'chart_labels_json':   _json.dumps(chart_labels),
         'chart_approved_json': _json.dumps(chart_approved),
@@ -2019,7 +2075,6 @@ def reports_view(request):
         'damaged_chart_values_json': _json.dumps(damaged_chart_values),
         'cat_labels_json':     _json.dumps(cat_labels),
         'cat_values_json':     _json.dumps(cat_values),
-        'est_amounts':         est_amounts,
         'est_labels_json':     _json.dumps(est_labels),
         'est_values_json':     _json.dumps(est_values),
     }
@@ -3721,7 +3776,8 @@ def used_materials_view(request):
             Q(technician__last_name__icontains=search_query)|
             Q(client_name__icontains=search_query) |
             Q(client_phone__icontains=search_query) |
-            Q(mac_serial__mac_serial__icontains=search_query)
+            Q(mac_serial__mac_serial__icontains=search_query) |
+            Q(client_address__icontains=search_query)
         ).distinct()
 
     # Pagination - AFTER all filters are applied
