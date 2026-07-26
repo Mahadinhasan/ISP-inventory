@@ -20,7 +20,18 @@
 
     <!-- Branch users summary -->
     <div class="mb-8">
-        <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Branch Users</h2>
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Branch Users</h2>
+            <div class="flex items-center gap-2" id="branch-pagination-controls">
+                <span id="noc-branch-page-indicator" class="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/40 px-2.5 py-1.5 rounded-lg border border-indigo-100 dark:border-indigo-800">1 / 1</span>
+                <button id="noc-branch-prev-btn" type="button" title="Previous Page" class="p-2 w-8 h-8 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center justify-center shadow-sm active:scale-95">
+                    <i class="fas fa-chevron-left text-xs pointer-events-none"></i>
+                </button>
+                <button id="noc-branch-next-btn" type="button" title="Next Page" class="p-2 w-8 h-8 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center justify-center shadow-sm active:scale-95">
+                    <i class="fas fa-chevron-right text-xs pointer-events-none"></i>
+                </button>
+            </div>
+        </div>
         <div id="branch-users-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             <p class="text-gray-500 dark:text-gray-400 col-span-full">Loading…</p>
         </div>
@@ -72,6 +83,10 @@
     let reconnectTimer = null;
     const reconnectDelay = 3000;
 
+    let nocBranchUsers = [];
+    let nocBranchCurrentPage = 1;
+    const NOC_BRANCH_PAGE_SIZE = 5;
+
     function setStatus(connected, text) {
         statusEl.textContent = text;
         statusEl.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ' +
@@ -79,12 +94,26 @@
         dotEl.className = 'w-2 h-2 rounded-full ' + (connected ? 'bg-green-500' : 'bg-gray-500');
     }
 
-    function renderBranchUsers(data) {
-        if (!data || !data.branch_users || !data.branch_users.length) {
+    function renderBranchUsers(data, page) {
+        if (data && data.branch_users) {
+            nocBranchUsers = data.branch_users;
+        }
+        if (!nocBranchUsers || !nocBranchUsers.length) {
             branchContainer.innerHTML = '<p class="text-gray-500 dark:text-gray-400 col-span-full">No branch users.</p>';
+            updateNocBranchPagination(0, 1);
             return;
         }
-        branchContainer.innerHTML = data.branch_users.map(function(u) {
+
+        const totalPages = Math.ceil(nocBranchUsers.length / NOC_BRANCH_PAGE_SIZE);
+        if (page !== undefined) {
+            nocBranchCurrentPage = page;
+        }
+        nocBranchCurrentPage = Math.max(1, Math.min(nocBranchCurrentPage, totalPages));
+
+        const startIdx = (nocBranchCurrentPage - 1) * NOC_BRANCH_PAGE_SIZE;
+        const pageUsers = nocBranchUsers.slice(startIdx, startIdx + NOC_BRANCH_PAGE_SIZE);
+
+        branchContainer.innerHTML = pageUsers.map(function(u) {
             const statusColor = u.is_online ? 'status-online shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'status-offline';
             return '<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 p-4 shadow-sm" id="user-card-' + u.id + '">' +
                 '<div class="flex items-center justify-between">' +
@@ -99,6 +128,49 @@
                 '<span class="text-gray-600 dark:text-gray-300">' + (u.used_quantity_total || 0) + ' units</span>' +
                 '</div></div>';
         }).join('');
+
+        updateNocBranchPagination(totalPages, nocBranchCurrentPage);
+    }
+
+    function updateNocBranchPagination(totalPages, page) {
+        const ind = document.getElementById('noc-branch-page-indicator');
+        const prev = document.getElementById('noc-branch-prev-btn');
+        const next = document.getElementById('noc-branch-next-btn');
+        if (ind) ind.textContent = totalPages > 0 ? page + ' / ' + totalPages : '0 / 0';
+        if (prev) prev.disabled = page <= 1;
+        if (next) next.disabled = page >= totalPages;
+    }
+
+    function changeNocBranchPage(dir) {
+        const totalPages = Math.ceil(nocBranchUsers.length / NOC_BRANCH_PAGE_SIZE) || 1;
+        let newPage = nocBranchCurrentPage;
+        if (dir === -1 || dir === 1) {
+            newPage = nocBranchCurrentPage + dir;
+        } else if (typeof dir === 'number') {
+            newPage = dir;
+        }
+        newPage = Math.max(1, Math.min(newPage, totalPages));
+        if (newPage !== nocBranchCurrentPage) {
+            renderBranchUsers(null, newPage);
+        }
+    }
+    window.changeNocBranchPage = changeNocBranchPage;
+
+    const nocPrevBtn = document.getElementById('noc-branch-prev-btn');
+    const nocNextBtn = document.getElementById('noc-branch-next-btn');
+    if (nocPrevBtn) {
+        nocPrevBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            changeNocBranchPage(-1);
+        });
+    }
+    if (nocNextBtn) {
+        nocNextBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            changeNocBranchPage(1);
+        });
     }
 
     function formatTime(iso) {

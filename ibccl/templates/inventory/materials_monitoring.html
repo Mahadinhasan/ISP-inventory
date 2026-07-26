@@ -40,11 +40,23 @@
 
     <!-- ── Branch User Profile Cards ──────────────────────────── -->
     <div class="mb-8">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <i class="fas fa-users text-indigo-500"></i> Branch Users
-            </h2>
-            <span class="text-sm text-gray-500 dark:text-gray-400">Click a card to view in-stock materials</span>
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div class="flex items-center gap-3">
+                <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i class="fas fa-users text-indigo-500"></i> Branch Users
+                </h2>
+                <span class="text-sm text-gray-500 dark:text-gray-400 hidden sm:inline">Click a card to view in-stock materials</span>
+            </div>
+            <!-- Pagination Controls: Only Left and Right Arrow -->
+            <div class="flex items-center gap-2" id="branch-cards-pagination">
+                <span id="branch-page-indicator" class="text-xs font-extrabold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/40 px-2.5 py-1.5 rounded-lg border border-indigo-100 dark:border-indigo-800">1 / 1</span>
+                <button id="branch-prev-btn" type="button" title="Previous Page" class="p-2 w-9 h-9 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-gray-700 dark:hover:text-indigo-400 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center justify-center shadow-sm active:scale-95">
+                    <i class="fas fa-chevron-left pointer-events-none"></i>
+                </button>
+                <button id="branch-next-btn" type="button" title="Next Page" class="p-2 w-9 h-9 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-gray-700 dark:hover:text-indigo-400 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center justify-center shadow-sm active:scale-95">
+                    <i class="fas fa-chevron-right pointer-events-none"></i>
+                </button>
+            </div>
         </div>
         <div id="branch-cards-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             <!-- Skeleton loaders -->
@@ -176,6 +188,9 @@
     const statUsed     = document.getElementById('stat-used');
     const tabInCount   = document.getElementById('tab-in-count');
     const tabLowCount  = document.getElementById('tab-low-count');
+    const branchPageIndicator = document.getElementById('branch-page-indicator');
+    const branchPrevBtn       = document.getElementById('branch-prev-btn');
+    const branchNextBtn       = document.getElementById('branch-next-btn');
 
     /* ── State ─────────────────────────────────────────────────── */
     let ws = null;
@@ -185,6 +200,8 @@
     let selectedUserId = null;
     let activeTab = 'in-stock';
     let cachedStockData = {}; // { userId: { in_stock: [], low_stock: [] } }
+    let currentBranchPage = 1;
+    const BRANCH_PAGE_SIZE = 5;
 
     /* ── Avatar palette ─────────────────────────────────────────── */
     const AVATAR_COLORS = [
@@ -218,24 +235,38 @@
     }
 
     /* ── Render branch cards ───────*/
-    function renderBranchCards(users) {
-        branchUsers = users || [];
+    function renderBranchCards(users, page) {
+        if (users !== undefined) {
+            branchUsers = users || [];
+        }
         statBranches.textContent = branchUsers.length;
         statOnline.textContent   = branchUsers.filter(u => u.is_online).length;
         statUsed.textContent     = branchUsers.reduce((s, u) => s + (u.used_materials_count || 0), 0);
 
         if (!branchUsers.length) {
             cardsGrid.innerHTML = '<p class="col-span-full text-center text-gray-500 dark:text-gray-400 py-10">No branch users found.</p>';
+            updateBranchPagination(0, 1);
             return;
         }
 
-        cardsGrid.innerHTML = branchUsers.map(u => {
+        const totalPages = Math.ceil(branchUsers.length / BRANCH_PAGE_SIZE);
+        if (page !== undefined) {
+            currentBranchPage = page;
+        }
+        currentBranchPage = Math.max(1, Math.min(currentBranchPage, totalPages));
+
+        const startIdx = (currentBranchPage - 1) * BRANCH_PAGE_SIZE;
+        const endIdx   = startIdx + BRANCH_PAGE_SIZE;
+        const pageUsers = branchUsers.slice(startIdx, endIdx);
+
+        cardsGrid.innerHTML = pageUsers.map(u => {
             const isOnline   = u.is_online;
             const bgGrad     = avatarColor(u.id);
             const avatarText = initials(u.full_name || u.username);
             const ringColor  = isOnline ? '#22c55e' : '#9ca3af';
+            const isSelected = selectedUserId === u.id ? 'selected' : '';
             return `
-            <div class="branch-card" id="bcard-${u.id}" onclick="selectBranchUser(${u.id}, '${escHtml(u.full_name || u.username)}')">
+            <div class="branch-card ${isSelected}" id="bcard-${u.id}" onclick="selectBranchUser(${u.id}, '${escHtml(u.full_name || u.username)}')">
                 <div class="avatar" style="background:${bgGrad}">
                     ${avatarText}
                     <span class="status-ring" style="background:${ringColor}" data-status-ring="${u.id}" title="${isOnline ? 'Online' : 'Offline'}"></span>
@@ -255,10 +286,65 @@
                 </div>
             </div>`;
         }).join('');
+
+        updateBranchPagination(totalPages, currentBranchPage);
+    }
+
+    function updateBranchPagination(totalPages, page) {
+        if (branchPageIndicator) {
+            branchPageIndicator.textContent = totalPages > 0 ? `${page} / ${totalPages}` : '0 / 0';
+        }
+        if (branchPrevBtn) {
+            branchPrevBtn.disabled = page <= 1;
+        }
+        if (branchNextBtn) {
+            branchNextBtn.disabled = page >= totalPages;
+        }
+    }
+
+    function changeBranchPage(dir) {
+        const totalPages = Math.ceil(branchUsers.length / BRANCH_PAGE_SIZE) || 1;
+        let newPage = currentBranchPage;
+        if (dir === -1 || dir === 1) {
+            newPage = currentBranchPage + dir;
+        } else if (typeof dir === 'number') {
+            newPage = dir;
+        }
+        newPage = Math.max(1, Math.min(newPage, totalPages));
+        if (newPage !== currentBranchPage) {
+            renderBranchCards(undefined, newPage);
+        }
+    }
+    window.changeBranchPage = changeBranchPage;
+
+    if (branchPrevBtn) {
+        branchPrevBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            changeBranchPage(-1);
+        });
+    }
+    if (branchNextBtn) {
+        branchNextBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            changeBranchPage(1);
+        });
     }
 
     /* ── Select branch user → fetch stock ── */
     window.selectBranchUser = async function(userId, userName) {
+        selectedUserId = userId;
+
+        // Auto-switch to page containing this user if needed
+        const userIndex = branchUsers.findIndex(u => u.id === userId);
+        if (userIndex !== -1) {
+            const pageForUser = Math.floor(userIndex / BRANCH_PAGE_SIZE) + 1;
+            if (pageForUser !== currentBranchPage) {
+                renderBranchCards(undefined, pageForUser);
+            }
+        }
+
         // Highlight selected card
         document.querySelectorAll('.branch-card').forEach(c => c.classList.remove('selected'));
         const card = document.getElementById('bcard-' + userId);
