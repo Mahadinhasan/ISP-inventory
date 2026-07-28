@@ -392,6 +392,184 @@
                             <p class="text-xs text-purple-800 dark:text-purple-300">SHA256 checksums verify backup integrity</p>
                         </div>
                     </div>
+
+                    <!-- ── AUTO DATA BACKUP SYSTEM ───────────────────────────── -->
+                    <div class="mt-8 border-t border-slate-200/70 dark:border-midnight-800 pt-6">
+                        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-5">
+                            <div>
+                                <h3 class="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                    <span class="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center">
+                                        <i class="fas fa-clock text-emerald-600 dark:text-emerald-400 text-sm"></i>
+                                    </span>
+                                    Auto Data Backup System
+                                </h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    Automated weekly database backups · Scheduled every week night at 2:00 AM
+                                </p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="px-3 py-1 rounded-full text-xs font-bold {% if auto_backup_config.enabled %}bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400{% else %}bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400{% endif %} flex items-center gap-1.5">
+                                    <span class="w-2 h-2 rounded-full {% if auto_backup_config.enabled %}bg-emerald-500 animate-pulse{% else %}bg-gray-400{% endif %}"></span>
+                                    {% if auto_backup_config.enabled %}Active (Every {{ auto_backup_config.day }} at 2:00 AM){% else %}Disabled{% endif %}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Info & Path Banner -->
+                        <div class="bg-slate-50 dark:bg-midnight-950/60 rounded-xl p-3.5 border border-slate-200/70 dark:border-midnight-800 mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                            <div class="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                                <i class="fas fa-folder-open text-indigo-500 text-base"></i>
+                                <span>Save Location: <strong class="font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded border border-indigo-100 dark:border-indigo-900/40">c:\Users\Mehedi\ibccl_store\ibccl\Auto data_backup</strong></span>
+                            </div>
+                            <div class="text-gray-500 dark:text-gray-400">
+                                Last Run: <strong class="text-gray-800 dark:text-gray-200">{{ auto_backup_config.last_run }}</strong>
+                            </div>
+                        </div>
+
+                        <!-- Settings & Action Controls Grid -->
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+                            <!-- Configuration Form -->
+                            <form method="post" class="lg:col-span-2 bg-gradient-to-br from-slate-50 to-indigo-50/40 dark:from-midnight-950/80 dark:to-indigo-950/20 rounded-xl p-4 border border-slate-200/70 dark:border-midnight-800">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="save_auto_backup_config">
+                                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2">
+                                    <i class="fas fa-sliders-h text-indigo-500"></i> Schedule Settings
+                                </h4>
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                                        <label class="relative inline-flex items-center cursor-pointer mt-1">
+                                            <input type="checkbox" name="auto_backup_enabled" class="sr-only peer" {% if auto_backup_config.enabled %}checked{% endif %}>
+                                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-600"></div>
+                                            <span class="ml-2 text-xs font-bold text-gray-700 dark:text-gray-300">Enabled</span>
+                                        </label>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Scheduled Day</label>
+                                        <select name="auto_backup_day" class="w-full px-3 py-2 text-xs border border-gray-200 dark:border-midnight-700 rounded-lg bg-white dark:bg-midnight-950 dark:text-white focus:ring-1 focus:ring-indigo-500">
+                                            <option value="Sunday" {% if auto_backup_config.day == 'Sunday' %}selected{% endif %}>Every Sunday</option>
+                                            <option value="Monday" {% if auto_backup_config.day == 'Monday' %}selected{% endif %}>Every Monday</option>
+                                            <option value="Tuesday" {% if auto_backup_config.day == 'Tuesday' %}selected{% endif %}>Every Tuesday</option>
+                                            <option value="Wednesday" {% if auto_backup_config.day == 'Wednesday' %}selected{% endif %}>Every Wednesday</option>
+                                            <option value="Thursday" {% if auto_backup_config.day == 'Thursday' %}selected{% endif %}>Every Thursday</option>
+                                            <option value="Friday" {% if auto_backup_config.day == 'Friday' %}selected{% endif %}>Every Friday</option>
+                                            <option value="Saturday" {% if auto_backup_config.day == 'Saturday' %}selected{% endif %}>Every Saturday</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Scheduled Time</label>
+                                        <select name="auto_backup_time" class="w-full px-3 py-2 text-xs border border-gray-200 dark:border-midnight-700 rounded-lg bg-white dark:bg-midnight-950 dark:text-white focus:ring-1 focus:ring-indigo-500">
+                                            <option value="02:00" {% if auto_backup_config.time == '02:00' %}selected{% endif %}>02:00 AM (Night)</option>
+                                            <option value="01:00" {% if auto_backup_config.time == '01:00' %}selected{% endif %}>01:00 AM (Night)</option>
+                                            <option value="03:00" {% if auto_backup_config.time == '03:00' %}selected{% endif %}>03:00 AM (Night)</option>
+                                            <option value="04:00" {% if auto_backup_config.time == '04:00' %}selected{% endif %}>04:00 AM (Night)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition active:scale-95 flex items-center gap-1.5">
+                                    <i class="fas fa-save"></i> Save Schedule Settings
+                                </button>
+                            </form>
+
+                            <!-- Manual Run Now Trigger Card -->
+                            <div class="bg-gradient-to-br from-emerald-50 to-teal-50/40 dark:from-emerald-950/20 dark:to-teal-950/20 rounded-xl p-4 border border-emerald-100 dark:border-emerald-900/30 flex flex-col justify-between">
+                                <div>
+                                    <h4 class="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 mb-1 flex items-center gap-2">
+                                        <i class="fas fa-play-circle"></i> Instant Auto Backup
+                                    </h4>
+                                    <p class="text-[11px] text-emerald-700 dark:text-emerald-400 mb-3">
+                                        Run an immediate auto-backup right now and store it in <code class="font-mono text-[10px]">Auto data_backup</code>.
+                                    </p>
+                                </div>
+                                <form method="post">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="run_auto_backup_now">
+                                    <button type="submit" class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition active:scale-95 flex items-center justify-center gap-2 shadow-md shadow-emerald-200 dark:shadow-none">
+                                        <i class="fas fa-sync-alt"></i> Run Auto Backup Now
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Auto Backup File List Table -->
+                        <div class="mt-4">
+                            <h4 class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                                <i class="fas fa-folder text-amber-500"></i> Auto Backup Directory Files (Auto data_backup)
+                                <span class="text-[10px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full font-bold">
+                                    {{ auto_backup_files|length }} File{% if auto_backup_files|length != 1 %}s{% endif %}
+                                </span>
+                            </h4>
+                            {% if auto_backup_files %}
+                            <div class="overflow-x-auto rounded-xl border border-gray-200 dark:border-midnight-700">
+                                <table class="min-w-full text-xs divide-y divide-gray-100 dark:divide-midnight-700">
+                                    <thead class="bg-slate-50 dark:bg-midnight-950/60 text-[11px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-bold">
+                                        <tr>
+                                            <th class="px-4 py-2.5 text-left">File Name</th>
+                                            <th class="px-4 py-2.5 text-left">Created Date</th>
+                                            <th class="px-4 py-2.5 text-left">Size</th>
+                                            <th class="px-4 py-2.5 text-center">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white dark:bg-midnight-900/10 divide-y divide-gray-100 dark:divide-midnight-800">
+                                        {% for file in auto_backup_files %}
+                                        <tr class="hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition">
+                                            <td class="px-4 py-2.5 font-mono font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                                                <i class="fas fa-file-code text-indigo-500"></i>
+                                                {{ file.name }}
+                                            </td>
+                                            <td class="px-4 py-2.5 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                                                {{ file.mtime }}
+                                            </td>
+                                            <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300 font-bold">
+                                                {{ file.size }}
+                                            </td>
+                                            <td class="px-4 py-2.5 text-center whitespace-nowrap">
+                                                <div class="flex items-center justify-center gap-2">
+                                                    <!-- Restore -->
+                                                    <form method="post" class="inline" onsubmit="return confirm('⚠️ WARNING: Restore database from {{ file.name }}? All current data will be overwritten.')">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="action" value="restore_auto_backup_file">
+                                                        <input type="hidden" name="filename" value="{{ file.name }}">
+                                                        <button type="submit" title="Restore Data from this File" class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg transition text-xs font-semibold flex items-center gap-1">
+                                                            <i class="fas fa-undo text-[11px]"></i> Restore
+                                                        </button>
+                                                    </form>
+
+                                                    <!-- Download -->
+                                                    <form method="post" class="inline">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="action" value="download_auto_backup_file">
+                                                        <input type="hidden" name="filename" value="{{ file.name }}">
+                                                        <button type="submit" title="Download Auto Backup File" class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg transition text-xs font-semibold flex items-center gap-1">
+                                                            <i class="fas fa-download text-[11px]"></i> Download
+                                                        </button>
+                                                    </form>
+
+                                                    <!-- Delete -->
+                                                    <form method="post" class="inline" onsubmit="return confirm('Delete this auto backup file permanently?')">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="action" value="delete_auto_backup_file">
+                                                        <input type="hidden" name="filename" value="{{ file.name }}">
+                                                        <button type="submit" title="Delete Auto Backup File" class="px-2.5 py-1 bg-red-50 hover:bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg transition text-xs font-semibold flex items-center gap-1">
+                                                            <i class="fas fa-trash-alt text-[11px]"></i> Delete
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="flex flex-col items-center justify-center py-8 rounded-xl border-2 border-dashed border-gray-200 dark:border-midnight-700">
+                                <i class="fas fa-folder-open text-3xl text-gray-300 dark:text-gray-600 mb-2"></i>
+                                <p class="text-gray-500 dark:text-gray-400 text-xs font-semibold">No auto backup files found in Auto data_backup folder yet.</p>
+                                <p class="text-gray-400 dark:text-gray-500 text-[11px] mt-0.5">Click "Run Auto Backup Now" above to generate your first automated backup file.</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
 
                 {% else %}

@@ -10,3 +10,15 @@ class IspInventoryConfig(AppConfig):
             from . import signals  # noqa: F401
         except Exception:
             pass
+
+        # Start background auto backup scheduler thread
+        import os
+        import threading
+        if os.environ.get('RUN_MAIN') == 'true' or not os.environ.get('RUN_MAIN'):
+            try:
+                from .utils import start_auto_backup_scheduler
+                t = threading.Thread(target=start_auto_backup_scheduler, daemon=True)
+                t.start()
+            except Exception:
+                pass
+

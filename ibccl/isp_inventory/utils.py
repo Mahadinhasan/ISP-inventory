@@ -405,3 +405,153 @@ def cleanup_expired_trash():
     ).update(is_permanently_deleted=True)
 
 
+# ── AUTO DATA BACKUP SYSTEM (Weekly at 2 AM -> Auto data_backup folder) ──────
+import os
+from django.conf import settings
+
+AUTO_BACKUP_DIR = os.path.join(settings.BASE_DIR, 'Auto data_backup')
+
+def get_auto_backup_config():
+    """Retrieve auto backup settings from SystemSetting table."""
+    from .models import SystemSetting
+    enabled_obj = SystemSetting.objects.filter(key='auto_backup_enabled').first()
+    day_obj = SystemSetting.objects.filter(key='auto_backup_day').first()
+    time_obj = SystemSetting.objects.filter(key='auto_backup_time').first()
+    last_run_obj = SystemSetting.objects.filter(key='auto_backup_last_run').first()
+
+    return {
+        'enabled': enabled_obj.value.lower() == 'true' if enabled_obj else True,
+        'day': day_obj.value if day_obj else 'Sunday',
+        'time': time_obj.value if time_obj else '02:00',
+        'last_run': last_run_obj.value if last_run_obj else 'Never',
+        'path': AUTO_BACKUP_DIR,
+    }
+
+def run_auto_backup(user=None, trigger_type='scheduled'):
+    """
+    Executes an automated or manual backup saved directly to 'Auto data_backup' folder.
+    """
+    import os
+    import json
+    import hashlib
+    from io import StringIO
+    from django.core.management import call_command
+    from django.utils import timezone
+    from .models import SystemSetting, ActivityLog
+
+    os.makedirs(AUTO_BACKUP_DIR, exist_ok=True)
+
+    timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"auto_backup_{timestamp}.json"
+    file_path = os.path.join(AUTO_BACKUP_DIR, filename)
+
+    exclude_models = ['auth.permission', 'contenttypes', 'admin.logentry', 'sessions.session']
+
+    out = StringIO()
+    call_command('dumpdata', exclude=exclude_models, stdout=out, indent=2)
+    backup_data = out.getvalue()
+
+    if not backup_data:
+        raise ValueError("No data returned during dumpdata.")
+
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(backup_data)
+
+    records_count = 0
+    try:
+        data_list = json.loads(backup_data)
+        records_count = len(data_list)
+    except Exception:
+        pass
+
+    now_str = timezone.now().strftime("%Y-%m-%d %H:%M:%S")
+    SystemSetting.objects.update_or_create(
+        key='auto_backup_last_run',
+        defaults={'value': now_str, 'description': 'Timestamp of last auto data backup execution'}
+    )
+
+    if user and hasattr(user, 'is_authenticated') and user.is_authenticated:
+        ActivityLog.objects.create(
+            user=user,
+            activity_type='create',
+            description=f"Triggered Auto Data Backup saved to Auto data_backup/{filename} ({records_count} records)"
+        )
+
+    return {
+        'filename': filename,
+        'path': file_path,
+        'records_count': records_count,
+        'size': len(backup_data),
+        'timestamp': now_str,
+    }
+
+def get_auto_backup_files_list():
+    """Returns list of auto backup JSON files in Auto data_backup folder."""
+    import os
+    from datetime import datetime
+
+    os.makedirs(AUTO_BACKUP_DIR, exist_ok=True)
+
+    files_list = []
+    try:
+        for fname in os.listdir(AUTO_BACKUP_DIR):
+            if fname.endswith('.json'):
+                fpath = os.path.join(AUTO_BACKUP_DIR, fname)
+                if os.path.isfile(fpath):
+                    stat = os.stat(fpath)
+                    size_mb = stat.st_size / (1024 * 1024)
+                    size_str = f"{size_mb:.2f} MB" if size_mb >= 1 else f"{stat.st_size / 1024:.1f} KB"
+                    mtime_dt = datetime.fromtimestamp(stat.st_mtime)
+                    files_list.append({
+                        'name': fname,
+                        'size': size_str,
+                        'bytes': stat.st_size,
+                        'mtime': mtime_dt.strftime("%Y-%m-%d %H:%M:%S"),
+                        'path': fpath,
+                    })
+    except Exception:
+        pass
+
+    files_list.sort(key=lambda x: x['mtime'], reverse=True)
+    return files_list
+
+_auto_backup_scheduler_started = False
+
+def start_auto_backup_scheduler():
+    """Background scheduler thread that executes auto backup every week night at 2 AM."""
+    global _auto_backup_scheduler_started
+    if _auto_backup_scheduler_started:
+        return
+    _auto_backup_scheduler_started = True
+
+    import time
+    from datetime import datetime
+    from django.utils import timezone
+
+    while True:
+        try:
+            time.sleep(60)
+            config = get_auto_backup_config()
+            if not config['enabled']:
+                continue
+
+            now = timezone.now()
+            day_map = {'Monday': 0, 'Tuesday': 1, 'Wednesday': 2, 'Thursday': 3, 'Friday': 4, 'Saturday': 5, 'Sunday': 6}
+            target_day_idx = day_map.get(config['day'], 6)
+            target_hour = int(config['time'].split(':')[0]) if ':' in config['time'] else 2
+
+            if now.weekday() == target_day_idx and now.hour == target_hour and now.minute < 3:
+                last_run_str = config['last_run']
+                if last_run_str != 'Never':
+                    try:
+                        last_run_dt = datetime.strptime(last_run_str, "%Y-%m-%d %H:%M:%S")
+                        if (now.replace(tzinfo=None) - last_run_dt).total_seconds() < 80000:
+                            continue
+                    except Exception:
+                        pass
+                run_auto_backup(trigger_type='scheduled')
+        except Exception as e:
+            print(f"[AutoBackupScheduler Exception]: {e}")
+
+
+

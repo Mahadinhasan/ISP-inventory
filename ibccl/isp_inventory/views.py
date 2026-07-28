@@ -1881,7 +1881,7 @@ def reports_view(request):
             for item in daily_damaged_summary
         ]
 
-    damage_paginator = Paginator(daily_damaged_materials, 10)
+    damage_paginator = Paginator(daily_damaged_materials, 5)
     damage_page_obj = damage_paginator.get_page(request.GET.get('damage_page'))
     daily_damaged_materials_display = damage_page_obj.object_list
 
@@ -3581,6 +3581,94 @@ def settings_view(request):
             except (User.DoesNotExist, Group.DoesNotExist):
                 messages.error(request, "User or group not found.")
 
+        # ── Auto Data Backup Actions ─────────────────────────────────────────
+        elif action == 'save_auto_backup_config':
+            if profile.role != 'Admin':
+                messages.error(request, "Only Admin can update Auto Backup settings.")
+                return redirect('settings')
+            enabled_val = 'true' if request.POST.get('auto_backup_enabled') == 'on' else 'false'
+            day_val = request.POST.get('auto_backup_day', 'Sunday')
+            time_val = request.POST.get('auto_backup_time', '02:00')
+            
+            SystemSetting.objects.update_or_create(key='auto_backup_enabled', defaults={'value': enabled_val, 'description': 'Enable or disable automated weekly data backup'})
+            SystemSetting.objects.update_or_create(key='auto_backup_day', defaults={'value': day_val, 'description': 'Day of week for auto data backup'})
+            SystemSetting.objects.update_or_create(key='auto_backup_time', defaults={'value': time_val, 'description': 'Time for auto data backup'})
+            
+            messages.success(request, "Auto Data Backup configuration updated successfully!")
+            return redirect('settings')
+
+        elif action == 'run_auto_backup_now':
+            if profile.role != 'Admin':
+                messages.error(request, "Only Admin can trigger Auto Backup.")
+                return redirect('settings')
+            try:
+                from .utils import run_auto_backup
+                res = run_auto_backup(user=request.user, trigger_type='manual')
+                messages.success(request, f"Auto Data Backup completed! File saved: {res['filename']} ({res['records_count']} records)")
+            except Exception as e:
+                messages.error(request, f"Auto Data Backup failed: {str(e)}")
+            return redirect('settings')
+
+        elif action == 'delete_auto_backup_file':
+            if profile.role != 'Admin':
+                messages.error(request, "Only Admin can delete backup files.")
+                return redirect('settings')
+            filename = request.POST.get('filename', '').strip()
+            if filename and '/' not in filename and '\\' not in filename and filename.endswith('.json'):
+                from .utils import AUTO_BACKUP_DIR
+                import os
+                target_path = os.path.join(AUTO_BACKUP_DIR, filename)
+                if os.path.exists(target_path):
+                    try:
+                        os.remove(target_path)
+                        messages.success(request, f"Backup file '{filename}' deleted successfully.")
+                    except Exception as e:
+                        messages.error(request, f"Error deleting file: {str(e)}")
+                else:
+                    messages.error(request, "Backup file not found.")
+            else:
+                messages.error(request, "Invalid filename.")
+            return redirect('settings')
+
+        elif action == 'download_auto_backup_file':
+            if profile.role != 'Admin':
+                messages.error(request, "Only Admin can download backup files.")
+                return redirect('settings')
+            filename = request.POST.get('filename', '').strip()
+            if filename and '/' not in filename and '\\' not in filename and filename.endswith('.json'):
+                from .utils import AUTO_BACKUP_DIR
+                import os
+                target_path = os.path.join(AUTO_BACKUP_DIR, filename)
+                if os.path.exists(target_path):
+                    with open(target_path, 'rb') as f:
+                        file_data = f.read()
+                    response = HttpResponse(file_data, content_type='application/json')
+                    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+                    return response
+            messages.error(request, "File not found or invalid.")
+            return redirect('settings')
+
+        elif action == 'restore_auto_backup_file':
+            if profile.role != 'Admin':
+                messages.error(request, "Only Admin can restore backup files.")
+                return redirect('settings')
+            filename = request.POST.get('filename', '').strip()
+            if filename and '/' not in filename and '\\' not in filename and filename.endswith('.json'):
+                from .utils import AUTO_BACKUP_DIR
+                import os
+                target_path = os.path.join(AUTO_BACKUP_DIR, filename)
+                if os.path.exists(target_path):
+                    try:
+                        call_command('loaddata', target_path)
+                        messages.success(request, f"Database successfully restored from '{filename}'!")
+                    except Exception as e:
+                        messages.error(request, f"Restore failed: {str(e)}")
+                else:
+                    messages.error(request, "Backup file not found.")
+            else:
+                messages.error(request, "Invalid filename.")
+            return redirect('settings')
+
 
         return redirect('settings')
 
@@ -3635,6 +3723,11 @@ def settings_view(request):
         'created_by', 'deleted_by', 'restored_by'
     ).order_by('-created_at')[:50]
     
+    # Auto Data Backup System Context
+    from .utils import get_auto_backup_config, get_auto_backup_files_list
+    auto_backup_config = get_auto_backup_config()
+    auto_backup_files = get_auto_backup_files_list()
+
     context = {
         'users': users,
         'groups': Group.objects.all(),
@@ -3666,6 +3759,9 @@ def settings_view(request):
         'log_user_filter': log_user_filter,
         'log_type_filter': log_type_filter,
         'backup_history': backup_history,
+        # Auto Backup System
+        'auto_backup_config': auto_backup_config,
+        'auto_backup_files': auto_backup_files,
     }
     return render(request, 'inventory/settings.html', context)
 

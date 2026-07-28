@@ -144,23 +144,23 @@
 
         <!-- Est. Amount (per-branch totals) -->
         {% if role != 'Branch' %}
-        <div class="rpt-card">
+        <div class="rpt-card min-w-0 max-w-full overflow-hidden">
             <p class="section-title"><i class="fas fa-dollar-sign"></i> Est. Amount</p>
-            <div class="grid gap-4">
-                <div class="overflow-x-auto">
+            <div class="grid gap-4 min-w-0">
+                <div class="overflow-x-auto w-full max-w-full min-w-0">
                     {% if est_amounts %}
-                    <table class="rpt-table">
+                    <table class="rpt-table w-full">
                         <thead>
                             <tr>
-                                <th>Branch</th>
-                                <th class="text-right">Amount (৳)</th>
+                                <th class="w-3/4">Branch</th>
+                                <th class="w-1/4 text-right">Amount (৳)</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for b in est_amounts %}
                             <tr>
-                                <td>{{ b.branch_name }}</td>
-                                <td class="text-right font-bold">{{ b.amount|floatformat:2 }}</td>
+                                <td class="break-words font-medium">{{ b.branch_name }}</td>
+                                <td class="text-right font-bold whitespace-nowrap">{{ b.amount|floatformat:2 }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -184,7 +184,7 @@
                     <div class="text-center py-8 text-gray-400">No amount data available for the selected period.</div>
                     {% endif %}
                 </div>
-                <div style="position:relative; height:200px;">
+                <div style="position:relative; height:200px;" class="w-full min-w-0">
                     <canvas id="estChart"></canvas>
                 </div>
             </div>
@@ -194,23 +194,23 @@
         <!-----only branch role user can show it-->
         <!----Daily Damaged materials data---->
         {% if role != 'Admin' and role != 'Storekeeper' %}
-        <div class="rpt-card">
+        <div class="rpt-card min-w-0 max-w-full overflow-hidden">
             <p class="section-title"><i class="fas fa-times-circle"></i> Damaged Materials</p>
-            <div class="grid gap-4">
-                <div class="overflow-x-auto">
+            <div class="grid gap-4 min-w-0">
+                <div class="overflow-x-auto w-full max-w-full min-w-0">
                     {% if daily_damaged_materials %}
-                    <table class="rpt-table">
+                    <table class="rpt-table w-full">
                         <thead>
                             <tr>
-                                <th>{% if selected_user %}Material{% else %}Branch{% endif %}</th>
-                                <th class="text-right">Quantity</th>
+                                <th class="w-3/4">{% if selected_user %}Material{% else %}Branch{% endif %}</th>
+                                <th class="w-1/4 text-right">Quantity</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for b in daily_damaged_materials %}
                             <tr>
-                                <td>{{ b.branch_name }}</td>
-                                <td class="text-right font-bold">{{ b.damaged_materials }}</td>
+                                <td class="break-words font-medium">{{ b.branch_name }}</td>
+                                <td class="text-right font-bold whitespace-nowrap">{{ b.damaged_materials }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -234,7 +234,7 @@
                     <div class="text-center py-8 text-gray-400">No damaged materials data available today.</div>
                     {% endif %}
                 </div>
-                <div style="position:relative; height:200px;">
+                <div style="position:relative; height:200px;" class="w-full min-w-0">
                     <canvas id="dailyDamagedMaterialsChart"></canvas>
                 </div>
             </div>

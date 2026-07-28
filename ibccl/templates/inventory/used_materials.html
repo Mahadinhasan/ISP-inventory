@@ -5,38 +5,42 @@
 {% block content %}
 <div class="space-y-6">
     <!-- Header and Controls Row -->
-    <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-4">
+    <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3 sm:gap-4 mb-4">
         <div>
-            <h1 class="text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent dark:from-indigo-400 dark:via-purple-400 dark:to-pink-400 whitespace-nowrap">Used Materials</h1>
+            <h1 class="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent dark:from-indigo-400 dark:via-purple-400 dark:to-pink-400 whitespace-nowrap">Used Materials</h1>
         </div>
         
-        <!-- Controls Container (All inline) -->
-        <div class="flex flex-wrap items-center gap-3">
-            {% if user.userprofile.role != 'Admin' and user.userprofile.role != 'Storekeeper' %}
-            <button onclick="openAddModal()" class="btn-primary px-5 py-2.5 rounded-xl font-bold transition-all inline-flex items-center gap-2 shadow-lg whitespace-nowrap">
-                <i class="fas fa-plus"></i>Add Used Material
-            </button>
-            {% endif %}
-            {% if user.userprofile.role == 'Branch' %}
-            <!-- Dynamic Bulk/Single Delete Button -->
-            <button id="radio-delete-btn" onclick="deleteSelectedItems()" type="button" class="hidden bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white px-4 py-2.5 rounded-xl font-bold transition-all shadow-lg items-center gap-2 text-sm whitespace-nowrap">
-                <i class="fas fa-trash-alt"></i> Delete Selected (<span id="selected-count">0</span>)
-            </button>
-            {% endif %}
-            <!-- Used Materials Count -->
-            <div class="font-medium text-gray-700 dark:text-gray-200 bg-gradient-to-r from-pink-100 via-white to-purple-100 dark:from-pink-900/20 dark:via-midnight-900/20 dark:to-purple-900/20 border border-gray-200 dark:border-midnight-800 px-3 py-2 rounded-lg shadow-sm whitespace-nowrap flex items-center text-sm">
-                Total Used Materials: <span class="font-bold text-pink-600 dark:text-pink-400 text-base ml-2">{{ total_used }}</span>
+        <!-- Controls Container (Clean 2-Row Layout on Mobile, 1-Row on Desktop) -->
+        <div class="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 sm:gap-3 w-full xl:w-auto">
+            <!-- Mobile Row 1: Action Buttons + Total Badge -->
+            <div class="flex items-center justify-between gap-2 w-full sm:w-auto">
+                {% if user.userprofile.role != 'Admin' and user.userprofile.role != 'Storekeeper' %}
+                <button onclick="openAddModal()" class="btn-primary px-3.5 py-2 sm:px-5 sm:py-2.5 rounded-xl font-bold transition-all inline-flex items-center gap-1.5 shadow-md whitespace-nowrap text-xs sm:text-sm">
+                    <i class="fas fa-plus"></i>Add Used Material
+                </button>
+                {% endif %}
+                {% if user.userprofile.role == 'Branch' %}
+                <!-- Dynamic Bulk/Single Delete Button -->
+                <button id="radio-delete-btn" onclick="deleteSelectedItems()" type="button" class="hidden bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl font-bold transition-all shadow-md items-center gap-1.5 text-xs sm:text-sm whitespace-nowrap">
+                    <i class="fas fa-trash-alt"></i> Delete Selected (<span id="selected-count">0</span>)
+                </button>
+                {% endif %}
+                <!-- Used Materials Count -->
+                <div class="font-medium text-gray-700 dark:text-gray-200 bg-gradient-to-r from-pink-100 via-white to-purple-100 dark:from-pink-900/20 dark:via-midnight-900/20 dark:to-purple-900/20 border border-gray-200 dark:border-midnight-800 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg shadow-sm whitespace-nowrap flex items-center text-xs sm:text-sm ml-auto sm:ml-0">
+                    Total Used: <span class="font-bold text-pink-600 dark:text-pink-400 text-xs sm:text-base ml-1.5">{{ total_used }}</span>
+                </div>
             </div>
 
-            <!-- Filter & Search Form -->
-            <form method="get" id="inventory-filter-form" class="flex items-center gap-2 m-0">
+            <!-- Mobile Row 2: Filter & Search Form -->
+            <form method="get" id="inventory-filter-form" class="flex items-center gap-1.5 sm:gap-2 m-0 w-full sm:w-auto">
                 {% if request.GET.tab_id %}
                 <input type="hidden" name="tab_id" value="{{ request.GET.tab_id }}">
                 {% endif %}
                 
                 {% if role == 'Admin' or role == 'Storekeeper' %}
+                <!-- Dropdown: small box width (100px on mobile) -->
                 <select name="user_id" onchange="submitInventoryFilterForm()"
-                    class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white text-sm font-medium w-40">
+                    class="styled bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-xl px-2 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white text-xs sm:text-sm font-medium w-[100px] sm:w-32 flex-shrink-0 cursor-pointer">
                     <option value="">All Users</option>
                     {% for branch_user in branch_users %}
                     <option value="{{ branch_user.id }}" {% if request.GET.user_id == branch_user.id|stringformat:"d" %}selected{% endif %}>
@@ -45,19 +49,21 @@
                 </select>
                 {% endif %}
                 
-                <div class="flex items-center">
-                    <input type="text" name="search" placeholder="Search..." value="{{ request.GET.search }}"
-                        class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-l-xl px-4 py-2.5 focus:outline-none focus:border-indigo-500 transition-all w-48 dark:text-white text-sm">
-                    <button type="submit"
-                        class="bg-gray-100 dark:bg-midnight-800 text-gray-500 dark:text-gray-400 px-4 py-2.5 rounded-r-xl border-2 border-l-0 border-gray-100 dark:border-midnight-800 hover:bg-gray-200 dark:hover:bg-midnight-700 transition-all">
-                        <i class="fas fa-search"></i>
-                    </button>
+                <!-- Search Input: boro box width filling rest of row -->
+                <div class="flex items-center flex-1 sm:flex-initial min-w-0">
+                    <input type="text" id="inventory-search-input" name="search" placeholder="Search..." value="{{ request.GET.search }}"
+                        oninput="handleAutoSearch()"
+                        class="styled bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-l-xl px-3 sm:px-4 py-2 focus:outline-none focus:border-indigo-500 transition-all w-full flex-1 sm:w-64 md:w-80 min-w-0 dark:text-white text-xs sm:text-sm">
+                    <!-- <button type="submit"
+                        class="bg-gray-100 dark:bg-midnight-800 text-gray-500 dark:text-gray-400 px-3.5 sm:px-4 py-2 rounded-r-xl border-2 border-l-0 border-gray-100 dark:border-midnight-800 hover:bg-gray-200 dark:hover:bg-midnight-700 transition-all flex-shrink-0">
+                        <i class="fas fa-search text-xs sm:text-sm"></i>
+                    </button> -->
                 </div>
             </form>
         </div>
     </div>
     <!-- Used Materials List -->
-    <div class="bg-white dark:bg-midnight-900/40 glass-card rounded-[0.6rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-midnight-800 mx-4">
+    <div class="bg-white dark:bg-midnight-900/40 glass-card rounded-[0.6rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-midnight-800 mx-2 sm:mx-4">
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-900 dark:divide-midnight-800">
             <thead class="bg-gray-50/50 dark:bg-midnight-950/50">
@@ -652,9 +658,9 @@
         }
     });
 
-    // Style Django form fields and attach listeners
+    // Style Django form fields inside Add/Edit Modal and attach listeners
     document.addEventListener('DOMContentLoaded', () => {
-        const inputs = document.querySelectorAll('select, input[type="text"], input[type="tel"], input[type="number"], textarea');
+        const inputs = document.querySelectorAll('#addEditModal select, #addEditModal input[type="text"], #addEditModal input[type="tel"], #addEditModal input[type="number"], #addEditModal textarea');
         inputs.forEach(input => {
             if (!input.classList.contains('styled')) {
                 input.classList.add('w-full', 'px-4', 'py-3', 'border-2', 'border-gray-300', 'rounded-lg', 'focus:outline-none', 'focus:border-indigo-600', 'focus:ring-2', 'focus:ring-indigo-200', 'transition');
@@ -697,11 +703,43 @@
         // Submit the form
         form.submit();
     }
+
+    // Debounced Auto Search Function
+    let autoSearchTimer = null;
+    function handleAutoSearch() {
+        if (autoSearchTimer) {
+            clearTimeout(autoSearchTimer);
+        }
+        autoSearchTimer = setTimeout(function() {
+            submitInventoryFilterForm();
+        }, 400);
+    }
+
+    // Preserve focus and position cursor at end of input when page loads with active search
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('inventory-search-input');
+        if (searchInput && searchInput.value) {
+            searchInput.focus();
+            const valLen = searchInput.value.length;
+            searchInput.setSelectionRange(valLen, valLen);
+        }
+    });
 </script>
 
 <style>
     #addEditModal.hidden, #deleteModal.hidden {
         display: none !important;
+    }
+    table, table th, table td {
+        font-size: 12px !important;
+    }
+    .text-sm {
+        font-size: 12px !important;
+        line-height: 16px !important;
+    }
+    .text-xs {
+        font-size: 12px !important;
+        line-height: 16px !important;
     }
 </style>
 {% endblock %}

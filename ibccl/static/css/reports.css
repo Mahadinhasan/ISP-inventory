@@ -3,8 +3,12 @@
         background: #fff;
         border-radius: 1.1rem;
         box-shadow: 0 4px 24px rgba(79, 70, 229, .08), 0 1px 4px rgba(0, 0, 0, .04);
-        padding: 1.5rem;
+        padding: 1.25rem;
         transition: box-shadow .2s;
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+        box-sizing: border-box;
     }
 
     .rpt-card:hover {
@@ -20,6 +24,8 @@
         overflow: hidden;
         transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        min-width: 0;
+        max-width: 100%;
     }
 
     .stat-card:hover {
@@ -61,6 +67,8 @@
         align-items: center;
         position: relative;
         overflow: hidden;
+        min-width: 0;
+        max-width: 100%;
     }
 
     .secondary-card:hover {
@@ -104,17 +112,19 @@
     /* Table with full row and column grid lines */
     .rpt-table {
         width: 100%;
+        max-width: 100%;
         border-collapse: collapse;
         font-size: .83rem;
         border: 1px solid #e2e8f0;
         border-radius: 0.5rem;
         overflow: hidden;
+        box-sizing: border-box;
     }
 
     .rpt-table th {
         background: linear-gradient(135deg, #4f46e5, #7c3aed);
         color: #fff;
-        padding: .75rem 1rem;
+        padding: .75rem .75rem;
         text-align: left;
         font-weight: 700;
         font-size: .72rem;
@@ -122,6 +132,8 @@
         text-transform: uppercase;
         border-right: 1px solid rgba(255, 255, 255, 0.2);
         border-bottom: 2px solid #c7d2fe;
+        word-break: break-word;
+        overflow-wrap: break-word;
     }
 
     .rpt-table th:last-child {
@@ -129,10 +141,12 @@
     }
 
     .rpt-table td {
-        padding: .65rem 1rem;
+        padding: .65rem .75rem;
         border-bottom: 1px solid #e2e8f0;
         border-right: 1px solid #e2e8f0;
         color: #374151;
+        word-break: break-word;
+        overflow-wrap: break-word;
     }
 
     .rpt-table td:last-child {
