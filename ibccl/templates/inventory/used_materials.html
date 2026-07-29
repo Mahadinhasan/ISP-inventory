@@ -98,7 +98,7 @@
                             Address</th>
                         <th scope="col"
                             class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
-                            Phone</th>
+                            Dispatched to</th>
                         <th scope="col"
                             class="px-4 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider">
                             Issue</th>
@@ -148,7 +148,7 @@
                             {{ item.quantity }}</td>
                         <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{{ item.client_name|default:"N/A" }}</td>
                         <td class="px-4 py-4 text-sm text-gray-700">{{ item.client_address|default:"N/A"|truncatewords:10 }}</td>
-                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{{ item.client_phone|default:"N/A" }}</td>
+                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{{ item.dispatched_to|default:"N/A" }}</td>
                         <td class="px-4 py-4 text-sm text-gray-700">{{ item.issue|default:"N/A"|truncatewords:8 }}</td>
                         <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{{item.added_at|date:"d-m-Y"}}</td>
                         <td class="px-4 py-4 whitespace-nowrap">
@@ -248,11 +248,11 @@
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">
-                            <i class="fas fa-phone text-blue-600 mr-1"></i>Phone
+                            <i class="fas fa-truck text-blue-600 mr-1"></i>Dispatched to
                         </label>
-                        {{ form.client_phone }}
-                        {% if form.client_phone.errors %}
-                        <p class="text-red-500 text-xs mt-1">{{ form.client_phone.errors.0 }}</p>
+                        {{ form.dispatched_to }}
+                        {% if form.dispatched_to.errors %}
+                        <p class="text-red-500 text-xs mt-1">{{ form.dispatched_to.errors.0 }}</p>
                         {% endif %}
                     </div>
                 </div>
@@ -597,7 +597,11 @@
             }
 
             document.getElementById('id_client_name').value = data.client_name || '';
-            document.getElementById('id_client_phone').value = data.client_phone || '';
+            if (document.getElementById('id_dispatched_to')) {
+                document.getElementById('id_dispatched_to').value = data.dispatched_to || '';
+            } else if (document.getElementById('id_client_phone')) {
+                document.getElementById('id_client_phone').value = data.client_phone || '';
+            }
             document.getElementById('id_client_address').value = data.client_address || '';
             document.getElementById('id_quantity').value = data.quantity;
             document.getElementById('id_issue').value = data.issue || '';

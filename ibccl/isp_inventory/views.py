@@ -925,9 +925,9 @@ def materials_view(request):
     storekeeper_total_price = storekeeper_materials_qs.aggregate(total=Sum('total_price'))['total'] or 0
     storekeeper_total_count = storekeeper_materials_qs.count()
 
-    # 1-click Store Type Filter for Admin (all, storekeeper, noc)
+    # 1-click Store Type Filter for Admin and Storekeeper (all, storekeeper, noc)
     store_type = request.GET.get('store_type', 'all').strip().lower()
-    if role == 'Admin':
+    if role in ['Admin', 'Storekeeper']:
         if store_type == 'storekeeper':
             materials = storekeeper_materials_qs.order_by('-added_at')
         elif store_type == 'noc':
@@ -3872,6 +3872,7 @@ def used_materials_view(request):
             Q(technician__last_name__icontains=search_query)|
             Q(client_name__icontains=search_query) |
             Q(client_phone__icontains=search_query) |
+            Q(dispatched_to__icontains=search_query) |
             Q(mac_serial__mac_serial__icontains=search_query) |
             Q(client_address__icontains=search_query)
         ).distinct()
@@ -4073,6 +4074,7 @@ def used_materials_view(request):
                             um.status = new_status
                             um.client_name = form.cleaned_data.get('client_name', '') or ''
                             um.client_phone = form.cleaned_data.get('client_phone', '') or ''
+                            um.dispatched_to = form.cleaned_data.get('dispatched_to', '') or ''
                             um.client_address = form.cleaned_data.get('client_address', '') or ''
                             um.issue = form.cleaned_data.get('issue', '') or ''
                             um.save()
@@ -4256,6 +4258,7 @@ def get_used_material_api(request, pk):
         'material_category': used_material.material.category,
         'client_name': used_material.client_name or '',
         'client_phone': used_material.client_phone or '',
+        'dispatched_to': used_material.dispatched_to or '',
         'client_address': used_material.client_address or '',
         'quantity': used_material.quantity,
         'issue': used_material.issue or '',

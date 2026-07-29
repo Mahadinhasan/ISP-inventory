@@ -92,7 +92,7 @@
     <div class="bg-white dark:bg-midnight-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-midnight-800 p-4 mb-6">
         <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
 
-            {% if role == 'Admin' %}
+            {% if role == 'Admin' or role == 'Storekeeper' %}
             <!-- 1-Click Store Selection Tabs -->
             <div class="flex items-center gap-1.5 bg-slate-100 dark:bg-midnight-950 p-1.5 rounded-xl border border-slate-200/60 dark:border-midnight-800 self-start xl:self-auto overflow-x-auto max-w-full">
                 <a href="?store_type=all{% if search %}&search={{ search }}{% endif %}{% if category %}&category={{ category }}{% endif %}{% if stock_status %}&stock_status={{ stock_status }}{% endif %}"
@@ -111,7 +111,7 @@
             {% endif %}
 
             <!-- Search and Filter Form -->
-            <form method="get" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 xl:justify-end">
+            <form id="materialsFilterForm" method="get" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 xl:justify-end">
                 {% if store_type %}
                 <input type="hidden" name="store_type" value="{{ store_type }}">
                 {% endif %}
@@ -119,12 +119,13 @@
                 <!-- Search Input -->
                 <div class="relative flex-1 sm:max-w-xs">
                     <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
-                    <input type="text" name="search" value="{{ search }}" placeholder="Search material..."
+                    <input type="text" id="searchMaterialInput" name="search" value="{{ search }}" placeholder="Search material..."
+                        oninput="debounceSubmit()"
                         class="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-midnight-950 border border-slate-200 dark:border-midnight-800 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:text-white">
                 </div>
 
                 <!-- Category Select -->
-                <select name="category" class="px-3 py-2 bg-slate-50 dark:bg-midnight-950 border border-slate-200 dark:border-midnight-800 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:text-white">
+                <select name="category" onchange="this.form.submit()" class="px-3 py-2 bg-slate-50 dark:bg-midnight-950 border border-slate-200 dark:border-midnight-800 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:text-white">
                     <option value="">All Categories</option>
                     <option value="Internet" {% if category == 'Internet' %}selected{% endif %}>Internet</option>
                     <option value="Dish" {% if category == 'Dish' %}selected{% endif %}>Dish</option>
@@ -134,22 +135,12 @@
                 </select>
 
                 <!-- Stock Status Select -->
-                <select name="stock_status" class="px-3 py-2 bg-slate-50 dark:bg-midnight-950 border border-slate-200 dark:border-midnight-800 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:text-white">
+                <select name="stock_status" onchange="this.form.submit()" class="px-3 py-2 bg-slate-50 dark:bg-midnight-950 border border-slate-200 dark:border-midnight-800 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:text-white">
                     <option value="">All Stock Status</option>
                     <option value="low" {% if stock_status == 'low' %}selected{% endif %}>Low Stock</option>
                     <option value="normal" {% if stock_status == 'normal' %}selected{% endif %}>Normal Stock</option>
                     <option value="out_of_stock" {% if stock_status == 'out_of_stock' %}selected{% endif %}>Out of Stock</option>
                 </select>
-
-                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5">
-                    <i class="fas fa-filter"></i> Filter
-                </button>
-
-                {% if search or category or stock_status or store_type and store_type != 'all' %}
-                <a href="{% url 'materials' %}" class="px-3 py-2 bg-slate-100 dark:bg-midnight-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-xl text-xs font-bold transition-all text-center">
-                    Reset
-                </a>
-                {% endif %}
             </form>
         </div>
     </div>
@@ -531,11 +522,28 @@
         if (displayTotal) displayTotal.textContent = (qty * rate).toString();
     }
 
+    let searchDebounceTimer;
+    function debounceSubmit() {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(() => {
+            const form = document.getElementById('materialsFilterForm');
+            if (form) form.submit();
+        }, 450);
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         const qtyInput = document.getElementById('id_quantity');
         const rateInput = document.getElementById('id_rate');
         if(qtyInput) qtyInput.addEventListener('input', updateTotal);
         if(rateInput) rateInput.addEventListener('input', updateTotal);
+
+        const searchInput = document.getElementById('searchMaterialInput');
+        if (searchInput && searchInput.value) {
+            searchInput.focus();
+            const val = searchInput.value;
+            searchInput.value = '';
+            searchInput.value = val;
+        }
     });
 
     function exportMaterialsExcel() {

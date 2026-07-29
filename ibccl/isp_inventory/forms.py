@@ -200,10 +200,10 @@ class UsedMaterialForm(forms.ModelForm):
 
     class Meta:
         model = UsedMaterial
-        fields = ['material_selection', 'client_name', 'client_phone', 'client_address', 'quantity', 'issue', 'status']
+        fields = ['material_selection', 'client_name', 'dispatched_to', 'client_address', 'quantity', 'issue', 'status']
         labels = {
             'client_name': 'Client Name',
-            'client_phone': 'Client Phone',
+            'dispatched_to': 'Dispatched To',
             'client_address': 'Client Address',
             'quantity': 'Quantity Used',
             'issue': 'Technical Issue / Notes',
@@ -222,9 +222,9 @@ class UsedMaterialForm(forms.ModelForm):
                 'rows': 3,
                 'placeholder': 'Enter client address'
             }),
-            'client_phone': forms.TextInput(attrs={
+            'dispatched_to': forms.TextInput(attrs={
                 'class': 'w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500',
-                'placeholder': 'Enter client phone number'
+                'placeholder': 'Enter dispatched to'
             }),
             'quantity': forms.NumberInput(attrs={
                 'class': 'w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500',

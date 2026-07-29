@@ -481,6 +481,7 @@ class UsedMaterial(models.Model):
     client_name = models.CharField(max_length=200, blank=True, verbose_name='Client Name')
     client_address = models.TextField(blank=True, verbose_name='Client Address')
     client_phone = models.CharField(max_length=20, blank=True, verbose_name='Client Phone')
+    dispatched_to = models.CharField(max_length=200, blank=True, verbose_name='Dispatched To')
     # Material Usage Details
     mac_serial = models.ForeignKey('MacSerialNumber', on_delete=models.SET_NULL, null=True, blank=True, related_name='used_records', help_text="Specific Mac/Serial number used")
     quantity = models.IntegerField(default=1)
