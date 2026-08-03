@@ -146,6 +146,18 @@ class Material(models.Model):
     is_deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(null=True, blank=True)
 
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Material'
+        verbose_name_plural = 'Materials'
+        indexes = [
+            models.Index(fields=['name']),
+            models.Index(fields=['category']),
+            models.Index(fields=['status']),
+            models.Index(fields=['is_deleted']),
+            models.Index(fields=['created_by']),
+        ]
+
     def __str__(self):
         stock_indicator = " (in stock)" if self.quantity > 0 else ""
         return f"{self.name}{stock_indicator}"
@@ -260,7 +272,7 @@ class Material(models.Model):
 
             if self.quantity <= 0:
                 self.status = 'Out of Stock'
-            elif self.quantity < (self.min_stock_level or 0):
+            elif (self.min_stock_level or 0) > 0 and self.quantity < (self.min_stock_level or 0):
                 self.status = 'Low Stock'
             else:
                 if self.status not in ('Reserved', 'Deprecated'):
@@ -370,6 +382,19 @@ class MaterialRequest(models.Model):
     # Soft delete fields to preserve branch stock when admin/noc deletes
     is_hidden_by_admin = models.BooleanField(default=False)
     is_hidden_by_noc = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-requested_at']
+        verbose_name = 'Material Request'
+        verbose_name_plural = 'Material Requests'
+        indexes = [
+            models.Index(fields=['status', '-requested_at']),
+            models.Index(fields=['requester', '-requested_at']),
+            models.Index(fields=['material', '-requested_at']),
+            models.Index(fields=['is_archived']),
+            models.Index(fields=['is_hidden_by_admin']),
+            models.Index(fields=['is_hidden_by_noc']),
+        ]
 
     def __str__(self):
         return f"{self.requester} - {self.material.name}"
@@ -509,6 +534,16 @@ class UsedMaterial(models.Model):
             models.Index(fields=['status']),
             models.Index(fields=['material_request', 'technician']),
         ]
+
+    @property
+    def is_editable(self):
+        """Check if item can still be edited (editable only within its creation month)."""
+        if self.is_archived:
+            return False
+        now = timezone.now()
+        if (self.added_at.year < now.year) or (self.added_at.year == now.year and self.added_at.month < now.month):
+            return False
+        return True
 
     @property
     def category(self):

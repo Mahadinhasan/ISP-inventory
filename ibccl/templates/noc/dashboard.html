@@ -180,6 +180,7 @@
                     </thead>
                     <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
                         {% for mat in all_materials %}
+                        {% if mat.quantity > 0 and mat.status != 'Out of Stock' %}
                         <tr class="hover:bg-gray-50 dark:hover:bg-midnight-800/50 transition-colors">
                             <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{{ mat.name }}</td>
                             <td class="px-6 py-4 text-sm text-indigo-600 dark:text-indigo-400 font-bold">{{ mat.quantity }}</td>
@@ -193,6 +194,7 @@
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ mat.added_at|date:"Y-m-d" }}</td>
                         </tr>
+                        {% endif %}
                         {% endfor %}
                     </tbody>
                 </table>
@@ -353,45 +355,66 @@
         </div>
     </div>
 
-    <!-- Low Stock Modal -->
+    <!-- Low Stock / Stock Alerts Modal (Storekeeper Style) -->
     <div id="lowStockModal"
         class="fixed inset-0 bg-gray-900/60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
         onclick="if(event.target === this) this.classList.add('hidden')">
-        <div class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col m-4 overflow-hidden">
-            <div class="p-6 bg-red-50 dark:bg-red-950/20 border-b dark:border-midnight-800 flex justify-between items-center">
-                <h3 class="text-xl font-bold text-red-800 dark:text-red-400 flex items-center">
-                    <i class="fas fa-triangle-exclamation mr-3 animate-pulse"></i>Stock Alerts
+        <div id="lowStockModalContent" class="bg-white dark:bg-midnight-900 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col m-4 overflow-hidden transform transition-all duration-300">
+            <div class="p-6 border-b dark:border-midnight-800 flex justify-between items-center bg-gray-50/50 dark:bg-midnight-950/50">
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i class="fas fa-exclamation-triangle text-red-600 dark:text-red-400"></i> Stock Alerts / Low Stock Materials
                 </h3>
-                <button onclick="document.getElementById('lowStockModal').classList.add('hidden')"
-                    class="text-red-800/50 hover:red-800 dark:text-red-400 text-2xl">&times;</button>
+                <div class="flex items-center gap-4">
+                    <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'lowStockTable')"
+                        class="border dark:border-midnight-700 rounded-xl px-4 py-2 text-sm focus:ring-indigo-500 bg-white dark:bg-midnight-950 dark:text-white">
+                    <button onclick="toggleModalSize('lowStockModalContent', 'btnToggleLowStockSize')" id="btnToggleLowStockSize"
+                        class="text-gray-500 hover:text-gray-700 dark:text-gray-400 transition-colors" title="Toggle Size" type="button">
+                        <i class="fas fa-expand-alt text-lg"></i>
+                    </button>
+                    <button onclick="document.getElementById('lowStockModal').classList.add('hidden')"
+                        class="text-gray-500 hover:text-gray-700 dark:text-gray-400 text-2xl font-bold">&times;</button>
+                </div>
             </div>
             <div class="p-6 overflow-y-auto">
-                <table id="lowStockTable" class="min-w-full divide-y dark:divide-midnight-800">
-                    <thead>
-                        <tr class="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b dark:border-midnight-800">
-                            <th class="px-6 py-4 text-left">Material</th>
+                <table id="lowStockTable" class="min-w-full divide-y divide-gray-200 dark:divide-midnight-800">
+                    <thead class="bg-gray-50 dark:bg-midnight-950/50">
+                        <tr class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            <th class="px-6 py-4 text-left">Material Name</th>
                             <th class="px-6 py-4 text-center">Remaining</th>
+                            <th class="px-6 py-4 text-center">Status</th>
                             <th class="px-6 py-4 text-center">Date</th>
-                            <th class="px-6 py-4 text-right">Action</th>
+                            <th class="px-6 py-4 text-center">Action</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-50 dark:divide-midnight-800">
+                    <tbody class="divide-y divide-gray-100 dark:divide-midnight-800">
                         {% for item in low_stock_material_list %}
-                        <tr class="hover:bg-red-50/20 transition-colors">
-                            <td class="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">{{ item.name }}</td>
-                            <td class="px-6 py-4 text-sm font-black text-center text-rose-600">{{ item.quantity }}</td>
-                            <td class="px-6 py-4 text-sm text-gray-600 text-center" text-xs>{{ item.added_at|date:"Y-m-d" }}</td>
-                            <td class="px-6 py-4 text-right">
-                                <a href="{% url 'noc:materials' %}" class="px-3 py-1 bg-rose-600 text-white rounded-lg text-xs font-bold hover:bg-rose-700 transition">Refill</a>
+                        <tr class="hover:bg-gray-50 dark:hover:bg-midnight-800/50 transition-colors">
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white text-left">{{ item.name }}</td>
+                            <td class="px-6 py-4 text-sm font-bold text-center text-red-600 dark:text-red-400">{{ item.quantity }}</td>
+                            <td class="px-6 py-4 text-sm text-center">
+                                <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase
+                                        {% if item.status == 'Low Stock' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
+                                        {% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400{% endif %}">
+                                    {{ item.status }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">{{ item.added_at|date:"Y-m-d" }}</td>
+                            <td class="px-6 py-4 text-sm text-center">
+                                <a href="{% url 'noc:materials' %}" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm inline-flex items-center gap-1.5">
+                                    <i class="fas fa-boxes"></i> Refill
+                                </a>
                             </td>
                         </tr>
                         {% empty %}
-                        <tr><td colspan="3" class="px-6 py-12 text-center text-green-500 font-bold">All stock levels are optimal</td></tr>
+                        <tr>
+                            <td colspan="5" class="px-6 py-12 text-center text-green-500 font-bold">
+                                <i class="fas fa-check-circle text-3xl mb-2"></i><br>
+                                All stock levels are optimal
+                            </td>
+                        </tr>
                         {% endfor %}
                     </tbody>
                 </table>
-                <!---Pagination add-->
-
             </div>
         </div>
     </div>

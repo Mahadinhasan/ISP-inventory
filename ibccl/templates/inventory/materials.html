@@ -178,19 +178,19 @@
                         <th class="px-5 py-3 text-left">In Stock</th>
                         <th class="px-5 py-3 text-left">Remaining</th>
                         <th class="px-5 py-3 text-center">Total Price</th>
-                        <th class="px-5 py-3 text-center">Updated At</th>
+                        <th class="px-5 py-3 text-center">Last update</th>
                         <!-- {% if role != 'Admin' %}
                         <th class="px-5 py-3 text-center">Created By</th>
                         {% endif %} -->
                         {% if role == 'Storekeeper' %}
-                        <th class="px-9 py-4 text-right">Actions</th>
+                        <th class="px-5 py-3 text-center">Actions</th>
                         {% endif %}
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 dark:divide-midnight-800">
                     {% for material in materials_page %}
                     <tr class="hover:bg-slate-50 dark:hover:bg-midnight-800/40 transition-colors {% if material.stock_status == 'low' %}border-l-4 border-yellow-400 dark:border-yellow-500{% endif %}">
-                        <td class="px-5 py-3 whitespace-nowrap text-sm font-semibold text-gray-700 dark:text-gray-100 text-left">{{ materials_page.start_index|add:forloop.counter0 }}</td>
+                        <td class="px-5 py-3 whitespace-nowrap text-sm font-semibold text-gray-700 dark:text-gray-100 text-center">{{ materials_page.start_index|add:forloop.counter0 }}</td>
                         <td class="px-5 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white text-left">{{ material.name }}</td>
                         <td class="px-5 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300 text-left">{{ material.category }}</td>
                         {% if role == 'Admin' %}
@@ -230,7 +230,7 @@
                             </div>
                         </td>
                         <td class="px-5 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 text-center font-bold">{{ material.total_price|intcomma|default:'0' }} ৳</td>
-                        <td class="px-5 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 text-center">{{ material.updated_at|date:"Y-m-d" }}</td>
+                        <td class="px-5 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 text-center font-medium">{{ material.updated_at|date:"d-m-Y (h:i A)" }}</td>
                         <!-- {% if userprofile.role != 'Admin' %}
                         <td class="px-5 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 text-center">{{ material.created_by }}</td>
                         {% endif %} -->

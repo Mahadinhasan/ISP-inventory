@@ -1,102 +1,143 @@
 {% extends 'noc/base.html' %}
-{% block title %}NOC Materials{% endblock %}
+{% load humanize %}
+{% block title %}NOC Materials Management{% endblock %}
+
 {% block content %}
 <div class="fade-in">
-    <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-8">Internet Materials</h1>
-
-    <!-- Stock Summary Cards and Search/Add Controls - Responsive -->
-    <div class="mb-6 flex flex-col gap-4 px-4 sm:flex-row sm:items-center sm:justify-between">
-        <!-- Stock Summary Cards -->
-        <div class="flex flex-wrap gap-2 w-full sm:w-auto">
-            {% if total_normal_stock > 0 %}
-            <div class="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 rounded-lg border border-green-100 dark:border-green-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
-                <i class="fas fa-check-circle text-xs"></i>
-                <span>Normal: <span class="font-extrabold">{{ total_normal_stock }}</span></span>
-            </div>
-            {% endif %}
-            {% if total_low_stock > 0 %}
-            <div class="flex items-center gap-2 px-3 py-1.5 bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 rounded-lg border border-yellow-100 dark:border-yellow-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
-                <i class="fas fa-exclamation-triangle text-xs"></i>
-                <span>Low Stock: <span class="font-extrabold">{{ total_low_stock }}</span></span>
-            </div>
-            {% endif %}
-            {% if total_out_of_stock > 0 %}
-            <div class="flex items-center gap-2 px-3 py-1.5 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 rounded-lg border border-red-100 dark:border-red-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
-                <i class="fas fa-times-circle text-xs"></i>
-                <span>Out of Stock: <span class="font-extrabold">{{ total_out_of_stock }}</span></span>
-            </div>
-            {% endif %}
+    <!-- Header Row -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
+        <div>
+            <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
+                <i class="fas fa-boxes text-indigo-600 dark:text-indigo-400"></i> NOC Materials Management
+            </h1>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Overview and inventory stock management for NOC Internet materials.
+            </p>
         </div>
-
-        <!-- Search Bar and Add Material Button -->
-        <div class="flex flex-col gap-3 w-full sm:flex-row sm:items-center sm:w-auto">
-            <form method="GET" class="flex flex-col gap-3 w-full sm:flex-row sm:items-center">
-                <div class="relative w-full sm:w-auto flex-1">
-                    <input type="text" name="search" value="{{ search_query }}" placeholder="Search materials"
-                        class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-indigo-500 transition">
-                    <i class="fas fa-search absolute right-4 top-3.5 text-gray-400"></i>
-                </div>
-                <button type="submit" class="w-full sm:w-auto px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium shadow-lg whitespace-nowrap">
-                    <i class="fas fa-search mr-2"></i> Search
-                </button>
-                {% if search_query %}
-                <a href="{% url 'noc:materials' %}" class="w-full sm:w-auto px-6 py-3 bg-gray-400 text-white rounded-lg hover:bg-gray-500 transition font-medium shadow-lg whitespace-nowrap">
-                    <i class="fas fa-times mr-2"></i> Clear
-                </a>
-                {% endif %}
-            </form>
-            <a href="{% url 'noc:add_material' %}" class="w-full sm:w-auto px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center shadow-lg whitespace-nowrap">
-                <i class="fas fa-plus mr-2"></i> Add Material
+        <div class="flex items-center gap-3">
+            <a href="{% url 'noc:add_material' %}" class="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white px-4 py-2 rounded-xl font-bold text-xs transition-all shadow-lg shadow-indigo-200 dark:shadow-none flex items-center gap-2">
+                <i class="fas fa-plus"></i> Add Material
             </a>
         </div>
     </div>
 
-    <!-- Materials Table -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+    <!-- Unified Single-Line Control Bar (Search + Quick Filter Badges + Total Valuation) -->
+    <div class="bg-white dark:bg-midnight-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-midnight-800 p-3 mb-6">
+        <form id="nocMaterialsFilterForm" method="GET" class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+            {% if stock_status %}
+            <input type="hidden" name="stock_status" value="{{ stock_status }}">
+            {% endif %}
+
+            <!-- Compact Auto-Search Bar -->
+            <div class="relative flex-1 w-full lg:max-w-xs">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                <input type="text" id="searchNocInput" name="search" value="{{ search_query }}" placeholder="Search material..."
+                    oninput="debounceSubmit()"
+                    class="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-midnight-950 border border-slate-200 dark:border-midnight-800 rounded-lg text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:text-white">
+            </div>
+
+            <!-- Quick Filter Badges (Same Line) -->
+            <div class="flex items-center gap-1.5 text-xs flex-wrap">
+                <a href="{% url 'noc:materials' %}" class="px-3 py-1 rounded-lg font-bold transition {% if not stock_status %}bg-indigo-600 text-white shadow-xs{% else %}bg-gray-100 dark:bg-midnight-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200{% endif %}">
+                    Total: {{ total_materials_count }}
+                </a>
+                <a href="{% url 'noc:materials' %}?stock_status=normal{% if search_query %}&search={{ search_query }}{% endif %}" class="px-3 py-1 rounded-lg font-bold transition {% if stock_status == 'normal' %}bg-green-600 text-white shadow-xs{% else %}bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400 hover:bg-green-100{% endif %}">
+                    Normal: {{ total_normal_stock }}
+                </a>
+                <a href="{% url 'noc:materials' %}?stock_status=low{% if search_query %}&search={{ search_query }}{% endif %}" class="px-3 py-1 rounded-lg font-bold transition {% if stock_status == 'low' %}bg-yellow-500 text-white shadow-xs{% else %}bg-yellow-50 dark:bg-yellow-950/40 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-100{% endif %}">
+                    Low: {{ total_low_stock }}
+                </a>
+                <a href="{% url 'noc:materials' %}?stock_status=out_of_stock{% if search_query %}&search={{ search_query }}{% endif %}" class="px-3 py-1 rounded-lg font-bold transition {% if stock_status == 'out_of_stock' %}bg-red-600 text-white shadow-xs{% else %}bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 hover:bg-red-100{% endif %}">
+                    Out: {{ total_out_of_stock }}
+                </a>
+            </div>
+
+            <!-- Total Valuation Badge (Same Line) -->
+            <div class="px-3.5 py-1.5 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-100 dark:border-purple-900/30 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap self-start lg:self-auto">
+                <span class="text-purple-600 dark:text-purple-400 font-black text-sm">৳</span>
+                <span>Total Valuation: <span class="font-extrabold text-gray-900 dark:text-white">{{ total_price|intcomma|default:0 }} ৳</span></span>
+            </div>
+        </form>
+    </div>
+
+    <!-- Materials Data Table -->
+    <div class="bg-white dark:bg-midnight-900/50 rounded-2xl shadow-sm overflow-hidden border border-slate-200/70 dark:border-midnight-800">
+        <!-- Table Header Context Bar -->
+        <div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-100 dark:border-midnight-800 bg-gray-50/70 dark:bg-midnight-950/80">
+            <span class="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                <i class="fas fa-list text-indigo-500"></i>
+                {% if stock_status == 'normal' %}
+                    Showing Normal Stock Materials ({{ page_obj.paginator.count }})
+                {% elif stock_status == 'low' %}
+                    Showing Low Stock Materials ({{ page_obj.paginator.count }})
+                {% elif stock_status == 'out_of_stock' %}
+                    Showing Out of Stock Materials ({{ page_obj.paginator.count }})
+                {% else %}
+                    Showing All NOC Materials ({{ page_obj.paginator.count }})
+                {% endif %}
+            </span>
+
+            {% if search_query or stock_status %}
+            <a href="{% url 'noc:materials' %}" class="text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-bold transition flex items-center gap-1">
+                <i class="fas fa-times"></i> Clear Filters
+            </a>
+            {% endif %}
+        </div>
+
         <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead class="bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                        <th class="px-6 py-4 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">SL</th>
-                        <th class="px-6 py-4 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name</th>
-                        <th class="px-6 py-4 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Quantity</th>
-                        <th class="px-6 py-4 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Min Stock</th>
-                        <th class="px-6 py-4 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
-                        <th class="px-6 py-4 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Total Price</th>
-                        <th class="px-6 py-4 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date Added</th>
-                        <th class="px-6 py-4 text-right text-[11px] font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-50/50 dark:bg-midnight-950/50 border-b border-slate-200/60 dark:border-midnight-800">
+                        <th class="px-5 py-3 text-center">SL</th>
+                        <th class="px-5 py-3 text-left">Material Name</th>
+                        <th class="px-5 py-3 text-center">In Stock Quantity</th>
+                        <th class="px-5 py-3 text-center">Min Stock Threshold</th>
+                        <th class="px-5 py-3 text-center">Stock Status</th>
+                        <th class="px-5 py-3 text-center">Total Price</th>
+                        <th class="px-5 py-3 text-center">Last Updated</th>
+                        <th class="px-5 py-3 text-center">Actions</th>
                     </tr>
                 </thead>
-                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                <tbody class="divide-y divide-gray-200 dark:divide-midnight-800">
                     {% for mat in materials %}
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                        <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{{ page_obj.start_index|add:forloop.counter0 }}</td>
-                        <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{{ mat.name }}</td>
-                        <td class="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">{{ mat.quantity }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ mat.min_stock_level }}</td>
-                        <td class="px-6 py-4">
-                            <span class="px-3 py-1 text-xs font-semibold rounded-full
-                                {% if mat.status == 'Normal' %}bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-400
-                                {% elif mat.status == 'Low Stock' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-400
-                                {% else %}bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-400{% endif %}">
+                    <tr class="hover:bg-slate-50 dark:hover:bg-midnight-800/40 transition-colors">
+                        <td class="px-5 py-3.5 whitespace-nowrap text-sm font-semibold text-gray-700 dark:text-gray-100 text-center">{{ page_obj.start_index|add:forloop.counter0 }}</td>
+                        <td class="px-5 py-3.5 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white text-left">{{ mat.name }}</td>
+                        <td class="px-5 py-3.5 whitespace-nowrap text-sm text-gray-700 dark:text-gray-100 text-center font-bold">
+                            {{ mat.quantity }} <span class="text-xs text-gray-500 font-normal">{{ mat.Type|default:'' }}</span>
+                        </td>
+                        <td class="px-5 py-3.5 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300 text-center">{{ mat.min_stock_level }}</td>
+                        <td class="px-5 py-3.5 whitespace-nowrap text-center">
+                            <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-extrabold
+                                {% if mat.status == 'Normal' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300
+                                {% elif mat.status == 'Low Stock' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300
+                                {% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300{% endif %}">
+                                <span class="w-1.5 h-1.5 rounded-full {% if mat.status == 'Normal' %}bg-green-500{% elif mat.status == 'Low Stock' %}bg-yellow-500{% else %}bg-red-500{% endif %}"></span>
                                 {{ mat.status }}
                             </span>
                         </td>
-                        <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ mat.total_price|default:'0' }}/-</td>
-                        <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ mat.added_at|date:"Y-m-d" }}</td>
-                        <td class="px-6 py-4 text-right space-x-3">
-                            <a href="{% url 'noc:edit_material' mat.pk %}" class="text-indigo-600 hover:text-indigo-900 transition" title="Edit">
-                                <i class="fas fa-edit"></i>
-                            </a>
+                        <td class="px-5 py-3.5 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 text-center font-bold">{{ mat.total_price|intcomma|default:'0' }} ৳</td>
+                        <td class="px-5 py-3.5 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 text-center font-medium">{{ mat.updated_at|date:"d-m-Y (h:i A)" }}</td>
+                        <td class="px-5 py-3.5 whitespace-nowrap text-sm text-center">
+                            <div class="flex items-center justify-center gap-2">
+                                <a href="{% url 'noc:edit_material' mat.pk %}"
+                                    class="w-9 h-9 flex items-center justify-center text-indigo-600 hover:text-white bg-indigo-50 hover:bg-indigo-600 rounded-xl transition-all duration-300 shadow-sm hover:shadow-indigo-200"
+                                    title="Edit Material">
+                                    <i class="fas fa-edit text-sm"></i>
+                                </a>
+                            </div>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
                         <td colspan="8" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                            <i class="fas fa-inbox text-4xl mb-3 text-gray-300 dark:text-gray-600"></i><br>
                             {% if search_query %}
                                 No materials found matching "{{ search_query }}".
+                            {% elif stock_status %}
+                                No materials found under "{{ stock_status }}" status.
                             {% else %}
-                                No internet materials found.
+                                No NOC internet materials found.
                             {% endif %}
                         </td>
                     </tr>
@@ -115,7 +156,7 @@
         <nav class="inline-flex items-center gap-1.5 p-1 bg-white/60 dark:bg-midnight-900/60 glass-card rounded-2xl border border-gray-100 dark:border-midnight-800 shadow-sm overflow-x-auto max-w-full ml-auto" aria-label="Pagination">
             <!-- Left Arrow (Previous) -->
             {% if page_obj.has_previous %}
-            <a href="?{% if search_query %}search={{ search_query }}&{% endif %}page={{ page_obj.previous_page_number }}"
+            <a href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if stock_status %}stock_status={{ stock_status }}&{% endif %}page={{ page_obj.previous_page_number }}"
                 class="flex items-center justify-center w-9 h-9 text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white transition shadow-xs" title="Previous Page">
                 <i class="fas fa-chevron-left text-xs"></i>
             </a>
@@ -131,7 +172,7 @@
                     {% if page_obj.number == num %}
                     <span class="flex items-center justify-center min-w-[2.25rem] h-9 px-3 text-xs font-black text-white bg-indigo-600 rounded-xl shadow-md border border-indigo-600">{{ num }}</span>
                     {% else %}
-                    <a href="?{% if search_query %}search={{ search_query }}&{% endif %}page={{ num }}"
+                    <a href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if stock_status %}stock_status={{ stock_status }}&{% endif %}page={{ num }}"
                         class="flex items-center justify-center min-w-[2.25rem] h-9 px-3 text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 transition shadow-xs">
                         {{ num }}
                     </a>
@@ -143,7 +184,7 @@
 
             <!-- Right Arrow (Next) -->
             {% if page_obj.has_next %}
-            <a href="?{% if search_query %}search={{ search_query }}&{% endif %}page={{ page_obj.next_page_number }}"
+            <a href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if stock_status %}stock_status={{ stock_status }}&{% endif %}page={{ page_obj.next_page_number }}"
                 class="flex items-center justify-center w-9 h-9 text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white transition shadow-xs" title="Next Page">
                 <i class="fas fa-chevron-right text-xs"></i>
             </a>
@@ -155,6 +196,26 @@
         </nav>
     </div>
     {% endif %}
-
 </div>
+
+<script>
+    let nocSearchDebounceTimer;
+    function debounceSubmit() {
+        clearTimeout(nocSearchDebounceTimer);
+        nocSearchDebounceTimer = setTimeout(() => {
+            const form = document.getElementById('nocMaterialsFilterForm');
+            if (form) form.submit();
+        }, 450);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('searchNocInput');
+        if (searchInput && searchInput.value) {
+            searchInput.focus();
+            const val = searchInput.value;
+            searchInput.value = '';
+            searchInput.value = val;
+        }
+    });
+</script>
 {% endblock %}

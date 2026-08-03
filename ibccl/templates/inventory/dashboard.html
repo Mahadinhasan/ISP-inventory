@@ -387,6 +387,7 @@
                     {% endfor %}
                     {% else %}
                     {% for mat in all_materials %}
+                    {% if mat.quantity > 0 and mat.status != 'Out of Stock' %}
                     <tr>
                         <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ mat.name }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900 font-bold">{{ mat.quantity }}</td>
@@ -400,6 +401,7 @@
                             </span>
                         </td>
                     </tr>
+                    {% endif %}
                     {% endfor %}
                     {% endif %}
                 </tbody>

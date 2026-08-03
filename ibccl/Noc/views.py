@@ -137,12 +137,13 @@ def noc_dashboard(request):
 
     process_month_end_reset()
     now = timezone.now()
-    internet_materials = Material.objects.filter(category='Internet', created_by=request.user)
-    all_internet_materials = internet_materials.order_by('-added_at')
+    noc_mats_q = Q(category='Internet') & (Q(created_by=request.user) | Q(created_by__isnull=True) | Q(created_by__userprofile__role='NOC'))
+    internet_materials = Material.objects.filter(noc_mats_q)
+    in_stock_q = Q(quantity__gt=0) & ~Q(status='Out of Stock')
+    all_internet_materials = internet_materials.filter(in_stock_q).order_by('-added_at')
     
-    # Standardized card counters
-    # total_materials = internet_materials.aggregate(total=Sum('quantity'))['total'] or 0
-    total_materials = internet_materials.count()
+    # Standardized card counters (In Stock = Normal Stock items)
+    total_materials = internet_materials.filter(status='Normal', quantity__gt=0).count()
     pending_requests = MaterialRequest.objects.filter(
         material__category='Internet', 
         material__created_by=request.user, 
@@ -312,37 +313,50 @@ def noc_dashboard(request):
 @login_required
 @noc_role_required
 def noc_materials(request):
-    # Get search query from GET parameters
+    # Get search query & stock status from GET parameters
     search_query = request.GET.get('search', '').strip()
+    stock_status = request.GET.get('stock_status', '').strip()
     
-    # Base queryset - all Internet materials created by the NOC user
-    materials_qs = Material.objects.filter(category='Internet', created_by=request.user).order_by('-added_at')
+    # Base queryset - all Internet materials for NOC role
+    noc_mats_q = Q(category='Internet') & (Q(created_by=request.user) | Q(created_by__isnull=True) | Q(created_by__userprofile__role='NOC'))
+    all_materials = Material.objects.filter(noc_mats_q)
+    materials_qs = all_materials.order_by('-added_at')
     
-    # Apply search filter if provided
-    if search_query:
-        materials_qs = materials_qs.filter(
-            Q(name__icontains=search_query) | 
-            Q(notes__icontains=search_query)
-        )
-    
-    # Calculate stock summary statistics dynamically based on quantity and min_stock_level
-    all_materials = Material.objects.filter(category='Internet', created_by=request.user)
-    
+    # Calculate stock summary statistics dynamically
     total_normal_stock = 0
     total_low_stock = 0
     total_out_of_stock = 0
-    total_price = 0
     
     for material in all_materials:
         if material.quantity <= 0:
             total_out_of_stock += 1
-        elif material.quantity < (material.min_stock_level or 0):
+        elif (material.min_stock_level or 0) > 0 and material.quantity < (material.min_stock_level or 0):
             total_low_stock += 1
         else:
             total_normal_stock += 1
+
+    total_materials_count = all_materials.count()
+    total_price_agg = all_materials.aggregate(total=Sum('total_price'))['total']
+    total_price = total_price_agg if total_price_agg is not None else 0
+
+    # Apply search filter if provided
+    if search_query:
+        materials_qs = materials_qs.filter(
+            Q(name__icontains=search_query) | 
+            Q(notes__icontains=search_query) |
+            Q(status__icontains=search_query)
+        )
     
-    # Pagination setup
-    paginator = Paginator(materials_qs, 20)  # Show 10 materials per page
+    # Apply stock_status filter matching Storekeeper style
+    if stock_status == 'low':
+        materials_qs = materials_qs.filter(status='Low Stock')
+    elif stock_status == 'normal':
+        materials_qs = materials_qs.filter(status='Normal')
+    elif stock_status == 'out_of_stock':
+        materials_qs = materials_qs.filter(status='Out of Stock')
+
+    # Pagination setup (20 materials per page)
+    paginator = Paginator(materials_qs, 20)
     page = request.GET.get('page', 1)
     
     try:
@@ -351,20 +365,18 @@ def noc_materials(request):
         materials = paginator.page(1)
     except EmptyPage:
         materials = paginator.page(paginator.num_pages)
-    
-    #Total price filter role user noc
-    total_price_agg = Material.objects.filter(created_by=request.user).aggregate(total=Sum('total_price'))['total']
-    total_price = total_price_agg if total_price_agg is not None else 0
 
     context = {
         'materials': materials,
         'search_query': search_query,
+        'stock_status': stock_status,
         'total_normal_stock': total_normal_stock,
         'total_low_stock': total_low_stock,
         'total_out_of_stock': total_out_of_stock,
+        'total_materials_count': total_materials_count,
         'paginator': paginator,
         'page_obj': materials,
-        'total_price':total_price,
+        'total_price': total_price,
     }
     
     return render(request, 'noc/materials.html', context)
@@ -417,8 +429,8 @@ def edit_material(request, pk):
         material.rate = int(request.POST.get('rate', material.rate))
         material.min_stock_level = int(request.POST.get('min_stock_level', material.min_stock_level))
         material.total_price = material.quantity * material.rate
-        material.added_at = timezone.now()  # Update date to current datetime on edit
-        material.save(update_fields=['quantity', 'rate', 'min_stock_level', 'total_price', 'added_at'])
+        material.updated_at = timezone.now()
+        material.save()
         messages.success(request, "Material updated successfully.")
         return redirect('noc:materials')
     return render(request, 'noc/edit_material.html', {'material': material})
@@ -1668,9 +1680,19 @@ def noc_logs(request):
         
     from isp_inventory.models import ActivityLog
     from django.core.paginator import Paginator
+    from django.utils import timezone
+    from datetime import datetime
     
-    # Fetch logs for the logged-in user only
-    logs_qs = ActivityLog.objects.filter(user=request.user).order_by('-timestamp')
+    now = timezone.now()
+    current_month_start = datetime(now.year, now.month, 1)
+    if timezone.is_aware(now):
+        current_month_start = timezone.make_aware(datetime(now.year, now.month, 1))
+
+    # Auto-purge logs from previous months at month end
+    ActivityLog.objects.filter(timestamp__lt=current_month_start).delete()
+
+    # Fetch logs for the logged-in user for current month only
+    logs_qs = ActivityLog.objects.filter(user=request.user, timestamp__gte=current_month_start).select_related('user').order_by('-timestamp')
     
     # Filter by search/activity type if provided
     log_type_filter = request.GET.get('log_type')

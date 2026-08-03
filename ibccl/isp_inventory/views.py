@@ -8,7 +8,7 @@ from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from .forms import RegisterForm, MaterialForm, RequestForm, SystemSettingForm, NotificationSettingForm, UsedMaterialForm, LogSettingsForm, RefundableMaterialForm, RefundableMaterialUsageForm, DamageMaterialForm
 from .models import Material, MaterialRequest, UserProfile, SystemSetting, NotificationSetting, UsedMaterial, MaterialMonthlyCount, InternalMessage, ActivityLog, LogSettings, MacSerialNumber, RefundableMaterial, RefundableMaterialUsage, DamageMaterial, TrashItem
 from .utils import ensure_userprofile, sync_mac_serial_status, move_to_trash, restore_trash_item, cleanup_expired_trash
-from django.db.models import Sum, Q, F, Case, When, IntegerField, Count, FloatField
+from django.db.models import Sum, Q, F, Case, When, IntegerField, Count, FloatField, Max
 from django.db.models.functions import Coalesce
 from django.db import transaction
 from django.utils import timezone
@@ -63,6 +63,9 @@ def process_month_end_reset():
         material.quantity = 0
         material.save()
     
+    # Auto-delete all ActivityLog records from previous months at month end
+    ActivityLog.objects.filter(timestamp__lt=current_month_start).delete()
+
     # Mark this month's reset as processed
     SystemSetting.objects.update_or_create(
         key=system_key,
@@ -201,11 +204,13 @@ def dashboard(request):
         # (see below after technician_approved_materials is built)
         total_materials = 0  # placeholder, updated later
     else:
-        # For Admin & Storekeeper: Total count of all materials in system
+        noc_q = Q(category='Internet') | Q(created_by__userprofile__role='NOC')
+        normal_stock_q = Q(status='Normal') & Q(quantity__gt=0)
+
         if role == 'Storekeeper':
-            total_materials = Material.objects.filter(quantity__gt=0).count()  # In stock materials for Storekeeper
+            total_materials = Material.objects.exclude(noc_q).filter(normal_stock_q).count()
         else:
-            total_materials = Material.objects.count()
+            total_materials = Material.objects.filter(normal_stock_q).count()
     
     # active_tasks = Task.objects.filter(status='In Progress').count()
     if role in ['Admin', 'Storekeeper']:
@@ -373,9 +378,14 @@ def dashboard(request):
             requested_at__month=now.month,
         ).select_related('material').order_by('-requested_at')
     else:
-        # For Admin & Storekeeper: Get all materials.
-        # Storekeeper should still see material names after month-end reset even when quantities drop to zero.
-        all_materials = Material.objects.all().order_by('-added_at')
+        # For Dashboard In-Stock modal: Show in-stock items only (quantity > 0 and status != Out of Stock)
+        noc_q = Q(category='Internet') | Q(created_by__userprofile__role='NOC')
+        in_stock_q = Q(quantity__gt=0) & ~Q(status='Out of Stock')
+
+        if role == 'Storekeeper':
+            all_materials = Material.objects.exclude(noc_q).filter(in_stock_q).select_related('created_by').order_by('-added_at')
+        else:
+            all_materials = Material.objects.filter(in_stock_q).select_related('created_by').order_by('-added_at')
         # Total accepted used materials count
         used_materials_count = UsedMaterial.objects.filter(status='Accepted', is_archived=False).count()
         # Get all advance requests
@@ -443,78 +453,71 @@ def dashboard(request):
     else:
         # For Admin/Storekeeper: Materials with status 'Low Stock' or 'Out of Stock'
         if role == 'Storekeeper':
-            # For Storekeeper: Only 'Out of Stock' materials are shown as low stock
-            low_stock_items = Material.objects.filter(status='Out of Stock')
+            noc_q = Q(category='Internet') | Q(created_by__userprofile__role='NOC')
+            low_stock_items = Material.objects.exclude(noc_q).filter(Q(status='Low Stock') | Q(status='Out of Stock'))
         else:
             low_stock_items = Material.objects.filter(Q(status='Low Stock') | Q(status='Out of Stock'))
         low_stock_materials = low_stock_items.count()
         low_stock_material_list = low_stock_items
 
-    # Materials monitoring for Admin
+    # Materials monitoring for Admin - Optimized batch aggregates
     materials_monitoring = []
     if role == 'Admin':
-        branch_users = User.objects.filter(userprofile__role='Branch')
-        for branch_user in branch_users:
-            # Only monitor materials that completed full workflow (all-time, not month-limited)
-            # Exclude NOC materials; only show Admin approved / Storekeeper passed on
-            approved_qs = MaterialRequest.objects.filter(
-                requester=branch_user,
-                status='Received',
-                received_by__isnull=False,
-                pass_on__isnull=False
-            ).exclude(
-                material__created_by__userprofile__role='NOC'
-            ).select_related('material').order_by('requested_at')
+        # Batch aggregate all received requests per branch & material
+        approved_aggregates = MaterialRequest.objects.filter(
+            status='Received',
+            received_by__isnull=False,
+            pass_on__isnull=False
+        ).exclude(
+            material__created_by__userprofile__role='NOC'
+        ).values('requester_id', 'material_id').annotate(
+            total_req=Sum('quantity'),
+            latest_date=Max('requested_at')
+        )
 
-            used_totals = {}
-            used_qs = UsedMaterial.objects.filter(
-                technician=branch_user,
-                status='Accepted',
-                is_archived=False
-            ).values('material_id').annotate(total=Sum('quantity'))
-            for u in used_qs:
-                used_totals[u['material_id']] = u['total'] or 0
+        if approved_aggregates:
+            # Batch aggregate used materials
+            used_aggregates = {
+                (u['technician_id'], u['material_id']): u['total'] or 0
+                for u in UsedMaterial.objects.filter(status='Accepted', is_archived=False).values('technician_id', 'material_id').annotate(total=Sum('quantity'))
+            }
 
-            # Include refundable totals (by material name) for this branch
-            ref_qs = RefundableMaterial.objects.filter(
-                branch_user=branch_user
-            ).values('material_name').annotate(total=Sum('quantity'))
-            refundable_totals_mon = {r['material_name']: r['total'] or 0 for r in ref_qs}
+            # Batch aggregate damaged materials
+            damaged_aggregates = {
+                (d['branch_user_id'], d['material_id']): d['total'] or 0
+                for d in DamageMaterial.objects.filter(status__in=['Pending', 'Confirmed']).values('branch_user_id', 'material_id').annotate(total=Sum('quantity'))
+            }
 
-            # Include damaged (Pending/Confirmed) totals for this branch
-            dam_qs = DamageMaterial.objects.filter(
-                branch_user=branch_user,
-                status__in=['Pending', 'Confirmed']
-            ).values('material_id').annotate(total=Sum('quantity'))
-            for d in dam_qs:
-                used_totals[d['material_id']] = used_totals.get(d['material_id'], 0) + (d['total'] or 0)
+            # Pre-fetch users & materials into dict mapping
+            user_map = {u.id: u for u in User.objects.filter(userprofile__role='Branch')}
+            material_map = {m.id: m for m in Material.objects.all()}
 
-            for req in approved_qs:
-                mat_id = req.material.id
-                mat_name = req.material.name
-                available_for_this_req = req.quantity
+            for agg in approved_aggregates:
+                b_id = agg['requester_id']
+                m_id = agg['material_id']
+                if b_id in user_map and m_id in material_map:
+                    branch_user = user_map[b_id]
+                    material = material_map[m_id]
 
-                used_qty = used_totals.get(mat_id, 0)
-                ref_qty = refundable_totals_mon.get(mat_name, 0)
-                total_to_deduct = used_qty + ref_qty
-                if total_to_deduct > 0:
-                    amount_to_deduct = min(total_to_deduct, req.quantity)
-                    available_for_this_req -= amount_to_deduct
-                    if used_qty > 0:
-                        used_deduct = min(used_qty, amount_to_deduct)
-                        used_totals[mat_id] -= used_deduct
-                        amount_to_deduct -= used_deduct
-                    if amount_to_deduct > 0 and ref_qty > 0:
-                        refundable_totals_mon[mat_name] -= min(ref_qty, amount_to_deduct)
+                    req_qty = agg['total_req'] or 0
+                    used_qty = used_aggregates.get((b_id, m_id), 0)
+                    dam_qty = damaged_aggregates.get((b_id, m_id), 0)
 
-                if available_for_this_req > 0 and req.material.status == 'Normal':
-                    materials_monitoring.append({
-                        'branch': branch_user,
-                        'material': req.material,
-                        'quantity': available_for_this_req,
-                        'status': req.material.status,
-                        'date': req.requested_at,
-                    })
+                    # Check refundable by material_name for this branch
+                    ref_qty = RefundableMaterial.objects.filter(
+                        branch_user_id=b_id,
+                        material_name=material.name
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
+
+                    avail_qty = max(0, req_qty - used_qty - dam_qty - ref_qty)
+                    if avail_qty > 0 and material.status == 'Normal':
+                        materials_monitoring.append({
+                            'branch': branch_user,
+                            'material': material,
+                            'quantity': avail_qty,
+                            'status': material.status,
+                            'date': agg['latest_date'],
+                        })
 
     # Common stats for all roles: Unread Messages and Report Summaries
     unread_messages_count = InternalMessage.objects.filter(receiver=request.user, is_read=False).count()
@@ -932,6 +935,8 @@ def materials_view(request):
             materials = storekeeper_materials_qs.order_by('-added_at')
         elif store_type == 'noc':
             materials = noc_materials_qs.order_by('-added_at')
+        else:
+            materials = Material.objects.all().order_by('-added_at')
 
     # Stock counts (Admin/Storekeeper only)
     total_normal_stock = materials.filter(status='Normal').count()
@@ -990,6 +995,7 @@ def materials_view(request):
             if material.created_by and hasattr(material.created_by, 'userprofile') and material.created_by.userprofile.role == 'NOC':
                 material.Remaining_stock = 0
 
+            material.updated_at = timezone.now()
             material.save()
             messages.success(request, "Material saved successfully!")
             return redirect('materials')
@@ -3846,11 +3852,11 @@ def used_materials_view(request):
 
     # Determine which used materials to display based on role
     if role == 'Branch':
-        used_materials_qs = UsedMaterial.objects.filter(technician=request.user, is_archived=False).order_by('-added_at')
+        used_materials_qs = UsedMaterial.objects.filter(technician=request.user, is_archived=False).select_related('technician', 'material', 'material_request', 'mac_serial').order_by('-added_at')
         branch_users = None
     else:
         # Admin/Storekeeper see all used materials
-        used_materials_qs = UsedMaterial.objects.filter(is_archived=False).order_by('-added_at')
+        used_materials_qs = UsedMaterial.objects.filter(is_archived=False).select_related('technician', 'material', 'material_request', 'mac_serial').order_by('-added_at')
         branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
         
         # Handle user dropdown filter
@@ -3987,6 +3993,9 @@ def used_materials_view(request):
             um_id = request.POST.get('um_id')
             try:
                 um = UsedMaterial.objects.get(pk=um_id, technician=request.user)
+                if not um.is_editable:
+                    messages.error(request, "Editing is disabled for used materials from previous months.")
+                    return redirect('used_materials')
                 form = UsedMaterialForm(request.POST, instance=um, user=request.user)
                 if form.is_valid():
                     selection = form.cleaned_data.get('material_selection')
@@ -5431,8 +5440,16 @@ def logs_view(request):
     from isp_inventory.models import ActivityLog
     from django.core.paginator import Paginator
     
-    # Fetch logs for the logged-in user only
-    logs_qs = ActivityLog.objects.filter(user=request.user).order_by('-timestamp')
+    now = timezone.now()
+    current_month_start = datetime(now.year, now.month, 1)
+    if timezone.is_aware(now):
+        current_month_start = timezone.make_aware(datetime(now.year, now.month, 1))
+
+    # Auto-purge logs from previous months at month end
+    ActivityLog.objects.filter(timestamp__lt=current_month_start).delete()
+
+    # Fetch logs for the logged-in user for current month only
+    logs_qs = ActivityLog.objects.filter(user=request.user, timestamp__gte=current_month_start).select_related('user').order_by('-timestamp')
     
     # Filter by search/activity type if provided
     log_type_filter = request.GET.get('log_type')
