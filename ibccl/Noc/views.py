@@ -7,7 +7,7 @@ from django.contrib.auth import authenticate, logout, login as django_login
 from rest_framework_simplejwt.tokens import RefreshToken
 from isp_inventory.models import UserProfile, Material, MaterialRequest, UsedMaterial, InternalMessage, MacSerialNumber, MaterialMacSerialImport, RefundableMaterial, RefundableMaterialUsage, DamageMaterial, TrashItem
 from isp_inventory.utils import deduct_material_stock, restore_material_stock, sync_mac_serial_status, move_to_trash, restore_trash_item, cleanup_expired_trash
-from django.db.models import Sum, Count, Q
+from django.db.models import Sum, Count, Q, Case, When, IntegerField, Value
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 from django.db import transaction
@@ -137,101 +137,101 @@ def noc_dashboard(request):
 
     process_month_end_reset()
     now = timezone.now()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    today = now.date()
+
     noc_mats_q = Q(category='Internet') & (Q(created_by=request.user) | Q(created_by__isnull=True) | Q(created_by__userprofile__role='NOC'))
     internet_materials = Material.objects.filter(noc_mats_q)
     in_stock_q = Q(quantity__gt=0) & ~Q(status='Out of Stock')
     all_internet_materials = internet_materials.filter(in_stock_q).order_by('-added_at')
-    
-    # Standardized card counters (In Stock = Normal Stock items)
-    total_materials = internet_materials.filter(status='Normal', quantity__gt=0).count()
-    pending_requests = MaterialRequest.objects.filter(
-        material__category='Internet', 
-        material__created_by=request.user, 
-        status='Pending',
-        is_archived=False,
-        requested_at__year=now.year,
-        requested_at__month=now.month,
-    ).count()
-    used_materials_count = UsedMaterial.objects.filter(
-        material__category='Internet', 
+
+    # Batch DB aggregation for all dashboard card counters — single DB query
+    mat_stats = internet_materials.aggregate(
+        total_materials=Count(Case(When(status='Normal', quantity__gt=0, then=Value(1)), output_field=IntegerField())),
+        low_stock_materials=Count(Case(When(Q(status='Low Stock') | Q(status='Out of Stock'), then=Value(1)), output_field=IntegerField())),
+        mac_serial_count=Count(Case(
+            When(Q(notes__icontains='MAC') | Q(notes__icontains='Serial') | Q(name__icontains='MAC') | Q(name__icontains='Serial'), then=Value(1)),
+            output_field=IntegerField()
+        )),
+        total_price1=Sum('total_price'),
+    )
+    total_materials = mat_stats['total_materials'] or 0
+    low_stock_materials = mat_stats['low_stock_materials'] or 0
+    mac_serial_count = mat_stats['mac_serial_count'] or 0
+    total_price1 = mat_stats['total_price1'] or 0
+
+    # Batch MaterialRequest count queries — single DB query
+    mat_req_base = MaterialRequest.objects.filter(
+        material__category='Internet',
         material__created_by=request.user,
-        status='Accepted'
-    ).count()
-    low_stock_materials = internet_materials.filter(Q(status='Low Stock') | Q(status='Out of Stock')).count()
-    
-    # Internal Communication: unread messages
-    unread_messages_count = InternalMessage.objects.filter(receiver=request.user, is_read=False).count()
+        is_archived=False,
+    )
+    req_stats = mat_req_base.aggregate(
+        pending_requests=Count(Case(
+            When(status='Pending', requested_at__year=now.year, requested_at__month=now.month, then=Value(1)),
+            output_field=IntegerField()
+        )),
+        total_req_count=Count(Case(When(requested_at__gte=month_start, then=Value(1)), output_field=IntegerField())),
+        advance_count=Count(Case(
+            When(request_type='Advance', requested_at__gte=month_start, then=Value(1)),
+            output_field=IntegerField()
+        )),
+    )
+    pending_requests = req_stats['pending_requests'] or 0
+    total_req_count = req_stats['total_req_count'] or 0
+    advance_count = req_stats['advance_count'] or 0
 
-    # Specific for NOC role: MAC/Serial count (materials with serial info)
-    mac_serial_count = internet_materials.filter(
-        Q(notes__icontains='MAC') | Q(notes__icontains='Serial') | Q(name__icontains='MAC') | Q(name__icontains='Serial')
-    ).count()
+    # UsedMaterial counts — single DB query
+    used_stats = UsedMaterial.objects.filter(
+        material__category='Internet',
+        material__created_by=request.user,
+        status='Accepted',
+    ).aggregate(
+        used_materials_count=Count('id'),
+        total_used_qty=Count(Case(When(added_at__gte=month_start, then=Value(1)), output_field=IntegerField())),
+    )
+    used_materials_count = used_stats['used_materials_count'] or 0
+    total_used_qty = used_stats['total_used_qty'] or 0
 
-    # Report Shortcuts: Current month stats
-    month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    # Damaged materials count
     total_qty_issued = DamageMaterial.objects.filter(
         status='Confirmed',
         material__category='Internet',
         material__created_by=request.user,
         confirmed_at__gte=month_start
     ).count()
-    
-    total_req_count = MaterialRequest.objects.filter(
-        material__category='Internet',
-        material__created_by=request.user,
-        is_archived=False,
-        requested_at__gte=month_start
-    ).count()
 
-    advance_count = MaterialRequest.objects.filter(
-        material__category='Internet',
-        material__created_by=request.user,
-        request_type='Advance',
-        is_archived=False,
-        requested_at__gte=month_start
-    ).count()
-
-    total_used_qty = UsedMaterial.objects.filter(
-        material__category='Internet',
-        material__created_by=request.user,
-        status='Accepted',
-        added_at__gte=month_start
-    ).count()
+    # Internal Communication: unread messages
+    unread_messages_count = InternalMessage.objects.filter(receiver=request.user, is_read=False).count()
 
     # Context for modals
     total_users = UserProfile.objects.count()
     all_users_list = UserProfile.objects.select_related('user').order_by('-user__date_joined')
-    
-    pending_requests_list = MaterialRequest.objects.filter(
-        material__category='Internet', 
-        material__created_by=request.user, 
+
+    pending_requests_list = mat_req_base.filter(
         status='Pending',
-        is_archived=False,
         requested_at__year=now.year,
         requested_at__month=now.month,
-    ).order_by('-requested_at')
-    
-    advance_materials = MaterialRequest.objects.filter(
-        material__category='Internet', 
-        material__created_by=request.user, 
+    ).select_related('material', 'requester').order_by('-requested_at')
+
+    advance_materials = mat_req_base.filter(
         request_type='Advance',
-        is_archived=False,
         requested_at__year=now.year,
         requested_at__month=now.month,
-    ).order_by('-requested_at')
-    
+    ).select_related('material', 'requester').order_by('-requested_at')
+
     materials_monitoring = MaterialRequest.objects.filter(
         material__category='Internet',
         material__created_by=request.user,
         status='Approved',
         is_hidden_by_noc=False
     ).select_related('material', 'requester').order_by('-requested_at')
-    
+
     all_used_materials = UsedMaterial.objects.filter(
         material__category='Internet',
         material__created_by=request.user
-    ).select_related('technician', 'material').order_by('-added_at')
-    
+    ).select_related('technician', 'material').order_by('-added_at')[:50]
+
     technician_approved_materials = MaterialRequest.objects.filter(
         status='Approved',
         material__category='Internet',
@@ -244,7 +244,6 @@ def noc_dashboard(request):
     ).order_by('status', 'name')
 
     # Today's Used Materials for NOC Dashboard (Paginated)
-    today = timezone.now().date()
     today_used_materials_all = UsedMaterial.objects.filter(
         material__category='Internet',
         material__created_by=request.user,
@@ -261,21 +260,17 @@ def noc_dashboard(request):
         today_used_materials = paginator.page(paginator.num_pages)
 
     recent_requests = MaterialRequest.objects.filter(
-        material__category='Internet', 
+        material__category='Internet',
         material__created_by=request.user,
         is_hidden_by_noc=False
-    ).order_by('-requested_at')[:5]
+    ).select_related('material', 'requester').order_by('-requested_at')[:5]
 
     refundable_materials = RefundableMaterial.objects.filter(branch_user__userprofile__role='Branch').select_related('branch_user').order_by('-added_at')
     damaged_materials = DamageMaterial.objects.filter(material__category='Internet', material__created_by=request.user).select_related('branch_user', 'material', 'confirmed_by').order_by('-added_at')
     branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
-    
+
     refundable_form = NocRefundableMaterialForm(noc_user=request.user)
     damaged_form = NocDamageMaterialForm(noc_user=request.user)
-
-    #Total price filter role user noc
-    total_price_agg1 = Material.objects.filter(created_by=request.user).aggregate(total=Sum('total_price'))['total']
-    total_price1 = total_price_agg1 if total_price_agg1 is not None else 0
 
     context = {
         'total_materials': total_materials,
@@ -320,24 +315,28 @@ def noc_materials(request):
     # Base queryset - all Internet materials for NOC role
     noc_mats_q = Q(category='Internet') & (Q(created_by=request.user) | Q(created_by__isnull=True) | Q(created_by__userprofile__role='NOC'))
     all_materials = Material.objects.filter(noc_mats_q)
-    materials_qs = all_materials.order_by('-added_at')
-    
-    # Calculate stock summary statistics dynamically
-    total_normal_stock = 0
-    total_low_stock = 0
-    total_out_of_stock = 0
-    
-    for material in all_materials:
-        if material.quantity <= 0:
-            total_out_of_stock += 1
-        elif (material.min_stock_level or 0) > 0 and material.quantity < (material.min_stock_level or 0):
-            total_low_stock += 1
-        else:
-            total_normal_stock += 1
+    materials_qs = all_materials.select_related('created_by__userprofile').order_by('-added_at')
 
-    total_materials_count = all_materials.count()
-    total_price_agg = all_materials.aggregate(total=Sum('total_price'))['total']
-    total_price = total_price_agg if total_price_agg is not None else 0
+    # Single DB aggregation query - replaces Python for-loop over all 2000+ materials
+    stats = all_materials.aggregate(
+        total_normal_stock=Count(
+            Case(When(status='Normal', then=Value(1)), output_field=IntegerField())
+        ),
+        total_low_stock=Count(
+            Case(When(status='Low Stock', then=Value(1)), output_field=IntegerField())
+        ),
+        total_out_of_stock=Count(
+            Case(When(status='Out of Stock', then=Value(1)), output_field=IntegerField())
+        ),
+        total_materials_count=Count('id'),
+        total_price=Sum('total_price'),
+    )
+
+    total_normal_stock = stats['total_normal_stock'] or 0
+    total_low_stock = stats['total_low_stock'] or 0
+    total_out_of_stock = stats['total_out_of_stock'] or 0
+    total_materials_count = stats['total_materials_count'] or 0
+    total_price = stats['total_price'] or 0
 
     # Apply search filter if provided
     if search_query:
