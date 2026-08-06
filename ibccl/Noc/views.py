@@ -382,12 +382,23 @@ def noc_materials(request):
 
 @login_required
 @noc_role_required
+def _safe_int(val, default=0):
+    """Safely convert float/int strings like '2915.0' or 2915 to integer."""
+    try:
+        if val is None or str(val).strip() == '':
+            return int(float(default)) if default is not None else 0
+        return int(float(val))
+    except (ValueError, TypeError):
+        return int(float(default)) if default is not None else 0
+
+@login_required
+@noc_role_required
 def add_material(request):
     if request.method == 'POST':
         name = request.POST.get('name')
-        quantity = int(request.POST.get('quantity', 0))
-        rate = int(request.POST.get('rate', 0))
-        min_stock = int(request.POST.get('min_stock_level', 0))
+        quantity = _safe_int(request.POST.get('quantity'), 0)
+        rate = _safe_int(request.POST.get('rate'), 0)
+        min_stock = _safe_int(request.POST.get('min_stock_level'), 0)
         total_price = quantity * rate
         material = Material(
             name=name,
@@ -423,10 +434,10 @@ def add_material(request):
 def edit_material(request, pk):
     material = get_object_or_404(Material, pk=pk, category='Internet', created_by=request.user)
     if request.method == 'POST':
-        # NOC can only edit quantity and min_stock_level, NOT the name
-        material.quantity = int(request.POST.get('quantity', material.quantity))
-        material.rate = int(request.POST.get('rate', material.rate))
-        material.min_stock_level = int(request.POST.get('min_stock_level', material.min_stock_level))
+        # NOC can edit quantity, rate, and min_stock_level
+        material.quantity = _safe_int(request.POST.get('quantity'), material.quantity)
+        material.rate = _safe_int(request.POST.get('rate'), material.rate)
+        material.min_stock_level = _safe_int(request.POST.get('min_stock_level'), material.min_stock_level)
         material.total_price = material.quantity * material.rate
         material.updated_at = timezone.now()
         material.save()
@@ -1691,10 +1702,19 @@ def noc_logs(request):
     ActivityLog.objects.filter(timestamp__lt=current_month_start).delete()
 
     # Fetch logs for the logged-in user for current month only
-    logs_qs = ActivityLog.objects.filter(user=request.user, timestamp__gte=current_month_start).select_related('user').order_by('-timestamp')
+    base_logs = ActivityLog.objects.filter(user=request.user, timestamp__gte=current_month_start)
+    
+    login_count = base_logs.filter(activity_type='login').count()
+    logout_count = base_logs.filter(activity_type='logout').count()
+    create_count = base_logs.filter(activity_type='create').count()
+    edit_count = base_logs.filter(activity_type='edit').count()
+    delete_count = base_logs.filter(activity_type='delete').count()
+    total_logs_count = base_logs.count()
+
+    logs_qs = base_logs.select_related('user').order_by('-timestamp')
     
     # Filter by search/activity type if provided
-    log_type_filter = request.GET.get('log_type')
+    log_type_filter = request.GET.get('log_type', '').strip()
     if log_type_filter:
         logs_qs = logs_qs.filter(activity_type=log_type_filter)
         
@@ -1707,5 +1727,11 @@ def noc_logs(request):
         'logs': page_obj,
         'log_type_filter': log_type_filter,
         'profile': profile,
+        'login_count': login_count,
+        'logout_count': logout_count,
+        'create_count': create_count,
+        'edit_count': edit_count,
+        'delete_count': delete_count,
+        'total_logs_count': total_logs_count,
     }
     return render(request, 'noc/logs.html', context)

@@ -363,6 +363,32 @@ def dashboard(request):
         
         # Sort by date (newest first)
         technician_approved_materials.reverse()
+
+        # Build dropdown list containing ALL available materials (no pagination, grouped by material for non-serialized)
+        from types import SimpleNamespace
+        all_technician_materials_dropdown = []
+        non_serialized_grouped = {}
+        for item in technician_approved_materials:
+            if getattr(item, 'is_serialized', False):
+                if getattr(item, 'available_quantity', 0) > 0:
+                    all_technician_materials_dropdown.append(item)
+            else:
+                mat_id = item.material.id
+                if mat_id not in non_serialized_grouped:
+                    non_serialized_grouped[mat_id] = SimpleNamespace(
+                        id=item.id,
+                        material=item.material,
+                        available_quantity=item.available_quantity,
+                        is_serialized=False,
+                        serials_display="N/A"
+                    )
+                else:
+                    non_serialized_grouped[mat_id].available_quantity += item.available_quantity
+
+        for g_item in non_serialized_grouped.values():
+            if g_item.available_quantity > 0:
+                all_technician_materials_dropdown.append(g_item)
+
         #total_materials pagination count for branch user and storkeeper
         paginated_materials = Paginator(technician_approved_materials, 20)  # 20 per page
         page_number = request.GET.get('page')
@@ -582,6 +608,7 @@ def dashboard(request):
         'pending_requests': pending_requests,
         'all_materials': all_materials,
         'technician_approved_materials': technician_approved_materials,
+        'all_technician_materials_dropdown': all_technician_materials_dropdown if role == 'Branch' else None,
         'advance_materials': advance_materials,
         # 'all_tasks': all_tasks,
         'all_requests': all_requests,
@@ -939,6 +966,7 @@ def materials_view(request):
             materials = Material.objects.all().order_by('-added_at')
 
     # Stock counts (Admin/Storekeeper only)
+    total_all_stock = materials.count()
     total_normal_stock = materials.filter(status='Normal').count()
     total_low_stock = materials.filter(status='Low Stock').count()
     total_out_of_stock = materials.filter(status='Out of Stock').count()
@@ -1027,6 +1055,7 @@ def materials_view(request):
         'category': category,
         'stock_status': stock_status,
         'store_type': store_type,
+        'total_all_stock': total_all_stock,
         'total_normal_stock': total_normal_stock,
         'total_low_stock': total_low_stock,
         'total_out_of_stock': total_out_of_stock,
@@ -3883,6 +3912,17 @@ def used_materials_view(request):
             Q(client_address__icontains=search_query)
         ).distinct()
 
+    # Count stats before status filtering
+    total_used = used_materials_qs.count()
+    accepted_count = used_materials_qs.filter(status='Accepted').count()
+    pending_count = used_materials_qs.filter(status='Pending').count()
+    rejected_count = used_materials_qs.filter(status='Rejected').count()
+
+    # Status filter
+    status_filter = request.GET.get('status', '').strip()
+    if status_filter in ['Accepted', 'Pending', 'Rejected']:
+        used_materials_qs = used_materials_qs.filter(status=status_filter)
+
     # Pagination - AFTER all filters are applied
     paginator = Paginator(used_materials_qs, 20)  # Show 20 records per page
     page_number = request.GET.get('page')
@@ -4231,8 +4271,12 @@ def used_materials_view(request):
         'for_approval': for_approval,
         'branch_users': branch_users,
         'search_query': search_query,
+        'status_filter': status_filter,
+        'total_used': total_used,
+        'accepted_count': accepted_count,
+        'pending_count': pending_count,
+        'rejected_count': rejected_count,
         'serials_by_material_json': _json.dumps(serials_by_material),
-        'total_used':total_used,
     })
 
 @login_required
@@ -5009,12 +5053,22 @@ def damaged_materials_view(request):
                 messages.error(request, "Record not found.")
                 return redirect('damaged_materials')
 
-    # Damaged materials count stats
+    # Damaged materials count stats (before status filter)
     total_damaged_count = damaged_qs.count()
     pending_count = damaged_qs.filter(status='Pending').count()
     confirmed_count = damaged_qs.filter(status='Confirmed').count()
     rejected_count = damaged_qs.filter(status='Rejected').count()
     total_damaged_qty = damaged_qs.aggregate(s=Sum('quantity'))['s'] or 0
+
+    # Status filter
+    status_filter = request.GET.get('status', '').strip()
+    if status_filter in ['Pending', 'Confirmed', 'Rejected']:
+        damaged_qs = damaged_qs.filter(status=status_filter)
+
+    # Pagination after status filter
+    paginator = Paginator(damaged_qs, 20)
+    page_number = request.GET.get('page')
+    damaged_page = paginator.get_page(page_number)
 
     return render(request, 'inventory/damaged_materials.html', {
         'damaged_materials': damaged_page,
@@ -5023,6 +5077,7 @@ def damaged_materials_view(request):
         'page_obj': damaged_page,
         'branch_users': branch_users,
         'search_query': search_query,
+        'status_filter': status_filter,
         'total_damaged_count': total_damaged_count,
         'pending_count': pending_count,
         'confirmed_count': confirmed_count,

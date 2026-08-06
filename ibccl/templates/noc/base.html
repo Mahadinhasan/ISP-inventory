@@ -566,7 +566,7 @@
             </a>
             {% endif %}
             <a href="{% url 'noc:requests' %}" title="Request" class="nav-link side-link">
-                <i class="fas fa-paper-plane side-ico"></i><span class="side-label">Request</span>
+                <i class="fas fa-paper-plane side-ico"></i><span class="side-label">Stock Transfer</span>
             </a>
             {% if user.userprofile.role != 'Admin' and user.userprofile.role != 'Storekeeper' and user.userprofile.role != 'NOC' %}
             <a href="{% url 'noc:used_materials' %}" title="Materials Used" class="nav-link side-link">
@@ -700,7 +700,7 @@
                     <span class="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform">
                         <i class="fas fa-paper-plane text-sm"></i>
                     </span>
-                    Request
+                    Stock Transfer
                 </a>
 
                 {% if user.userprofile.role != 'Admin' and user.userprofile.role != 'Storekeeper' and user.userprofile.role != 'NOC' %}

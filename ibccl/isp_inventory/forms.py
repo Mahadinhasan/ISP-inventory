@@ -224,7 +224,8 @@ class UsedMaterialForm(forms.ModelForm):
             }),
             'dispatched_to': forms.TextInput(attrs={
                 'class': 'w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500',
-                'placeholder': 'Enter dispatched to'
+                'placeholder': 'Enter dispatched to',
+                'required': 'required',
             }),
             'quantity': forms.NumberInput(attrs={
                 'class': 'w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500',
@@ -687,12 +688,12 @@ class RefundableMaterialUsageForm(forms.ModelForm):
 
     class Meta:
         model = RefundableMaterialUsage
-        fields = ['material_selection', 'materials_quantity', 'client_name', 'client_phone', 'client_address', 'issue']
+        fields = ['material_selection', 'materials_quantity', 'client_name', 'dispatched_to', 'client_address', 'issue']
         labels = {
             'material_selection': 'Refundable Material',
             'materials_quantity': 'Quantity Used',
             'client_name': 'Client Name',
-            'client_phone': 'Client Phone',
+            'dispatched_to': 'Dispatched To',
             'client_address': 'Client Address',
             'issue': 'Technical Issue / Notes',
         }
@@ -706,9 +707,10 @@ class RefundableMaterialUsageForm(forms.ModelForm):
                 'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500',
                 'placeholder': 'Enter client name'
             }),
-            'client_phone': forms.TextInput(attrs={
+            'dispatched_to': forms.TextInput(attrs={
                 'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500',
-                'placeholder': 'Enter client phone number'
+                'placeholder': 'Enter dispatched to details',
+                'required': 'required'
             }),
             'client_address': forms.Textarea(attrs={
                 'class': 'w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500',

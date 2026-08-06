@@ -3,92 +3,160 @@
 {% block title %}Material Requests{% endblock %}
 {% block content %}
 <div class="fade-in">
-    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6 px-4 pt-6">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 gap-3 px-2 pt-2">
         <div>
-            <h1 class="text-4xl font-black text-gray-900 dark:text-white tracking-tight">Material Requests</h1>
-            <p class="text-gray-500 dark:text-gray-400 font-medium">Manage branch material requests</p>
+            <h1 class="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tracking-tight">Material Requests</h1>
+            <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">Manage branch material requests</p>
         </div>
 
-        <div class="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:w-auto">
-            <form method="get" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-                <input type="text" name="search" placeholder="Search..." value="{{ request.GET.search }}"
-                    class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-full px-5 py-3 focus:outline-none focus:border-indigo-500 transition-all w-full sm:w-72 dark:text-white">
-                <button type="submit"
-                    class="bg-gray-100 dark:bg-midnight-800 text-gray-500 dark:text-gray-400 px-5 py-3 rounded-full border-2 border-l-0 border-gray-100 dark:border-midnight-800 hover:bg-gray-200 dark:hover:bg-midnight-700 transition-all w-full sm:w-auto">
-                    <i class="fas fa-search"></i>
-                </button>
+        <div class="flex flex-wrap items-center gap-2 max-w-full">
+            <!-- Search Form + 3-Dot Filter Menu (Unified Same Line Group) -->
+            <form method="get" class="flex items-center flex-nowrap m-0 relative max-w-full">
+                {% if request.GET.tab_id %}<input type="hidden" name="tab_id" value="{{ request.GET.tab_id }}">{% endif %}
+                {% if request.GET.user %}<input type="hidden" name="user" value="{{ request.GET.user }}">{% endif %}
+                {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+
+                <div class="inline-flex items-center flex-nowrap rounded-xl shadow-sm max-w-full">
+                    {% if role == 'Admin' or role == 'Storekeeper' %}
+                    <select name="user"
+                        onchange="this.form.submit()"
+                        class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800
+                               rounded-l-xl px-2 h-9 focus:outline-none focus:ring-2 focus:ring-indigo-500
+                               dark:text-white text-xs font-medium w-24 sm:w-28 flex-shrink-0 cursor-pointer border-r-0">
+                        <option value="">All Users</option>
+                        {% for u in users %}
+                        <option value="{{ u.id }}" {% if request.GET.user and request.GET.user|add:0 == u.id %}selected{% endif %}>
+                            {{ u.username }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+
+                    <!-- Search Input -->
+                    <div class="relative flex items-center min-w-0">
+                        <i class="fas fa-search absolute left-3 text-gray-400 text-xs pointer-events-none"></i>
+                        <input type="text" name="search" placeholder="Search..." value="{{ request.GET.search }}"
+                            class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800
+                                   {% if role == 'Admin' or role == 'Storekeeper' %}rounded-none border-l-0{% else %}rounded-l-xl{% endif %}
+                                   pl-8 pr-2 h-9 focus:outline-none focus:border-indigo-500 transition-all
+                                   w-28 sm:w-44 dark:text-white text-xs border-r-0">
+                    </div>
+
+                    <!-- 3-Dot / Filter Dropdown Button -->
+                    <div class="relative flex-shrink-0">
+                        <button type="button" id="requestStatusFilterToggleBtn" onclick="toggleRequestStatusDropdown(event)"
+                            title="Filter by status"
+                            class="flex items-center justify-center w-9 h-9 rounded-r-xl border-2 transition-all cursor-pointer
+                                   {% if status_filter %}bg-indigo-600 border-indigo-600 text-white shadow-indigo-200 dark:shadow-indigo-900/40{% else %}bg-white dark:bg-midnight-950 border-gray-100 dark:border-midnight-800 text-gray-600 dark:text-gray-300 hover:border-indigo-500 hover:text-indigo-600{% endif %}">
+                            <i class="fas fa-ellipsis-v text-sm"></i>
+                            {% if status_filter %}
+                            <span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 ring-2 ring-white dark:ring-midnight-900 rounded-full animate-pulse"></span>
+                            {% endif %}
+                        </button>
+
+                    <!-- Dropdown Menu -->
+                    <div id="requestStatusFilterDropdown"
+                        class="hidden absolute right-0 mt-2 w-60 bg-white dark:bg-midnight-900 border border-gray-100 dark:border-midnight-800 rounded-2xl shadow-2xl z-50 p-2 space-y-1.5 transform transition-all duration-200">
+                        <div class="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-midnight-800/80 flex items-center justify-between">
+                            <span><i class="fas fa-filter mr-1 text-indigo-500"></i>Filter by Status</span>
+                            {% if status_filter %}
+                            <a href="?{% if request.GET.tab_id %}tab_id={{ request.GET.tab_id }}&{% endif %}{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user %}user={{ request.GET.user }}{% endif %}"
+                               class="text-[10px] text-red-500 hover:underline font-bold">Reset</a>
+                            {% endif %}
+                        </div>
+
+                        <!-- All Statuses -->
+                        <a href="?{% if request.GET.tab_id %}tab_id={{ request.GET.tab_id }}&{% endif %}{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user %}user={{ request.GET.user }}{% endif %}"
+                           class="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all
+                                  {% if not status_filter %}bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-midnight-800{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 h-6 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-xs">
+                                    <i class="fas fa-list"></i>
+                                </span>
+                                <span>All Statuses</span>
+                            </div>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300">{{ total_requests_count }}</span>
+                        </a>
+
+                        <!-- Pending -->
+                        <a href="?{% if request.GET.tab_id %}tab_id={{ request.GET.tab_id }}&{% endif %}{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user %}user={{ request.GET.user }}&{% endif %}{% if status_filter == 'Pending' %}{% else %}status=Pending{% endif %}"
+                           class="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all
+                                  {% if status_filter == 'Pending' %}bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-amber-50/60 dark:hover:bg-amber-900/20 hover:text-amber-600{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 h-6 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-600 dark:text-amber-400 text-xs">
+                                    <i class="fas fa-hourglass-half"></i>
+                                </span>
+                                <span>Pending</span>
+                            </div>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300">{{ pending_count }}</span>
+                        </a>
+
+                        <!-- Approved -->
+                        <a href="?{% if request.GET.tab_id %}tab_id={{ request.GET.tab_id }}&{% endif %}{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user %}user={{ request.GET.user }}&{% endif %}{% if status_filter == 'Approved' %}{% else %}status=Approved{% endif %}"
+                           class="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all
+                                  {% if status_filter == 'Approved' %}bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300 border border-green-200 dark:border-green-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-green-50/60 dark:hover:bg-green-900/20 hover:text-green-600{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 h-6 rounded-lg bg-green-100 dark:bg-green-900/50 flex items-center justify-center text-green-600 dark:text-green-400 text-xs">
+                                    <i class="fas fa-check"></i>
+                                </span>
+                                <span>Approved</span>
+                            </div>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300">{{ approved_count }}</span>
+                        </a>
+
+                        <!-- Dispatched -->
+                        <a href="?{% if request.GET.tab_id %}tab_id={{ request.GET.tab_id }}&{% endif %}{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user %}user={{ request.GET.user }}&{% endif %}{% if status_filter == 'Dispatched' %}{% else %}status=Dispatched{% endif %}"
+                           class="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all
+                                  {% if status_filter == 'Dispatched' %}bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-blue-50/60 dark:hover:bg-blue-900/20 hover:text-blue-600{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 h-6 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 text-xs">
+                                    <i class="fas fa-truck"></i>
+                                </span>
+                                <span>Dispatched</span>
+                            </div>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">{{ dispatched_count }}</span>
+                        </a>
+
+                        <!-- Received -->
+                        <a href="?{% if request.GET.tab_id %}tab_id={{ request.GET.tab_id }}&{% endif %}{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user %}user={{ request.GET.user }}&{% endif %}{% if status_filter == 'Received' %}{% else %}status=Received{% endif %}"
+                           class="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all
+                                  {% if status_filter == 'Received' %}bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-emerald-50/60 dark:hover:bg-emerald-900/20 hover:text-emerald-600{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-xs">
+                                    <i class="fas fa-box-open"></i>
+                                </span>
+                                <span>Received</span>
+                            </div>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300">{{ received_count }}</span>
+                        </a>
+
+                        <!-- Rejected -->
+                        <a href="?{% if request.GET.tab_id %}tab_id={{ request.GET.tab_id }}&{% endif %}{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.user %}user={{ request.GET.user }}&{% endif %}{% if status_filter == 'Rejected' %}{% else %}status=Rejected{% endif %}"
+                           class="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all
+                                  {% if status_filter == 'Rejected' %}bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-rose-50/60 dark:hover:bg-rose-900/20 hover:text-rose-600{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 h-6 rounded-lg bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center text-rose-600 dark:text-rose-400 text-xs">
+                                    <i class="fas fa-times"></i>
+                                </span>
+                                <span>Rejected</span>
+                            </div>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300">{{ rejected_count }}</span>
+                        </a>
+                    </div>
+                </div>
+                </div>
             </form>
+
             {% if role == 'Branch' %}
             <button onclick="openRequestModal('Regular')"
-                class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl font-bold transition-all shadow-lg hover:shadow-xl active:scale-95">
-                <i class="fa-solid fa-paper-plane mr-2"></i>Regular
+                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-xs transition-all shadow-md active:scale-95 whitespace-nowrap">
+                <i class="fa-solid fa-paper-plane mr-1.5"></i>Regular
             </button>
             <button onclick="openRequestModal('Advance')"
-                class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl font-bold transition-all shadow-lg hover:shadow-xl active:scale-95">
-                <i class="fas fa-star mr-2"></i>Advance
+                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-xs transition-all shadow-md active:scale-95 whitespace-nowrap">
+                <i class="fas fa-star mr-1.5"></i>Advance
             </button>
             {% endif %}
-            <!--select user dropdown only admin and storekeeper role show -->
-            {% if role == 'Admin' or role == 'Storekeeper' %}
-            <form method="get" class="flex items-center" id="userFilterForm">
-                <input type="hidden" name="tab_id" id="userFilterTabId">
-                <select name="user"
-                    onchange="document.getElementById('userFilterTabId').value = sessionStorage.getItem('tab_id'); this.form.submit()"
-                    class="border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="">All Users</option>
-                    {% for user in users %}
-                    <option value="{{ user.id }}" {% if request.GET.user and request.GET.user|add:0 == user.id %}selected{% endif %}>
-                        {{ user.username }}</option>
-                    {% endfor %}
-                </select>
-            </form>
-            {% endif %}
         </div>
-    </div>
-    <!--Request count-->
-    <div class="flex flex-wrap gap-2 mb-8 px-4">
-        {% if pending_count > 0 %}
-        <div
-            class="flex items-center gap-2 px-3 py-1.5 bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 rounded-lg border border-yellow-100 dark:border-yellow-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
-            <i class="fas fa-hourglass-half text-xs"></i>
-            <span>Pending: <span class="font-extrabold">{{ pending_count }}</span></span>
-        </div>
-        {% endif %}
-        {% if approved_count > 0 %}
-        <div
-            class="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 rounded-lg border border-green-100 dark:border-green-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
-            <i class="fas fa-check text-xs"></i>
-            <span>Approved: <span class="font-extrabold">{{ approved_count }}</span></span>
-        </div>
-        {% endif %}
-        {% if dispatched_count > 0 %}
-        <div
-            class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded-lg border border-blue-100 dark:border-blue-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
-            <i class="fas fa-truck text-xs"></i>
-            <span>Dispatched: <span class="font-extrabold">{{ dispatched_count }}</span></span>
-        </div>
-        {% endif %}
-        {% if received_count > 0 %}
-        <div
-            class="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-lg border border-emerald-100 dark:border-emerald-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
-            <i class="fas fa-box-open text-xs"></i>
-            <span>Received: <span class="font-extrabold">{{ received_count }}</span></span>
-        </div>
-        {% endif %}
-        {% if rejected_count > 0 %}
-        <div
-            class="flex items-center gap-2 px-3 py-1.5 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 rounded-lg border border-red-100 dark:border-red-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
-            <i class="fas fa-times text-xs"></i>
-            <span>Rejected: <span class="font-extrabold">{{ rejected_count }}</span></span>
-        </div>
-        {% endif %}
-        {% if advance_count > 0 %}
-        <div
-            class="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 rounded-lg border border-indigo-100 dark:border-indigo-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
-            <i class="fas fa-star text-xs"></i>
-            <span>Advance: <span class="font-extrabold">{{ advance_count }}</span></span>
-        </div>
-        {% endif %}
     </div>
     <!-----------Unified Requests Table----------->
     <div
@@ -594,6 +662,25 @@
 
             modal.classList.remove('hidden');
         }
+
+        // Status Filter Dropdown Handler
+        function toggleRequestStatusDropdown(event) {
+            if (event) event.stopPropagation();
+            const dropdown = document.getElementById('requestStatusFilterDropdown');
+            if (dropdown) {
+                dropdown.classList.toggle('hidden');
+            }
+        }
+
+        document.addEventListener('click', function(event) {
+            const dropdown = document.getElementById('requestStatusFilterDropdown');
+            const toggleBtn = document.getElementById('requestStatusFilterToggleBtn');
+            if (dropdown && !dropdown.classList.contains('hidden')) {
+                if (!dropdown.contains(event.target) && (!toggleBtn || !toggleBtn.contains(event.target))) {
+                    dropdown.classList.add('hidden');
+                }
+            }
+        });
 
         // Close on outside click
         window.onclick = function (event) {

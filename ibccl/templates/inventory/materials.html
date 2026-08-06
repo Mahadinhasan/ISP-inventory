@@ -21,72 +21,8 @@
                 <i class="fas fa-plus"></i> Add Material
             </button>
             {% endif %}
-            {% if role == 'Admin' or role == 'Storekeeper' %}
-            <button onclick="exportMaterialsExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all shadow-md shadow-emerald-200 dark:shadow-none flex items-center gap-2">
-                <i class="fas fa-file-excel"></i> Export Excel
-            </button>
-            {% endif %}
         </div>
     </div>
-
-    {% if role == 'Admin' %}
-    <!-- Admin Inventory Value Overview Cards (Compact & Proportioned) -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <!-- Card 1: Storekeeper -->
-        <div class="bg-white dark:bg-midnight-900 rounded-2xl p-4 shadow-sm border border-slate-200/70 dark:border-midnight-800 flex items-center justify-between transition-all hover:border-blue-300 dark:hover:border-blue-800">
-            <div class="flex items-center gap-3">
-                <div class="h-9 w-9 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-sm">
-                    ৳
-                </div>
-                <div>
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Storekeeper Inventory</span>
-                    <div class="text-lg font-extrabold text-gray-900 dark:text-white leading-tight">
-                        {{ storekeeper_total_price|intcomma|default:0 }} <span class="text-xs font-bold text-blue-600 dark:text-blue-400">৳</span>
-                    </div>
-                </div>
-            </div>
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
-                {{ storekeeper_total_count }} Items
-            </span>
-        </div>
-
-        <!-- Card 2: NOC Store -->
-        <div class="bg-white dark:bg-midnight-900 rounded-2xl p-4 shadow-sm border border-slate-200/70 dark:border-midnight-800 flex items-center justify-between transition-all hover:border-purple-300 dark:hover:border-purple-800">
-            <div class="flex items-center gap-3">
-                <div class="h-9 w-9 rounded-xl bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold text-sm">
-                    ৳
-                </div>
-                <div>
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">NOC Store Inventory</span>
-                    <div class="text-lg font-extrabold text-gray-900 dark:text-white leading-tight">
-                        {{ noc_total_price|intcomma|default:0 }} <span class="text-xs font-bold text-purple-600 dark:text-purple-400">৳</span>
-                    </div>
-                </div>
-            </div>
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400">
-                {{ noc_total_count }} Items
-            </span>
-        </div>
-
-        <!-- Card 3: Combined Total -->
-        <div class="bg-white dark:bg-midnight-900 rounded-2xl p-4 shadow-sm border border-slate-200/70 dark:border-midnight-800 flex items-center justify-between transition-all hover:border-indigo-300 dark:hover:border-indigo-800">
-            <div class="flex items-center gap-3">
-                <div class="h-9 w-9 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-sm">
-                    ৳
-                </div>
-                <div>
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Combined Total Value</span>
-                    <div class="text-lg font-extrabold text-gray-900 dark:text-white leading-tight">
-                        {{ total_price|intcomma|default:0 }} <span class="text-xs font-bold text-indigo-600 dark:text-indigo-400">৳</span>
-                    </div>
-                </div>
-            </div>
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400">
-                {{ materials_page.paginator.count }} Items
-            </span>
-        </div>
-    </div>
-    {% endif %}
 
     <!-- Unified Toolbar (Store Filter Tabs + Search & Filters) -->
     <div class="bg-white dark:bg-midnight-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-midnight-800 p-4 mb-6">
@@ -134,13 +70,160 @@
                     <option value="Work shop" {% if category == 'Work shop' %}selected{% endif %}>Work shop</option>
                 </select>
 
-                <!-- Stock Status Select -->
-                <select name="stock_status" onchange="this.form.submit()" class="px-3 py-2 bg-slate-50 dark:bg-midnight-950 border border-slate-200 dark:border-midnight-800 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:text-white">
-                    <option value="">All Stock Status</option>
-                    <option value="low" {% if stock_status == 'low' %}selected{% endif %}>Low Stock</option>
-                    <option value="normal" {% if stock_status == 'normal' %}selected{% endif %}>Normal Stock</option>
-                    <option value="out_of_stock" {% if stock_status == 'out_of_stock' %}selected{% endif %}>Out of Stock</option>
-                </select>
+                <!-- 3-Dot / Filter Dropdown Button -->
+                <div class="relative">
+                    <button type="button" id="materialsFilterToggleBtn" onclick="toggleMaterialsDropdown(event)"
+                        title="Filter Stock Status"
+                        class="flex items-center justify-center w-9 h-9 rounded-xl border-2 transition-all cursor-pointer shadow-sm
+                               {% if stock_status or category or search %}bg-indigo-600 border-indigo-600 text-white shadow-indigo-200 dark:shadow-indigo-900/40{% else %}bg-white dark:bg-midnight-950 border-slate-200 dark:border-midnight-800 text-gray-600 dark:text-gray-300 hover:border-indigo-500 hover:text-indigo-600{% endif %}">
+                        <i class="fas fa-ellipsis-v text-sm"></i>
+                        {% if stock_status or category or search %}
+                        <span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 ring-2 ring-white dark:ring-midnight-900 rounded-full animate-pulse"></span>
+                        {% endif %}
+                    </button>
+
+                    <!-- Dropdown Menu -->
+                    <div id="materialsFilterDropdown"
+                        class="hidden absolute right-0 mt-2 w-72 bg-white dark:bg-midnight-900 border border-gray-100 dark:border-midnight-800 rounded-2xl shadow-2xl z-50 p-2.5 space-y-2 transform transition-all duration-200">
+                        <div class="px-3 py-1 text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-midnight-800/80 flex items-center justify-between">
+                            <span><i class="fas fa-store mr-1 text-indigo-500"></i>Store & Total Amounts</span>
+                            {% if store_type or stock_status or category or search %}
+                            <a href="?" class="text-[10px] text-red-500 hover:underline font-bold">Reset All</a>
+                            {% endif %}
+                        </div>
+
+                        {% if role == 'Admin' or role == 'Storekeeper' %}
+                        <!-- Option: All Stores Combined -->
+                        <a href="?store_type=all{% if search %}&search={{ search }}{% endif %}{% if category %}&category={{ category }}{% endif %}{% if stock_status %}&stock_status={{ stock_status }}{% endif %}"
+                           class="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all
+                                  {% if store_type == 'all' or not store_type %}bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-midnight-800{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-xs">
+                                    ৳
+                                </span>
+                                <div>
+                                    <p class="leading-tight">All Stores</p>
+                                    <p class="text-[10px] font-medium text-gray-400 dark:text-gray-500">Combined Value</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-xs font-extrabold text-indigo-600 dark:text-indigo-400">{{ total_price|intcomma|default:0 }} ৳</span>
+                                <p class="text-[9px] font-bold text-gray-400">({{ total_all_stock }} items)</p>
+                            </div>
+                        </a>
+
+                        <!-- Option: Storekeeper Store -->
+                        <a href="?store_type=storekeeper{% if search %}&search={{ search }}{% endif %}{% if category %}&category={{ category }}{% endif %}{% if stock_status %}&stock_status={{ stock_status }}{% endif %}"
+                           class="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all
+                                  {% if store_type == 'storekeeper' %}bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-blue-50/60 dark:hover:bg-blue-900/20 hover:text-blue-600{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 text-xs">
+                                    <i class="fas fa-store"></i>
+                                </span>
+                                <div>
+                                    <p class="leading-tight">Storekeeper Store</p>
+                                    <p class="text-[10px] font-medium text-gray-400 dark:text-gray-500">Main Store</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-xs font-extrabold text-blue-600 dark:text-blue-400">{{ storekeeper_total_price|intcomma|default:0 }} ৳</span>
+                                <p class="text-[9px] font-bold text-gray-400">({{ storekeeper_total_count }} items)</p>
+                            </div>
+                        </a>
+
+                        <!-- Option: NOC Store -->
+                        <a href="?store_type=noc{% if search %}&search={{ search }}{% endif %}{% if category %}&category={{ category }}{% endif %}{% if stock_status %}&stock_status={{ stock_status }}{% endif %}"
+                           class="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all
+                                  {% if store_type == 'noc' %}bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-200 dark:border-purple-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-purple-50/60 dark:hover:bg-purple-900/20 hover:text-purple-600{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-7 h-7 rounded-lg bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center text-purple-600 dark:text-purple-400 text-xs">
+                                    <i class="fas fa-globe"></i>
+                                </span>
+                                <div>
+                                    <p class="leading-tight">NOC Store</p>
+                                    <p class="text-[10px] font-medium text-gray-400 dark:text-gray-500">NOC Store Inventory</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-xs font-extrabold text-purple-600 dark:text-purple-400">{{ noc_total_price|intcomma|default:0 }} ৳</span>
+                                <p class="text-[9px] font-bold text-gray-400">({{ noc_total_count }} items)</p>
+                            </div>
+                        </a>
+                        {% endif %}
+
+                        <div class="px-3 pt-2 text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 border-t border-gray-100 dark:border-midnight-800/80">
+                            <span><i class="fas fa-filter mr-1 text-indigo-500"></i>Filter Stock Status</span>
+                        </div>
+
+                        <!-- All Materials / Reset Option -->
+                        <a href="?{% if store_type %}store_type={{ store_type }}&{% endif %}{% if search %}search={{ search }}&{% endif %}{% if category %}category={{ category }}{% endif %}"
+                           class="flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-all
+                                  {% if not stock_status %}bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-midnight-800{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-5 h-5 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-[10px]">
+                                    <i class="fas fa-boxes"></i>
+                                </span>
+                                <span>All Stock Status</span>
+                            </div>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300">{{ total_all_stock }}</span>
+                        </a>
+
+                        <!-- Normal Stock Option -->
+                        <a href="?{% if store_type %}store_type={{ store_type }}&{% endif %}{% if search %}search={{ search }}&{% endif %}{% if category %}category={{ category }}&{% endif %}{% if stock_status == 'normal' %}{% else %}stock_status=normal{% endif %}"
+                           class="flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-all
+                                  {% if stock_status == 'normal' %}bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-emerald-50/60 dark:hover:bg-emerald-900/20 hover:text-emerald-600{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-5 h-5 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-[10px]">
+                                    <i class="fas fa-check-circle"></i>
+                                </span>
+                                <span>Normal Stock</span>
+                            </div>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300">{{ total_normal_stock }}</span>
+                        </a>
+
+                        <!-- Low Stock Option -->
+                        <a href="?{% if store_type %}store_type={{ store_type }}&{% endif %}{% if search %}search={{ search }}&{% endif %}{% if category %}category={{ category }}&{% endif %}{% if stock_status == 'low' %}{% else %}stock_status=low{% endif %}"
+                           class="flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-all
+                                  {% if stock_status == 'low' %}bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-amber-50/60 dark:hover:bg-amber-900/20 hover:text-amber-600{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-5 h-5 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-600 dark:text-amber-400 text-[10px]">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                </span>
+                                <span>Low Stock</span>
+                            </div>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300">{{ total_low_stock }}</span>
+                        </a>
+
+                        <!-- Out of Stock Option -->
+                        <a href="?{% if store_type %}store_type={{ store_type }}&{% endif %}{% if search %}search={{ search }}&{% endif %}{% if category %}category={{ category }}&{% endif %}{% if stock_status == 'out_of_stock' %}{% else %}stock_status=out_of_stock{% endif %}"
+                           class="flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-all
+                                  {% if stock_status == 'out_of_stock' %}bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-rose-50/60 dark:hover:bg-rose-900/20 hover:text-rose-600{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-5 h-5 rounded-lg bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center text-rose-600 dark:text-rose-400 text-[10px]">
+                                    <i class="fas fa-times-circle"></i>
+                                </span>
+                                <span>Out of Stock</span>
+                            </div>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300">{{ total_out_of_stock }}</span>
+                        </a>
+
+                        {% if role == 'Admin' or role == 'Storekeeper' %}
+                        <!-- Option: Export Excel -->
+                        <div class="pt-2 border-t border-gray-100 dark:border-midnight-800/80">
+                            <button type="button" onclick="exportMaterialsExcel()"
+                                    class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-all cursor-pointer">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-xs">
+                                        <i class="fas fa-file-excel"></i>
+                                    </span>
+                                    <span>Export Excel Report</span>
+                                </div>
+                                <i class="fas fa-download text-xs text-emerald-600 dark:text-emerald-400"></i>
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
             </form>
         </div>
     </div>
@@ -148,21 +231,6 @@
     <!-- Table -->
     <div class="bg-white dark:bg-midnight-900/50 rounded-2xl shadow-sm overflow-hidden border border-slate-200/70 dark:border-midnight-800">
         <div class="flex flex-col md:flex-row items-center justify-between gap-3 px-4 py-4 border-b border-gray-100 dark:border-midnight-800 bg-gray-50 dark:bg-midnight-950/80">
-            <div class="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                <span class="px-3 py-1 bg-gray-100 dark:bg-midnight-900 rounded-full font-semibold">Total: {{ materials_page.paginator.count }}</span>
-                {% if total_normal_stock > 0 %}
-                <span class="px-3 py-1 bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400 rounded-full font-semibold">Normal: {{ total_normal_stock }}</span>
-                {% endif %}
-                {% if total_low_stock > 0 %}
-                <span class="px-3 py-1 bg-yellow-100 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-400 rounded-full font-semibold">Low: {{ total_low_stock }}</span>
-                {% endif %}
-                {% if total_out_of_stock > 0 %}
-                <span class="px-3 py-1 bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400 rounded-full font-semibold">Out: {{ total_out_of_stock }}</span>
-                {% endif %}
-                {% if total_price %}
-                <span class="px-3 py-1 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 rounded-full font-semibold">Current View Value: {{ total_price|intcomma|default:0 }} ৳</span>
-                {% endif %}
-            </div>
         </div>
         <div class="overflow-x-auto">
             <table id="materials-table" class="min-w-full text-sm bg-transparent">
@@ -543,6 +611,24 @@
             const val = searchInput.value;
             searchInput.value = '';
             searchInput.value = val;
+        }
+    });
+
+    function toggleMaterialsDropdown(event) {
+        if (event) event.stopPropagation();
+        const dropdown = document.getElementById('materialsFilterDropdown');
+        if (dropdown) {
+            dropdown.classList.toggle('hidden');
+        }
+    }
+
+    document.addEventListener('click', function(event) {
+        const dropdown = document.getElementById('materialsFilterDropdown');
+        const toggleBtn = document.getElementById('materialsFilterToggleBtn');
+        if (dropdown && !dropdown.classList.contains('hidden')) {
+            if (!dropdown.contains(event.target) && (!toggleBtn || !toggleBtn.contains(event.target))) {
+                dropdown.classList.add('hidden');
+            }
         }
     });
 

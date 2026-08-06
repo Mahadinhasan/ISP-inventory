@@ -22,9 +22,12 @@ class ActiveUserMiddleware:
         if request.user.is_authenticated:
             try:
                 profile = ensure_userprofile(request.user)
-                profile.last_active = timezone.now()
-                profile.is_active = True
-                profile.save(update_fields=['last_active', 'is_active'])
+                now = timezone.now()
+                # Throttle DB updates: update last_active at most once every 60 seconds
+                if not profile.last_active or (now - profile.last_active).total_seconds() > 60:
+                    profile.last_active = now
+                    profile.is_active = True
+                    profile.save(update_fields=['last_active', 'is_active'])
             except Exception:
                 pass
                 
