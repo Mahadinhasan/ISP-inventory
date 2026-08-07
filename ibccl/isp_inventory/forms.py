@@ -77,6 +77,9 @@ class MaterialForm(forms.ModelForm):
     class Meta:
         model = Material
         fields = ['name', 'category', 'quantity', 'min_stock_level','rate','Type']
+        widgets = {
+            'rate': forms.NumberInput(attrs={'step': 'any', 'min': '0'}),
+        }
     
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)

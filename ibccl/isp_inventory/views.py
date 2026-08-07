@@ -3763,8 +3763,18 @@ def settings_view(request):
     auto_backup_config = get_auto_backup_config()
     auto_backup_files = get_auto_backup_files_list()
 
+    # Paginate users for User Management (10 users per page)
+    user_qs = User.objects.all().select_related('userprofile').order_by('-date_joined')
+    user_paginator = Paginator(user_qs, 10)
+    user_page_num = request.GET.get('user_page') or request.GET.get('page')
+    try:
+        users_page = user_paginator.page(user_page_num)
+    except Exception:
+        users_page = user_paginator.page(1)
+
     context = {
-        'users': users,
+        'users': users_page,
+        'user_page_obj': users_page,
         'groups': Group.objects.all(),
         'system_settings': system_settings,
         'setting_form': setting_form,

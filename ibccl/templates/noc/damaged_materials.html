@@ -16,10 +16,11 @@
             {% if request.GET.tab_id %}
             <input type="hidden" name="tab_id" value="{{ request.GET.tab_id }}">
             {% endif %}
+            <input type="hidden" name="status" id="status_filter_input" value="{{ status_filter }}">
             
             {% if role == 'Admin' or role == 'Storekeeper' or role == 'NOC' %}
             <select name="user_id" onchange="submitInventoryFilterForm()"
-                class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-white text-sm font-medium min-w-[160px] w-full sm:w-auto">
+                class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-white text-sm font-medium min-w-[160px] w-full sm:w-auto cursor-pointer shadow-xs">
                 <option value="">All Users</option>
                 {% for branch_user in branch_users %}
                 <option value="{{ branch_user.id }}" {% if request.GET.user_id == branch_user.id|stringformat:"d" %}selected{% endif %}>
@@ -27,49 +28,66 @@
                 {% endfor %}
             </select>
             {% endif %}
-            <div class="flex items-center w-full sm:w-auto">
-                <input type="text" name="search" placeholder="Search..." value="{{ request.GET.search }}"
-                    class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-l-2xl px-6 py-3 focus:outline-none focus:border-red-500 transition-all flex-1 sm:w-64 dark:text-white">
-                <button type="submit"
-                    class="bg-gray-100 dark:bg-midnight-800 text-gray-500 dark:text-gray-400 px-5 py-3 rounded-r-2xl border-2 border-l-0 border-gray-100 dark:border-midnight-800 hover:bg-gray-200 dark:hover:bg-midnight-700 transition-all">
-                    <i class="fas fa-search"></i>
-                </button>
+
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+                <div class="flex items-center w-full sm:w-auto">
+                    <input type="text" name="search" placeholder="Search materials, users, reasons..." value="{{ request.GET.search }}"
+                        oninput="debouncedSearch()"
+                        class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-2xl px-5 py-3 focus:outline-none focus:border-red-500 transition-all flex-1 sm:w-64 dark:text-white text-sm">
+                </div>
+
+                <!-- 3-Dot Status Filter Dropdown -->
+                <div class="relative inline-block text-left flex-shrink-0">
+                    <button type="button" onclick="toggleDamagedStatusDropdown(event)"
+                        class="w-11 h-11 border-2 border-gray-200 dark:border-midnight-800 bg-white dark:bg-midnight-950 text-gray-700 dark:text-gray-200 hover:text-red-600 dark:hover:text-red-400 hover:border-red-500 rounded-full transition-all focus:outline-none flex items-center justify-center shadow-sm relative cursor-pointer"
+                        title="Filter by Status">
+                        <i class="fas fa-ellipsis-v text-sm"></i>
+                        {% if status_filter %}
+                        <span class="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-red-600 rounded-full border-2 border-white dark:border-midnight-900"></span>
+                        {% endif %}
+                    </button>
+                    <div id="damaged-status-dropdown"
+                        class="hidden absolute right-0 mt-2 w-56 bg-white dark:bg-midnight-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-midnight-800 py-2 z-50 text-left fade-in overflow-hidden">
+                        
+                        <div class="px-4 py-2 border-b border-gray-100 dark:border-midnight-800 text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex items-center justify-between">
+                            <span>Filter Status</span>
+                            {% if status_filter %}
+                            <span class="text-[10px] text-red-600 dark:text-red-400 font-bold uppercase">Active</span>
+                            {% endif %}
+                        </div>
+
+                        <!-- Total -->
+                        <button type="button" onclick="setDamagedStatusFilter('')"
+                            class="w-full px-4 py-2.5 text-xs font-semibold flex items-center justify-between text-gray-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-800 transition {% if not status_filter %}bg-slate-100/80 dark:bg-slate-800/60 text-slate-900 font-bold{% endif %}">
+                            <span class="flex items-center gap-2"><i class="fas fa-list text-gray-400 text-xs"></i> Total</span>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-midnight-800 text-slate-700 dark:text-slate-300">{{ total_damaged_count }}</span>
+                        </button>
+
+                        <!-- Pending -->
+                        <button type="button" onclick="setDamagedStatusFilter('Pending')"
+                            class="w-full px-4 py-2.5 text-xs font-semibold flex items-center justify-between text-gray-700 dark:text-gray-300 hover:bg-amber-50 dark:hover:bg-amber-950/50 hover:text-amber-600 transition {% if status_filter == 'Pending' %}bg-amber-50/70 dark:bg-amber-950/40 text-amber-700 font-bold{% endif %}">
+                            <span class="flex items-center gap-2"><i class="fas fa-clock text-amber-500 text-xs"></i> Pending</span>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">{{ pending_count }}</span>
+                        </button>
+
+                        <!-- Confirm -->
+                        <button type="button" onclick="setDamagedStatusFilter('Confirmed')"
+                            class="w-full px-4 py-2.5 text-xs font-semibold flex items-center justify-between text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-950/50 hover:text-green-600 transition {% if status_filter == 'Confirmed' %}bg-green-50/70 dark:bg-green-950/40 text-green-700 font-bold{% endif %}">
+                            <span class="flex items-center gap-2"><i class="fas fa-check-circle text-green-500 text-xs"></i> Confirm</span>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300">{{ confirmed_count }}</span>
+                        </button>
+
+                        <!-- Reject -->
+                        <button type="button" onclick="setDamagedStatusFilter('Rejected')"
+                            class="w-full px-4 py-2.5 text-xs font-semibold flex items-center justify-between text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 transition {% if status_filter == 'Rejected' %}bg-red-50/70 dark:bg-red-950/40 text-red-700 font-bold{% endif %}">
+                            <span class="flex items-center gap-2"><i class="fas fa-times-circle text-red-500 text-xs"></i> Reject</span>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">{{ rejected_count }}</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </form>
     </div>
-
-    <!-- Statistics Summary Cards -->
-    <div class="flex flex-wrap gap-2 mx-4">
-        <div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800 rounded-lg px-3 py-1.5 shadow-sm">
-            <div class="w-6 h-6 rounded-md bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 text-[10px] flex-shrink-0"><i class="fas fa-list"></i></div>
-            <div>
-                <p class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Total</p>
-                <p class="text-sm font-extrabold text-slate-800 dark:text-white leading-none">{{ total_damaged_count }} <span class="text-[9px] font-semibold text-slate-400">({{ total_damaged_qty }} units)</span></p>
-            </div>
-        </div>
-        <div class="flex items-center gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/30 rounded-lg px-3 py-1.5 shadow-sm">
-            <div class="w-6 h-6 rounded-md bg-amber-100 dark:bg-amber-800/40 flex items-center justify-center text-amber-500 dark:text-amber-400 text-[10px] flex-shrink-0"><i class="fas fa-clock"></i></div>
-            <div>
-                <p class="text-[9px] font-bold text-amber-400 dark:text-amber-500 uppercase tracking-wider">Pending</p>
-                <p class="text-sm font-extrabold text-amber-800 dark:text-white leading-none">{{ pending_count }}</p>
-            </div>
-        </div>
-        <div class="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800/30 rounded-lg px-3 py-1.5 shadow-sm">
-            <div class="w-6 h-6 rounded-md bg-green-100 dark:bg-green-800/40 flex items-center justify-center text-green-600 dark:text-green-400 text-[10px] flex-shrink-0"><i class="fas fa-check-circle"></i></div>
-            <div>
-                <p class="text-[9px] font-bold text-green-500 dark:text-green-500 uppercase tracking-wider">Confirmed</p>
-                <p class="text-sm font-extrabold text-green-800 dark:text-white leading-none">{{ confirmed_count }}</p>
-            </div>
-        </div>
-        <div class="flex items-center gap-2 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800/30 rounded-lg px-3 py-1.5 shadow-sm">
-            <div class="w-6 h-6 rounded-md bg-rose-100 dark:bg-rose-800/40 flex items-center justify-center text-rose-500 dark:text-rose-400 text-[10px] flex-shrink-0"><i class="fas fa-times-circle"></i></div>
-            <div>
-                <p class="text-[9px] font-bold text-rose-400 dark:text-rose-500 uppercase tracking-wider">Rejected</p>
-                <p class="text-sm font-extrabold text-rose-800 dark:text-white leading-none">{{ rejected_count }}</p>
-            </div>
-        </div>
-    </div>
-
     <!-- Materials List -->
     <div class="bg-white dark:bg-midnight-900/40 glass-card rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-midnight-800 mx-4">
         <div class="overflow-x-auto">
@@ -84,7 +102,8 @@
                         <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Mac/Serial</th>
                         <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Reason</th>
                         <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Status</th>
-                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Date</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Added Date</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Last Updated</th>
                         <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Confirmed By</th>
                         <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Actions</th>
                     </tr>
@@ -108,6 +127,7 @@
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ item.added_at|date:"Y-m-d" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ item.last_updated|date:"Y-m-d" }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ item.confirmed_by.username|default:"-" }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm">
                             <div class="flex gap-2">
@@ -206,7 +226,6 @@
         {% endif %}
     </nav>
 </div>
-{% endif %}
 {% endif %}
 
 <!-- Add/Edit Modal (Branch Only) -->
@@ -536,6 +555,32 @@
                 input.classList.add('styled');
             }
         });
+    });
+
+    let searchTimer = null;
+    function debouncedSearch() {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+            submitInventoryFilterForm();
+        }, 400);
+    }
+
+    function toggleDamagedStatusDropdown(event) {
+        event.stopPropagation();
+        const dropdown = document.getElementById('damaged-status-dropdown');
+        if (dropdown) dropdown.classList.toggle('hidden');
+    }
+
+    function setDamagedStatusFilter(val) {
+        document.getElementById('status_filter_input').value = val;
+        submitInventoryFilterForm();
+    }
+
+    document.addEventListener('click', function(e) {
+        const dropdown = document.getElementById('damaged-status-dropdown');
+        if (dropdown && !e.target.closest('#damaged-status-dropdown') && !e.target.closest('button[onclick*="toggleDamagedStatusDropdown"]')) {
+            dropdown.classList.add('hidden');
+        }
     });
 
     function submitInventoryFilterForm() {

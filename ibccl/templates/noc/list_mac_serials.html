@@ -6,24 +6,19 @@
     <div class="mb-6">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
-                <h1 class="text-4xl font-bold text-gray-900 dark:text-white">Mac/Serial Numbers</h1>
-                <div class="flex items-center gap-3 mt-3">
-                    <a href="{% url 'noc:add_mac_serials' %}" class="inline-flex items-center px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition shadow-lg">
-                        <i class="fas fa-plus-circle mr-2"></i>Assign New
-                    </a>
-                    <span class="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 rounded-lg text-xs font-bold border border-indigo-100 dark:border-indigo-800">
-                        <i class="fas fa-barcode mr-1.5 opacity-60"></i>Total Registered: {{ total_count }}
-                    </span>
-                </div>
+                <h1 class="text-4xl font-black text-gray-900 dark:text-white tracking-tight">Mac/Serial Numbers</h1>
+                <p class="text-gray-500 dark:text-gray-400 font-medium mt-1">Manage and track branch MAC & serial assignments</p>
             </div>
 
-            <!-- Search and Filter -->
-            <div class="flex flex-1 justify-end max-w-2xl">
-                <form method="get" class="flex items-center gap-2 w-full">
+            <!-- Search and Filter Section -->
+            <div class="flex flex-1 justify-end items-center gap-3 max-w-2xl">
+                <form method="get" id="search-form" class="flex items-center gap-2 flex-1">
+                    {% if request.GET.tab_id %}<input type="hidden" name="tab_id" value="{{ request.GET.tab_id }}">{% endif %}
+                    
                     <!-- User Dropdown Filter -->
                     <div class="w-48">
                         <select name="user_id" onchange="const tid = sessionStorage.getItem('tab_id'); if(tid && !this.form.querySelector('input[name=\'tab_id\']')){ const input = document.createElement('input'); input.type='hidden'; input.name='tab_id'; input.value=tid; this.form.appendChild(input); } this.form.submit();" 
-                            class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-midnight-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-midnight-800 dark:text-white appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20stroke%3D%22%236b7280%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%221.5%22%20d%3D%22m6%208%204%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1.25rem_1.25rem] bg-[position:right_0.5rem_center] bg-no-repeat pr-8">
+                            class="w-full px-3.5 py-2.5 text-sm border border-gray-300 dark:border-midnight-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-midnight-800 dark:text-white appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20stroke%3D%22%236b7280%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%221.5%22%20d%3D%22m6%208%204%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1.25rem_1.25rem] bg-[position:right_0.5rem_center] bg-no-repeat pr-8">
                             <option value="">All Branch Users</option>
                             {% for user in branch_users %}
                                 <option value="{{ user.id }}" {% if user_filter == user.id|stringformat:"s" %}selected{% endif %}>
@@ -33,20 +28,37 @@
                         </select>
                     </div>
 
-                    <!-- Search Input -->
+                    <!-- Search Input (Auto-Search) -->
                     <div class="relative flex-1">
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <i class="fas fa-search text-gray-400 text-xs"></i>
                         </div>
-                        <input type="text" name="search" value="{{ search_query }}" 
+                        <input type="text" name="search" id="search-input" value="{{ search_query }}" 
                             placeholder="Search serial, material..."
-                            class="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 dark:border-midnight-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-midnight-800 dark:text-white transition-all">
+                            oninput="handleAutoSearch()"
+                            class="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 dark:border-midnight-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-midnight-800 dark:text-white transition-all">
                     </div>
-                    
-                    <button type="submit" class="p-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition">
-                        <i class="fas fa-filter"></i>
-                    </button>
                 </form>
+
+                <!-- 3-Dot Dropdown Button (Circular Border) -->
+                <div class="relative inline-block text-left">
+                    <button type="button" id="macFilterToggleBtn" onclick="toggleMacDropdown(event)"
+                        class="w-11 h-11 bg-white dark:bg-midnight-800 border-2 border-gray-200 dark:border-midnight-700 rounded-full hover:bg-indigo-50 dark:hover:bg-midnight-700 text-gray-600 dark:text-gray-300 hover:text-indigo-600 transition-all shadow-xs flex items-center justify-center"
+                        title="Options Menu">
+                        <i class="fas fa-ellipsis-v text-sm"></i>
+                    </button>
+                    <div id="macFilterDropdown"
+                        class="hidden absolute right-0 mt-2 w-60 bg-white dark:bg-midnight-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-midnight-800 py-2 z-50 fade-in">
+                        <a href="{% url 'noc:add_mac_serials' %}" class="flex items-center px-4 py-2.5 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 transition">
+                            <i class="fas fa-plus-circle mr-2 text-indigo-500 text-sm"></i> Assign New
+                        </a>
+                        <div class="border-t border-gray-100 dark:border-midnight-800 my-1"></div>
+                        <div class="flex items-center justify-between px-4 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400">
+                            <span><i class="fas fa-barcode mr-2 text-blue-500 text-sm"></i> Total Registered</span>
+                            <span class="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded-full text-xs font-black">{{ total_count }}</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -150,4 +162,27 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+    let searchTimer;
+    function handleAutoSearch() {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+            document.getElementById('search-form').submit();
+        }, 400);
+    }
+
+    function toggleMacDropdown(event) {
+        event.stopPropagation();
+        const dropdown = document.getElementById('macFilterDropdown');
+        if (dropdown) dropdown.classList.toggle('hidden');
+    }
+
+    window.onclick = function(event) {
+        const dropdown = document.getElementById('macFilterDropdown');
+        if (dropdown && !dropdown.contains(event.target) && !event.target.closest('#macFilterToggleBtn')) {
+            dropdown.classList.add('hidden');
+        }
+    };
+</script>
 {% endblock %}

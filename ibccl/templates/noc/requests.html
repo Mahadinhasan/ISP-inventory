@@ -5,22 +5,26 @@
 {% block content %}
 <div class="fade-in">
     <div class="flex flex-col md:flex-row justify-between items-center mb-10 gap-6 px-4 pt-6">
-        <div>
-            <h1 class="text-4xl font-black text-gray-900 dark:text-white tracking-tight">Material Requests</h1>
-            <p class="text-gray-500 dark:text-gray-400 font-medium">Manage branch material requests</p>
+        <div class="flex items-center gap-3">
+            <div class="p-3 bg-indigo-100 dark:bg-indigo-900/40 rounded-2xl text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-2xs">
+                <i class="fas fa-exchange-alt text-2xl"></i>
+            </div>
+            <div>
+                <h1 class="text-3xl sm:text-4xl font-black text-gray-900 dark:text-white tracking-tight flex items-center gap-2">Stock Transfer</h1>
+                <p class="text-xs text-gray-500 dark:text-gray-400 font-medium mt-0.5">Manage and monitor branch material transfers</p>
+            </div>
         </div>
         
-        <div class="flex gap-2">
-            <form method="get" class="flex items-center group">
-                <input type="text" name="search" placeholder="Search..." value="{{ request.GET.search }}"
+        <div class="flex gap-2 items-center">
+            <form method="get" id="search-form" class="flex items-center group">
+                {% if request.GET.tab_id %}<input type="hidden" name="tab_id" value="{{ request.GET.tab_id }}">{% endif %}
+                {% if request.GET.user %}<input type="hidden" name="user" value="{{ request.GET.user }}">{% endif %}
+                <input type="text" name="search" id="search-input" placeholder="Search..." value="{{ request.GET.search }}"
+                    oninput="handleAutoSearch()"
                     class="bg-white dark:bg-midnight-950 border-2 border-gray-100 dark:border-midnight-800 rounded-l-2xl px-6 py-3 focus:outline-none focus:border-indigo-500 transition-all w-64 dark:text-white">
-                <button type="submit"
-                    class="bg-gray-100 dark:bg-midnight-800 text-gray-500 dark:text-gray-400 px-5 py-3 rounded-r-2xl border-2 border-l-0 border-gray-100 dark:border-midnight-800 hover:bg-gray-200 dark:hover:bg-midnight-700 transition-all">
-                    <i class="fas fa-search"></i>
-                </button>
             </form>
 
-            <!--select user dropdown for NOC role -->
+             <!--select user dropdown for NOC role -->
             <form method="get" id="user-filter-form" class="flex items-center">
                 <!-- Preserve tab_id for session consistency -->
                 {% if request.GET.tab_id %}
@@ -36,35 +40,40 @@
                     {% endfor %}
                 </select>
             </form>
+            <!-- 3-Dot Filter Dropdown Button (Circular Border) -->
+            <div class="relative inline-block text-left">
+                <button type="button" id="requestsFilterToggleBtn" onclick="toggleRequestsDropdown(event)"
+                    class="w-11 h-11 bg-white dark:bg-midnight-950 border-2 border-gray-200 dark:border-midnight-800 rounded-full hover:bg-indigo-50 dark:hover:bg-midnight-900 text-gray-600 dark:text-gray-300 hover:text-indigo-600 transition-all shadow-xs flex items-center justify-center"
+                    title="Filter Requests">
+                    <i class="fas fa-ellipsis-v text-sm"></i>
+                </button>
+                <div id="requestsFilterDropdown"
+                    class="hidden absolute right-0 mt-2 w-56 bg-white dark:bg-midnight-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-midnight-800 py-2 z-50 fade-in">
+                    <div class="px-4 py-2 border-b border-gray-100 dark:border-midnight-800">
+                        <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Quick Filters</span>
+                    </div>
+                    <a href="{% url 'noc:requests' %}" class="flex items-center justify-between px-4 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 transition">
+                        <span><i class="fas fa-layer-group mr-2 text-indigo-500"></i> All Requests</span>
+                    </a>
+                    <a href="{% url 'noc:requests' %}?status=Pending" class="flex items-center justify-between px-4 py-2 text-xs font-semibold text-yellow-700 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-950/50 transition">
+                        <span><i class="fas fa-hourglass-half mr-2"></i> Pending Only</span>
+                        <span class="px-2 py-0.5 text-[10px] font-black bg-yellow-100 dark:bg-yellow-900/40 rounded-full">{{ pending_count }}</span>
+                    </a>
+                    <a href="{% url 'noc:requests' %}?status=Approved" class="flex items-center justify-between px-4 py-2 text-xs font-semibold text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/50 transition">
+                        <span><i class="fas fa-check mr-2"></i> Approved Only</span>
+                        <span class="px-2 py-0.5 text-[10px] font-black bg-green-100 dark:bg-green-900/40 rounded-full">{{ approved_count }}</span>
+                    </a>
+                    <a href="{% url 'noc:requests' %}?status=Received" class="flex items-center justify-between px-4 py-2 text-xs font-semibold text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition">
+                        <span><i class="fas fa-box-open mr-2"></i> Received Only</span>
+                        <span class="px-2 py-0.5 text-[10px] font-black bg-blue-100 dark:bg-blue-900/40 rounded-full">{{ received_count }}</span>
+                    </a>
+                    <a href="{% url 'noc:requests' %}?status=Rejected" class="flex items-center justify-between px-4 py-2 text-xs font-semibold text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 transition">
+                        <span><i class="fas fa-times mr-2"></i> Rejected Only</span>
+                        <span class="px-2 py-0.5 text-[10px] font-black bg-red-100 dark:bg-red-900/40 rounded-full">{{ rejected_count }}</span>
+                    </a>
+                </div>
+            </div>
         </div>
-    </div>
-
-    <!--Request count-->
-    <div class="flex flex-wrap gap-2 mb-8 px-4">
-        {% if pending_count > 0 %}
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 rounded-lg border border-yellow-100 dark:border-yellow-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
-            <i class="fas fa-hourglass-half text-xs"></i>
-            <span>Pending: <span class="font-extrabold">{{ pending_count }}</span></span>
-        </div>
-        {% endif %}
-        {% if approved_count > 0 %}
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 rounded-lg border border-green-100 dark:border-green-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
-            <i class="fas fa-check text-xs"></i>
-            <span>Approved: <span class="font-extrabold">{{ approved_count }}</span></span>
-        </div>
-        {% endif %}
-        {% if rejected_count > 0 %}
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 rounded-lg border border-red-100 dark:border-red-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
-            <i class="fas fa-times text-xs"></i>
-            <span>Rejected: <span class="font-extrabold">{{ rejected_count }}</span></span>
-        </div>
-        {% endif %}
-        {% if received_count > 0 %}
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded-lg border border-blue-100 dark:border-blue-900/30 font-bold text-sm shadow-sm transition-all hover:shadow-md">
-            <i class="fas fa-box-open text-xs"></i>
-            <span>Received: <span class="font-extrabold">{{ received_count }}</span></span>
-        </div>
-        {% endif %}
     </div>
 
     <!-----------Unified Requests Table----------->
@@ -111,14 +120,38 @@
                         {{ req.received_by|default:"Not Received" }}
                         {% endif %}
                     </td>
-                    <td class="px-4 py-4 text-sm text-center">
+                    <td class="px-4 py-4 text-sm text-center relative">
                         {% if req.status == 'Received' %}
-                        <span class="text-emerald-600 font-semibold">Received</span>
+                        <span class="text-emerald-600 font-semibold text-xs bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-900/50 inline-flex items-center gap-1">
+                            <i class="fas fa-check-circle text-xs"></i> Received
+                        </span>
                         {% else %}
-                        <button onclick="openAdminModal('{{ req.id }}', '{{ req.admin_note|escapejs }}', '{{ req.quantity }}')"
-                            class="text-indigo-600 hover:text-indigo-900 font-medium bg-indigo-50 px-3 py-1 rounded-lg hover:bg-indigo-100 transition text-xs">
-                            Manage
-                        </button>
+                        <div class="relative inline-block text-left">
+                            <button type="button" onclick="toggleRowDropdown(event, 'row-dropdown-{{ req.id }}')"
+                                class="w-8 h-8 border border-gray-200 dark:border-midnight-800 text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-midnight-800 rounded-full transition-all focus:outline-none flex items-center justify-center mx-auto"
+                                title="Actions Menu">
+                                <i class="fas fa-ellipsis-v text-xs"></i>
+                            </button>
+                            <div id="row-dropdown-{{ req.id }}"
+                                class="hidden absolute right-0 mt-1 w-44 bg-white dark:bg-midnight-900 rounded-2xl shadow-xl border border-gray-100 dark:border-midnight-800 py-1.5 z-40 text-left fade-in">
+                                <button onclick="openAdminModal('{{ req.id }}', '{{ req.admin_note|escapejs }}', '{{ req.quantity }}')"
+                                    class="w-full px-4 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 flex items-center gap-2 transition">
+                                    <i class="fas fa-sliders-h text-indigo-500 text-xs"></i> Manage Request
+                                </button>
+                                {% if req.pass_on %}
+                                <button onclick="openPassOnModal('{{ req.id }}', '{{ req.pass_on|escapejs }}')"
+                                    class="w-full px-4 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 flex items-center gap-2 transition">
+                                    <i class="fas fa-truck text-blue-500 text-xs"></i> View Pass On
+                                </button>
+                                {% endif %}
+                                {% if user.userprofile.role == 'Branch' and req.can_receive %}
+                                <button onclick="openReceivedModal('{{ req.id }}', '{{ req.received_by|escapejs }}')"
+                                    class="w-full px-4 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-950/50 hover:text-green-600 flex items-center gap-2 transition">
+                                    <i class="fas fa-box-open text-green-500 text-xs"></i> Mark Received
+                                </button>
+                                {% endif %}
+                            </div>
+                        </div>
                         {% endif %}
                     </td>
                 </tr>
@@ -299,6 +332,29 @@
 {% endif %}
 
 <script>
+    let searchTimer;
+    function handleAutoSearch() {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+            document.getElementById('search-form').submit();
+        }, 400);
+    }
+
+    function toggleRowDropdown(event, dropdownId) {
+        event.stopPropagation();
+        document.querySelectorAll('[id^="row-dropdown-"]').forEach(d => {
+            if (d.id !== dropdownId) d.classList.add('hidden');
+        });
+        const dropdown = document.getElementById(dropdownId);
+        if (dropdown) dropdown.classList.toggle('hidden');
+    }
+
+    function toggleRequestsDropdown(event) {
+        event.stopPropagation();
+        const dropdown = document.getElementById('requestsFilterDropdown');
+        if (dropdown) dropdown.classList.toggle('hidden');
+    }
+
     function openAdminModal(id, note, quantity) {
         document.getElementById('adminReqId').value = id;
         document.getElementById('adminNote').value = note;
@@ -320,6 +376,12 @@
 
     // Close on outside click or escape
     window.onclick = function (event) {
+        document.querySelectorAll('[id^="row-dropdown-"]').forEach(d => d.classList.add('hidden'));
+        const reqFilter = document.getElementById('requestsFilterDropdown');
+        if (reqFilter && !reqFilter.contains(event.target) && !event.target.closest('#requestsFilterToggleBtn')) {
+            reqFilter.classList.add('hidden');
+        }
+
         if (event.target.id === 'adminModal') {
             document.getElementById('adminModal').classList.add('hidden');
         }

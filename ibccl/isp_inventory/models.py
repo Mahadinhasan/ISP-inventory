@@ -129,8 +129,8 @@ class Material(models.Model):
     ]
     Type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='Piece')
     quantity = models.IntegerField(default=0)
-    rate = models.IntegerField(default=0)
-    total_price = models.IntegerField(default=0, blank=True)
+    rate = models.FloatField(default=0)
+    total_price = models.FloatField(default=0, blank=True)
     Remaining_stock = models.IntegerField(default=0)
     min_stock_level = models.IntegerField(default=0)
     notes = models.TextField(blank=True)
@@ -361,8 +361,8 @@ class MaterialRequest(models.Model):
     material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name='material_requests')
     requester = models.ForeignKey(User, on_delete=models.CASCADE, related_name='material_requests')
     quantity = models.IntegerField()
-    rate = models.IntegerField(default=0)
-    total_price = models.IntegerField(default=0, blank=True)
+    rate = models.FloatField(default=0)
+    total_price = models.FloatField(default=0, blank=True)
     notes = models.TextField(blank=True) # Deprecated logic potentially, but keeping for compatibility
     send_by = models.TextField(blank=True) # Explicit User Note
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
@@ -426,6 +426,10 @@ class MaterialRequest(models.Model):
             return 0
 
     def save(self, *args, **kwargs):
+        if (not self.rate or self.rate == 0) and self.material:
+            self.rate = self.material.rate or 0
+        if self.quantity is not None and self.rate is not None:
+            self.total_price = float(self.quantity) * float(self.rate)
         # Automatically update status to Dispatched when storekeeper adds pass_on
         if self.pk:
             try:
@@ -559,6 +563,10 @@ class UsedMaterial(models.Model):
     def technician_full_name(self):
         """Return the full name of the technician."""
         return self.technician.get_full_name() or self.technician.username
+
+    @property
+    def last_updated(self):
+        return self.updated_at
     
     def save(self, *args, **kwargs):
         # Default empty fields to 'N/A' as requested
@@ -982,6 +990,10 @@ class DamageMaterial(models.Model):
     def branch_user_name(self):
         """Return branch user's full name"""
         return self.branch_user.get_full_name() or self.branch_user.username
+
+    @property
+    def last_updated(self):
+        return self.updated_at
 
 
 class TrashItem(models.Model):

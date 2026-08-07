@@ -6,7 +6,7 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, logout, login as django_login
 from rest_framework_simplejwt.tokens import RefreshToken
 from isp_inventory.models import UserProfile, Material, MaterialRequest, UsedMaterial, InternalMessage, MacSerialNumber, MaterialMacSerialImport, RefundableMaterial, RefundableMaterialUsage, DamageMaterial, TrashItem
-from isp_inventory.utils import deduct_material_stock, restore_material_stock, sync_mac_serial_status, move_to_trash, restore_trash_item, cleanup_expired_trash
+from isp_inventory.utils import ensure_userprofile, deduct_material_stock, restore_material_stock, sync_mac_serial_status, move_to_trash, restore_trash_item, cleanup_expired_trash
 from django.db.models import Sum, Count, Q, Case, When, IntegerField, Value
 from django.db.models.functions import TruncDate
 from django.utils import timezone
@@ -91,21 +91,9 @@ def noc_logout_view(request):
     logout(request)
     return redirect('noc:login')
 
-def noc_role_required(view_func):
-    @wraps(view_func)
-    def _wrapped_view(request, *args, **kwargs):
-        try:
-            if request.user.is_authenticated and hasattr(request.user, 'userprofile') and request.user.userprofile.role == 'NOC':
-                return view_func(request, *args, **kwargs)
-        except (AttributeError, UserProfile.DoesNotExist):
-            pass
-        messages.error(request, "Access denied. NOC role required.")
-        return redirect('dashboard')
-    return _wrapped_view
-
-@login_required
-@noc_role_required
 def noc_dashboard(request):
+    if not check_noc_permission(request):
+        return redirect('dashboard')
     if request.method == 'POST':
         action = request.POST.get('action')
         req_id = request.POST.get('req_id')
@@ -306,8 +294,9 @@ def noc_dashboard(request):
     return render(request, 'noc/dashboard.html', context)
 
 @login_required
-@noc_role_required
 def noc_materials(request):
+    if not check_noc_permission(request):
+        return redirect('dashboard')
     # Get search query & stock status from GET parameters
     search_query = request.GET.get('search', '').strip()
     stock_status = request.GET.get('stock_status', '').strip()
@@ -380,8 +369,6 @@ def noc_materials(request):
     
     return render(request, 'noc/materials.html', context)
 
-@login_required
-@noc_role_required
 def _safe_int(val, default=0):
     """Safely convert float/int strings like '2915.0' or 2915 to integer."""
     try:
@@ -391,13 +378,35 @@ def _safe_int(val, default=0):
     except (ValueError, TypeError):
         return int(float(default)) if default is not None else 0
 
+def _safe_float(val, default=0.0):
+    """Safely convert float/int strings like '2915.5' or 2915 to float."""
+    try:
+        if val is None or str(val).strip() == '':
+            return float(default) if default is not None else 0.0
+        return float(val)
+    except (ValueError, TypeError):
+        return float(default) if default is not None else 0.0
+
+def check_noc_permission(request):
+    """Check if logged in user strictly has NOC role ONLY."""
+    if not request.user.is_authenticated:
+        messages.error(request, "Please log in first.")
+        return False
+    profile = ensure_userprofile(request.user)
+    role = getattr(profile, 'role', '') if profile else ''
+    if role and role.upper() == 'NOC':
+        return True
+    messages.error(request, "Access denied. NOC role required.")
+    return False
+
 @login_required
-@noc_role_required
 def add_material(request):
+    if not check_noc_permission(request):
+        return redirect('dashboard')
     if request.method == 'POST':
-        name = request.POST.get('name')
+        name = request.POST.get('name', '').strip()
         quantity = _safe_int(request.POST.get('quantity'), 0)
-        rate = _safe_int(request.POST.get('rate'), 0)
+        rate = _safe_float(request.POST.get('rate'), 0.0)
         min_stock = _safe_int(request.POST.get('min_stock_level'), 0)
         total_price = quantity * rate
         material = Material(
@@ -406,7 +415,7 @@ def add_material(request):
             quantity=quantity,
             rate=rate,
             total_price=total_price,
-            Remaining_stock=quantity,
+            Remaining_stock=0,
             min_stock_level=min_stock,
             created_by=request.user
         )
@@ -426,17 +435,22 @@ def add_material(request):
             else:
                 errs = ve.messages
             messages.error(request, ' '.join(errs))
-            # fall through to render form with previous values
+            return render(request, 'noc/add_material.html', {'form_data': request.POST})
+        except Exception as e:
+            messages.error(request, f"Error saving material: {str(e)}")
+            return render(request, 'noc/add_material.html', {'form_data': request.POST})
     return render(request, 'noc/add_material.html')
 
 @login_required
-@noc_role_required
 def edit_material(request, pk):
-    material = get_object_or_404(Material, pk=pk, category='Internet', created_by=request.user)
+    if not check_noc_permission(request):
+        return redirect('dashboard')
+    noc_mats_q = Q(category='Internet') & (Q(created_by=request.user) | Q(created_by__isnull=True) | Q(created_by__userprofile__role='NOC'))
+    material = get_object_or_404(Material, noc_mats_q, pk=pk)
     if request.method == 'POST':
         # NOC can edit quantity, rate, and min_stock_level
         material.quantity = _safe_int(request.POST.get('quantity'), material.quantity)
-        material.rate = _safe_int(request.POST.get('rate'), material.rate)
+        material.rate = _safe_float(request.POST.get('rate'), material.rate)
         material.min_stock_level = _safe_int(request.POST.get('min_stock_level'), material.min_stock_level)
         material.total_price = material.quantity * material.rate
         material.updated_at = timezone.now()
@@ -446,9 +460,11 @@ def edit_material(request, pk):
     return render(request, 'noc/edit_material.html', {'material': material})
 
 @login_required
-@noc_role_required
 def delete_material(request, pk):
-    material = get_object_or_404(Material, pk=pk, category='Internet', created_by=request.user)
+    if not check_noc_permission(request):
+        return redirect('dashboard')
+    noc_mats_q = Q(category='Internet') & (Q(created_by=request.user) | Q(created_by__isnull=True) | Q(created_by__userprofile__role='NOC'))
+    material = get_object_or_404(Material, noc_mats_q, pk=pk)
     if request.method == 'POST':
         material.delete()
         messages.success(request, "Material deleted successfully.")
@@ -456,13 +472,19 @@ def delete_material(request, pk):
     return render(request, 'noc/delete_confirm.html', {'material': material})
 
 @login_required
-@noc_role_required
 def noc_requests(request):
+    if not check_noc_permission(request):
+        return redirect('dashboard')
     if request.method == 'POST':
         action = request.POST.get('action')
         req_id = request.POST.get('req_id')
         if action and req_id:
-            mat_request = get_object_or_404(MaterialRequest, pk=req_id, material__category='Internet', material__created_by=request.user)
+            noc_req_q = Q(material__category='Internet') & (
+                Q(material__created_by=request.user) |
+                Q(material__created_by__isnull=True) |
+                Q(material__created_by__userprofile__role='NOC')
+            )
+            mat_request = get_object_or_404(MaterialRequest, noc_req_q, pk=req_id)
             if action == 'accept':
                 if mat_request.status == 'Approved':
                     messages.warning(request, f"Request for {mat_request.material.name} is already approved.")
@@ -563,16 +585,30 @@ def noc_requests(request):
                 }
             )
     # ── GET logic: searching and filtering ─────────────────────────────────
-    search_query = request.GET.get('search', '')
-    user_filter = request.GET.get('user', '')
+    search_query = request.GET.get('search', '').strip()
+    user_filter = request.GET.get('user', '').strip()
+    status_filter = request.GET.get('status', '').strip()
     show_archived = request.GET.get('archived', '') == '1'
 
-    requests_qs = MaterialRequest.objects.filter(
-        material__category='Internet',
-        material__created_by=request.user,
+    noc_req_q = Q(material__category='Internet') & (
+        Q(material__created_by=request.user) |
+        Q(material__created_by__isnull=True) |
+        Q(material__created_by__userprofile__role='NOC')
+    )
+
+    base_requests_qs = MaterialRequest.objects.filter(
+        noc_req_q,
         is_hidden_by_noc=False,
         is_archived=show_archived,  # Default: show current month (not archived)
     )
+
+    # Summary counts for the top cards (calculated on base queryset before search/status filter)
+    pending_count = base_requests_qs.filter(status='Pending').count()
+    approved_count = base_requests_qs.filter(status='Approved').count()
+    rejected_count = base_requests_qs.filter(status='Rejected').count()
+    received_count = base_requests_qs.filter(status='Received').count()
+
+    requests_qs = base_requests_qs
 
     if search_query:
         requests_qs = requests_qs.filter(
@@ -584,24 +620,20 @@ def noc_requests(request):
     if user_filter:
         requests_qs = requests_qs.filter(requester_id=user_filter)
 
-    requests_qs = requests_qs.select_related('material', 'requester').order_by('-requested_at')
+    if status_filter:
+        requests_qs = requests_qs.filter(status__iexact=status_filter)
 
-    # Summary counts for the top cards
-    pending_count = requests_qs.filter(status='Pending').count()
-    approved_count = requests_qs.filter(status='Approved').count()
-    rejected_count = requests_qs.filter(status='Rejected').count()
-    received_count = requests_qs.filter(status='Received').count()
+    requests_qs = requests_qs.select_related('material', 'requester').order_by('-requested_at')
 
     # Pagination
     paginator = Paginator(requests_qs, 20)
     page = request.GET.get('page')
     page_obj = paginator.get_page(page)
 
-    # Unique list of branches who have made requests for NOC materials
-    users_with_requests = User.objects.filter(
-        material_requests__material__category='Internet',
-        material_requests__material__created_by=request.user
-    ).distinct()
+    # All Branch users for filter dropdown
+    all_branch_users = User.objects.filter(
+        Q(userprofile__role='Branch') | Q(groups__name='Branch')
+    ).distinct().order_by('username')
 
     context = {
         'requests': page_obj,
@@ -610,7 +642,7 @@ def noc_requests(request):
         'approved_count': approved_count,
         'rejected_count': rejected_count,
         'received_count': received_count,
-        'users': users_with_requests,
+        'users': all_branch_users,
         'show_archived': show_archived,
         'archived_count': archived_count,  # > 0 means archiving just happened this session
         'role': 'NOC',
@@ -618,8 +650,9 @@ def noc_requests(request):
     return render(request, 'noc/requests.html', context)
 
 @login_required
-@noc_role_required
 def approve_request(request, pk):
+    if not check_noc_permission(request):
+        return redirect('dashboard')
     mat_request = get_object_or_404(MaterialRequest, pk=pk, material__category='Internet', material__created_by=request.user)
     if request.method == 'POST':
         if mat_request.status == 'Approved':
@@ -635,8 +668,9 @@ def approve_request(request, pk):
     return redirect('noc:requests')
 
 @login_required
-@noc_role_required
 def reject_request(request, pk):
+    if not check_noc_permission(request):
+        return redirect('dashboard')
     mat_request = get_object_or_404(MaterialRequest, pk=pk, material__category='Internet', material__created_by=request.user)
     if request.method == 'POST':
         if mat_request.status == 'Received':
@@ -654,8 +688,9 @@ def reject_request(request, pk):
     return redirect('noc:requests')
 
 @login_required
-@noc_role_required
 def noc_used_materials(request):
+    if not check_noc_permission(request):
+        return redirect('dashboard')
     if request.method == 'POST':
         action = request.POST.get('action')
         used_id = request.POST.get('used_id')
@@ -742,25 +777,26 @@ def noc_used_materials(request):
             Q(client_address__icontains=search_query)
         )
     
-    if status_filter:
-        used_qs = used_qs.filter(status=status_filter)
-        
-    # Stats
+    # Stats calculated before status filter
     total_count = used_qs.count()
     accepted_count = used_qs.filter(status='Accepted').count()
     pending_count = used_qs.filter(status='Pending').count()
     rejected_count = used_qs.filter(status='Rejected').count()
+    
+    if status_filter:
+        used_qs = used_qs.filter(status=status_filter)
+        
+    used_qs = used_qs.order_by('-added_at')
     
     # Pagination
     paginator = Paginator(used_qs, 20)
     page = request.GET.get('page')
     page_obj = paginator.get_page(page)
     
-    # Unique list of technicians/branches who have reported usage for NOC materials
-    users_with_usage = User.objects.filter(
-        used_materials__material__category='Internet',
-        used_materials__material__created_by=request.user
-    ).distinct()
+    # All Branch users for filter dropdown
+    all_branch_users = User.objects.filter(
+        Q(userprofile__role='Branch') | Q(groups__name='Branch')
+    ).distinct().order_by('username')
     
     context = {
         'used_materials': page_obj,
@@ -772,14 +808,15 @@ def noc_used_materials(request):
         'search_query': search_query,
         'status_filter': status_filter,
         'selected_user_id': user_id,
-        'users': users_with_usage,
+        'users': all_branch_users,
         'role': 'NOC'
     }
     return render(request, 'noc/used_materials.html', context)
 
 @login_required
-@noc_role_required
 def noc_materials_monitoring(request):
+    if not check_noc_permission(request):
+        return redirect('dashboard')
     """Real-time materials monitoring for NOC: branch users and used materials they added."""
     ws_scheme = 'wss' if request.scheme == 'https' else 'ws'
     ws_host = request.get_host()
@@ -790,8 +827,9 @@ def noc_materials_monitoring(request):
     })
 
 @login_required
-@noc_role_required
 def noc_reports(request):
+    if not check_noc_permission(request):
+        return redirect('dashboard')
     """Logic for NOC specific reports - only their own materials."""
     role = request.user.userprofile.role
     
@@ -1045,16 +1083,18 @@ def noc_reports(request):
     return render(request, 'noc/reports.html', context)
 
 @login_required
-@noc_role_required
 def noc_notifications(request):
+    if not check_noc_permission(request):
+        return redirect('dashboard')
     # This could be handled by a generic notification system if one exists,
     # but for now we can show recent activities or messages.
     messages_list = InternalMessage.objects.filter(receiver=request.user).order_by('-created_at')
     return render(request, 'noc/notifications.html', {'messages': messages_list})
 
 @login_required
-@noc_role_required
 def noc_profile(request):
+    if not check_noc_permission(request):
+        return redirect('dashboard')
     user = request.user
     profile = user.userprofile
 
@@ -1118,8 +1158,9 @@ def custom_404_view(request, exception=None):
 
 
 @login_required
-@noc_role_required
 def add_mac_serials(request):
+    if not check_noc_permission(request):
+        return redirect('dashboard')
     """NOC view to add Mac/Serial numbers for materials and assign to branch users"""
     from isp_inventory.forms import MacSerialImportForm
     
@@ -1184,8 +1225,9 @@ def add_mac_serials(request):
 
 
 @login_required
-@noc_role_required
 def edit_mac_serials(request, pk):
+    if not check_noc_permission(request):
+        return redirect('dashboard')
     """Edit mac/serial numbers for an import"""
     import_record = get_object_or_404(MaterialMacSerialImport, pk=pk, noc_user=request.user)
     
@@ -1240,8 +1282,9 @@ def edit_mac_serials(request, pk):
 
 
 @login_required
-@noc_role_required
 def list_mac_serials(request):
+    if not check_noc_permission(request):
+        return redirect('dashboard')
     """View all Mac/Serial numbers managed by NOC"""
     mac_serials = MacSerialNumber.objects.filter(added_by=request.user).select_related('material', 'assigned_to').order_by('-created_at')
     
@@ -1290,8 +1333,9 @@ def list_mac_serials(request):
 
 
 @login_required
-@noc_role_required
 def delete_mac_serial(request, pk):
+    if not check_noc_permission(request):
+        return redirect('dashboard')
     """Delete a Mac/Serial number"""
     mac_serial = get_object_or_404(MacSerialNumber, pk=pk, added_by=request.user)
     
@@ -1305,8 +1349,9 @@ def delete_mac_serial(request, pk):
     return render(request, 'noc/confirm_delete_mac_serial.html', {'mac_serial': mac_serial})
     
 @login_required
-@noc_role_required
 def get_branch_materials(request):
+    if not check_noc_permission(request):
+        return redirect('dashboard')
     """AJAX view to get approved NOC material requests for a branch user"""
     user_id = request.GET.get('user_id')
     if not user_id:
@@ -1424,49 +1469,41 @@ class NocDamageMaterialForm(forms.ModelForm):
 # ── NOC Custom Views for Refundable & Damaged Materials ───────────────────
 
 @login_required
-@noc_role_required
 def noc_log_refundable(request):
     messages.error(request, "Access denied. NOC role is not allowed to log refundable materials directly.")
     return redirect('noc:dashboard')
 
 @login_required
-@noc_role_required
 def noc_edit_refundable(request, pk):
     messages.error(request, "Access denied. NOC role is not allowed to edit refundable materials directly.")
     return redirect('noc:dashboard')
 
 @login_required
-@noc_role_required
 def noc_delete_refundable(request, pk):
     messages.error(request, "Access denied. NOC role is not allowed to delete refundable materials directly.")
     return redirect('noc:dashboard')
 
 @login_required
-@noc_role_required
 def noc_process_refundable(request, pk):
     messages.error(request, "Access denied. NOC role is not allowed to process refundable materials directly.")
     return redirect('noc:dashboard')
 
 @login_required
-@noc_role_required
 def noc_log_damaged(request):
     messages.error(request, "Access denied. NOC role is not allowed to log damaged materials directly.")
     return redirect('noc:dashboard')
 
 @login_required
-@noc_role_required
 def noc_edit_damaged(request, pk):
     messages.error(request, "Access denied. NOC role is not allowed to edit damaged materials directly.")
     return redirect('noc:dashboard')
 
 @login_required
-@noc_role_required
 def noc_delete_damaged(request, pk):
     messages.error(request, "Access denied. NOC role is not allowed to delete damaged materials directly.")
     return redirect('noc:dashboard')
 
 @login_required
-@noc_role_required
 def noc_process_damaged(request, pk):
     dm = get_object_or_404(DamageMaterial, pk=pk, material__category='Internet', material__created_by=request.user)
     if request.method == 'POST':
@@ -1499,7 +1536,6 @@ def noc_process_damaged(request, pk):
     return redirect('noc:dashboard')
 
 @login_required
-@noc_role_required
 def noc_get_refundable_api(request, pk):
     rf = get_object_or_404(RefundableMaterial, pk=pk)
     return JsonResponse({
@@ -1511,7 +1547,6 @@ def noc_get_refundable_api(request, pk):
     })
 
 @login_required
-@noc_role_required
 def noc_get_damaged_api(request, pk):
     dm = get_object_or_404(DamageMaterial, pk=pk, material__category='Internet', material__created_by=request.user)
     return JsonResponse({
@@ -1526,8 +1561,9 @@ def noc_get_damaged_api(request, pk):
     })
 
 @login_required
-@noc_role_required
 def noc_refundable_materials_view(request):
+    if not check_noc_permission(request):
+        return redirect('dashboard')
     refundable_qs = RefundableMaterial.objects.select_related('branch_user').order_by('-added_at')
     branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
 
@@ -1607,15 +1643,16 @@ def noc_refundable_materials_view(request):
 
 
 @login_required
-@noc_role_required
 def noc_damaged_materials_view(request):
+    if not check_noc_permission(request):
+        return redirect('dashboard')
     damaged_qs = DamageMaterial.objects.filter(material__category='Internet', material__created_by=request.user).select_related('branch_user', 'material', 'confirmed_by').order_by('-added_at')
-    branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
+    branch_users = User.objects.filter(Q(userprofile__role='Branch') | Q(groups__name='Branch')).distinct().order_by('username')
     
     selected_user_id = request.GET.get('user_id')
     if selected_user_id:
         try:
-            selected_user = User.objects.select_related('userprofile').get(id=selected_user_id, userprofile__role='Branch')
+            selected_user = User.objects.get(id=selected_user_id)
             damaged_qs = damaged_qs.filter(branch_user=selected_user)
         except User.DoesNotExist:
             messages.error(request, 'Selected user not found.')
@@ -1629,10 +1666,6 @@ def noc_damaged_materials_view(request):
             Q(branch_user__last_name__icontains=search_query) |
             Q(damage_reason__icontains=search_query)
         ).distinct()
-
-    paginator = Paginator(damaged_qs, 20)
-    page_number = request.GET.get('page')
-    damaged_page = paginator.get_page(page_number)
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -1653,12 +1686,20 @@ def noc_damaged_materials_view(request):
                 messages.error(request, 'Record not found.')
                 return redirect('noc:damaged_materials')
 
-    # Damaged materials count stats
+    # Damaged materials count stats before status filter
     total_damaged_count = damaged_qs.count()
     pending_count = damaged_qs.filter(status='Pending').count()
     confirmed_count = damaged_qs.filter(status='Confirmed').count()
     rejected_count = damaged_qs.filter(status='Rejected').count()
     total_damaged_qty = damaged_qs.aggregate(s=Sum('quantity'))['s'] or 0
+
+    status_filter = request.GET.get('status', '').strip()
+    if status_filter:
+        damaged_qs = damaged_qs.filter(status=status_filter)
+
+    paginator = Paginator(damaged_qs, 20)
+    page_number = request.GET.get('page')
+    damaged_page = paginator.get_page(page_number)
 
     return render(request, 'noc/damaged_materials.html', {
         'damaged_materials': damaged_page,
@@ -1666,6 +1707,7 @@ def noc_damaged_materials_view(request):
         'page_obj': damaged_page,
         'branch_users': branch_users,
         'search_query': search_query,
+        'status_filter': status_filter,
         'total_damaged_count': total_damaged_count,
         'pending_count': pending_count,
         'confirmed_count': confirmed_count,
@@ -1680,6 +1722,8 @@ from django.shortcuts import redirect, render
 
 @login_required
 def noc_logs(request):
+    if not check_noc_permission(request):
+        return redirect('dashboard')
     """Dedicated logs view for the NOC role, showing only their own actions."""
     user = request.user
     profile = user.userprofile

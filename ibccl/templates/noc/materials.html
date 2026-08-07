@@ -4,158 +4,148 @@
 
 {% block content %}
 <div class="fade-in">
-    <!-- Header Row -->
+    <!-- Header Row (Title + Search + 3-Dot Status Filter) -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
         <div>
             <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
-                <i class="fas fa-boxes text-indigo-600 dark:text-indigo-400"></i> NOC Materials Management
+                <i class="fas fa-boxes text-indigo-600 dark:text-indigo-400"></i> 
+                Inventory and Assets
             </h1>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Overview and inventory stock management for NOC Internet materials.
-            </p>
         </div>
-    </div>
 
-    <!-- Unified Single-Line Control Bar (Search + Quick Filter Badges + Total Valuation) -->
-    <div
-        class="bg-white dark:bg-midnight-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-midnight-800 p-3 mb-6">
-        <form id="nocMaterialsFilterForm" method="GET"
-            class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <form id="nocMaterialsFilterForm" method="GET" class="flex items-center gap-2 m-0">
             {% if stock_status %}
             <input type="hidden" name="stock_status" value="{{ stock_status }}">
             {% endif %}
 
-            <div class="flex items-center gap-2 flex-1 max-w-full">
-                <!-- Compact Auto-Search Bar -->
-                <div class="relative flex-1 min-w-0 sm:max-w-xs">
-                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
-                    <input type="text" id="searchNocInput" name="search" value="{{ search_query }}"
-                        placeholder="Search material..." oninput="debounceSubmit()"
-                        class="w-full pl-8 pr-3 h-9 bg-slate-50 dark:bg-midnight-950 border border-slate-200 dark:border-midnight-800 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:text-white">
-                </div>
+            <!-- Compact Auto-Search Bar -->
+            <div class="relative flex-1 min-w-0 sm:w-60">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                <input type="text" id="searchNocInput" name="search" value="{{ search_query }}"
+                    placeholder="Search material..." oninput="debounceSubmit()"
+                    class="w-full pl-8 pr-3 h-9 bg-white dark:bg-midnight-950 border border-slate-200 dark:border-midnight-800 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:text-white shadow-2xs">
+            </div>
 
-                <!-- 3-Dot / Filter Dropdown Button -->
-                <div class="relative flex-shrink-0">
-                    <button type="button" id="nocStatusFilterToggleBtn" onclick="toggleNocStatusDropdown(event)"
-                        title="Filter Stock Status"
-                        class="flex items-center justify-center w-9 h-9 rounded-xl border-2 transition-all cursor-pointer shadow-sm
-                               {% if stock_status %}bg-indigo-600 border-indigo-600 text-white shadow-indigo-200 dark:shadow-indigo-900/40{% else %}bg-white dark:bg-midnight-950 border-slate-200 dark:border-midnight-800 text-gray-600 dark:text-gray-300 hover:border-indigo-500 hover:text-indigo-600{% endif %}">
-                        <i class="fas fa-ellipsis-v text-sm"></i>
-                        {% if stock_status %}
-                        <span
-                            class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 ring-2 ring-white dark:ring-midnight-900 rounded-full animate-pulse"></span>
+            <!-- 3-Dot / Filter Dropdown Button -->
+            <div class="relative flex-shrink-0">
+                <button type="button" id="nocStatusFilterToggleBtn" onclick="toggleNocStatusDropdown(event)"
+                    title="Filter Stock Status"
+                    class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all cursor-pointer shadow-2xs
+                           {% if stock_status %}bg-indigo-600 border-indigo-600 text-white shadow-indigo-200 dark:shadow-indigo-900/40{% else %}bg-white dark:bg-midnight-950 border-slate-200 dark:border-midnight-800 text-gray-600 dark:text-gray-300 hover:border-indigo-500 hover:text-indigo-600{% endif %}">
+                    <i class="fas fa-ellipsis-v text-sm"></i>
+                    {% if stock_status %}
+                    <span
+                        class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 ring-2 ring-white dark:ring-midnight-900 rounded-full animate-pulse"></span>
+                    {% endif %}
+                </button>
+
+                <!-- Dropdown Menu -->
+                <div id="nocStatusFilterDropdown"
+                    class="hidden absolute right-0 mt-2 w-64 bg-white dark:bg-midnight-900 border border-gray-100 dark:border-midnight-800 rounded-2xl shadow-2xl z-50 p-2.5 space-y-1.5 transform transition-all duration-200">
+                    <div
+                        class="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-midnight-800/80 flex items-center justify-between">
+                        <span><i class="fas fa-filter mr-1 text-indigo-500"></i>Filter Stock Status</span>
+                        {% if stock_status or search_query %}
+                        <a href="{% url 'noc:materials' %}"
+                            class="text-[10px] text-red-500 hover:underline font-bold">Reset All</a>
                         {% endif %}
-                    </button>
+                    </div>
 
-                    <!-- Dropdown Menu -->
-                    <div id="nocStatusFilterDropdown"
-                        class="hidden absolute left-0 sm:left-auto sm:right-0 mt-2 w-64 bg-white dark:bg-midnight-900 border border-gray-100 dark:border-midnight-800 rounded-2xl shadow-2xl z-50 p-2.5 space-y-1.5 transform transition-all duration-200">
-                        <div
-                            class="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-midnight-800/80 flex items-center justify-between">
-                            <span><i class="fas fa-filter mr-1 text-indigo-500"></i>Filter Stock Status</span>
-                            {% if stock_status or search_query %}
-                            <a href="{% url 'noc:materials' %}"
-                                class="text-[10px] text-red-500 hover:underline font-bold">Reset All</a>
-                            {% endif %}
-                        </div>
-
-                        <!-- Total Valuation Info -->
-                        <div
-                            class="px-3 py-2 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/30 flex items-center justify-between">
-                            <div class="flex items-center gap-2">
-                                <span
-                                    class="w-6 h-6 rounded-lg bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center text-purple-600 dark:text-purple-400 text-xs font-bold">৳</span>
-                                <div>
-                                    <p class="text-xs font-bold text-gray-900 dark:text-white">NOC Valuation</p>
-                                    <p class="text-[9px] font-medium text-gray-400">Total Inventory</p>
-                                </div>
-                            </div>
-                            <span class="text-xs font-extrabold text-purple-600 dark:text-purple-400">{{ total_price|intcomma|default:0 }}৳</span>
-                        </div>
-
-                        <div
-                            class="px-3 pt-1 text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 border-t border-gray-100 dark:border-midnight-800/80">
-                            <span>Stock Options</span>
-                        </div>
-
-                        <!-- All Materials / Reset Option -->
-                        <a href="{% url 'noc:materials' %}{% if search_query %}?search={{ search_query }}{% endif %}"
-                            class="flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-all
-                                  {% if not stock_status %}bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-midnight-800{% endif %}">
-                            <div class="flex items-center gap-2">
-                                <span
-                                    class="w-5 h-5 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-[10px]">
-                                    <i class="fas fa-boxes"></i>
-                                </span>
-                                <span>All Materials</span>
-                            </div>
+                    <!-- Total Valuation Info -->
+                    <div
+                        class="px-3 py-2 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/30 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
                             <span
-                                class="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300">
-                                {{ total_materials_count }}</span>
-                        </a>
-
-                        <!-- Normal Stock Option -->
-                        <a href="{% url 'noc:materials' %}?stock_status=normal{% if search_query %}&search={{ search_query }}{% endif %}"
-                            class="flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-all
-                                  {% if stock_status == 'normal' %}bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-emerald-50/60 dark:hover:bg-emerald-900/20 hover:text-emerald-600{% endif %}">
-                            <div class="flex items-center gap-2">
-                                <span
-                                    class="w-5 h-5 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-[10px]">
-                                    <i class="fas fa-check-circle"></i>
-                                </span>
-                                <span>Normal Stock</span>
+                                class="w-6 h-6 rounded-lg bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center text-purple-600 dark:text-purple-400 text-xs font-bold">৳</span>
+                            <div>
+                                <p class="text-xs font-bold text-gray-900 dark:text-white">NOC Valuation</p>
                             </div>
-                            <span
-                                class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300">
-                                {{ total_normal_stock }}</span>
-                        </a>
-
-                        <!-- Low Stock Option -->
-                        <a href="{% url 'noc:materials' %}?stock_status=low{% if search_query %}&search={{ search_query }}{% endif %}"
-                            class="flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-all
-                                  {% if stock_status == 'low' %}bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-amber-50/60 dark:hover:bg-amber-900/20 hover:text-amber-600{% endif %}">
-                            <div class="flex items-center gap-2">
-                                <span
-                                    class="w-5 h-5 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-600 dark:text-amber-400 text-[10px]">
-                                    <i class="fas fa-exclamation-triangle"></i>
-                                </span>
-                                <span>Low Stock</span>
-                            </div>
-                            <span
-                                class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300">
-                                {{ total_low_stock }}</span>
-                        </a>
-
-                        <!-- Out of Stock Option -->
-                        <a href="{% url 'noc:materials' %}?stock_status=out_of_stock{% if search_query %}&search={{ search_query }}{% endif %}"
-                            class="flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-all
-                                  {% if stock_status == 'out_of_stock' %}bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-rose-50/60 dark:hover:bg-rose-900/20 hover:text-rose-600{% endif %}">
-                            <div class="flex items-center gap-2">
-                                <span
-                                    class="w-5 h-5 rounded-lg bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center text-rose-600 dark:text-rose-400 text-[10px]">
-                                    <i class="fas fa-times-circle"></i>
-                                </span>
-                                <span>Out of Stock</span>
-                            </div>
-                            <span
-                                class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300">
-                                {{ total_out_of_stock }}</span>
-                        </a>
-
-                        <!-- Action: Add New Material -->
-                        <div class="pt-2 border-t border-gray-100 dark:border-midnight-800/80">
-                            <a href="{% url 'noc:add_material' %}"
-                                class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all">
-                                <div class="flex items-center gap-2">
-                                    <span
-                                        class="w-6 h-6 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-xs">
-                                        <i class="fas fa-plus"></i>
-                                    </span>
-                                    <span>Add New Material</span>
-                                </div>
-                                <i class="fas fa-chevron-right text-xs text-indigo-600 dark:text-indigo-400"></i>
-                            </a>
                         </div>
+                        <span class="text-xs font-extrabold text-purple-600 dark:text-purple-400">{{ total_price|intcomma|default:0 }}৳</span>
+                    </div>
+
+                    <div
+                        class="px-3 pt-1 text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 border-t border-gray-100 dark:border-midnight-800/80">
+                        <span>Stock Options</span>
+                    </div>
+
+                    <!-- All Materials / Reset Option -->
+                    <a href="{% url 'noc:materials' %}{% if search_query %}?search={{ search_query }}{% endif %}"
+                        class="flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-all
+                              {% if not stock_status %}bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-midnight-800{% endif %}">
+                        <div class="flex items-center gap-2">
+                            <span
+                                class="w-5 h-5 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-[10px]">
+                                <i class="fas fa-boxes"></i>
+                            </span>
+                            <span>All Materials</span>
+                        </div>
+                        <span
+                            class="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300">
+                            {{ total_materials_count }}</span>
+                    </a>
+
+                    <!-- Normal Stock Option -->
+                    <a href="{% url 'noc:materials' %}?stock_status=normal{% if search_query %}&search={{ search_query }}{% endif %}"
+                        class="flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-all
+                              {% if stock_status == 'normal' %}bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-emerald-50/60 dark:hover:bg-emerald-900/20 hover:text-emerald-600{% endif %}">
+                        <div class="flex items-center gap-2">
+                            <span
+                                class="w-5 h-5 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-[10px]">
+                                <i class="fas fa-check-circle"></i>
+                            </span>
+                            <span>Normal Stock</span>
+                        </div>
+                        <span
+                            class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300">
+                            {{ total_normal_stock }}</span>
+                    </a>
+
+                    <!-- Low Stock Option -->
+                    <a href="{% url 'noc:materials' %}?stock_status=low{% if search_query %}&search={{ search_query }}{% endif %}"
+                        class="flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-all
+                              {% if stock_status == 'low' %}bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-amber-50/60 dark:hover:bg-amber-900/20 hover:text-amber-600{% endif %}">
+                        <div class="flex items-center gap-2">
+                            <span
+                                class="w-5 h-5 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-600 dark:text-amber-400 text-[10px]">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </span>
+                            <span>Low Stock</span>
+                        </div>
+                        <span
+                            class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300">
+                            {{ total_low_stock }}</span>
+                    </a>
+
+                    <!-- Out of Stock Option -->
+                    <a href="{% url 'noc:materials' %}?stock_status=out_of_stock{% if search_query %}&search={{ search_query }}{% endif %}"
+                        class="flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-all
+                              {% if stock_status == 'out_of_stock' %}bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40{% else %}text-gray-700 dark:text-gray-300 hover:bg-rose-50/60 dark:hover:bg-rose-900/20 hover:text-rose-600{% endif %}">
+                        <div class="flex items-center gap-2">
+                            <span
+                                class="w-5 h-5 rounded-lg bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center text-rose-600 dark:text-rose-400 text-[10px]">
+                                <i class="fas fa-times-circle"></i>
+                            </span>
+                            <span>Out of Stock</span>
+                        </div>
+                        <span
+                            class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300">
+                            {{ total_out_of_stock }}</span>
+                    </a>
+
+                    <!-- Action: Add New Material -->
+                    <div class="pt-2 border-t border-gray-100 dark:border-midnight-800/80">
+                        <a href="{% url 'noc:add_material' %}"
+                            class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all">
+                            <div class="flex items-center gap-2">
+                                <span
+                                    class="w-6 h-6 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-xs">
+                                    <i class="fas fa-plus"></i>
+                                </span>
+                                <span>Add New Material</span>
+                            </div>
+                            <i class="fas fa-chevron-right text-xs text-indigo-600 dark:text-indigo-400"></i>
+                        </a>
                     </div>
                 </div>
             </div>
@@ -165,36 +155,12 @@
     <!-- Materials Data Table -->
     <div
         class="bg-white dark:bg-midnight-900/50 rounded-2xl shadow-sm overflow-hidden border border-slate-200/70 dark:border-midnight-800">
-        <!-- Table Header Context Bar -->
-        <div
-            class="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-100 dark:border-midnight-800 bg-gray-50/70 dark:bg-midnight-950/80">
-            <span class="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                <i class="fas fa-list text-indigo-500"></i>
-                {% if stock_status == 'normal' %}
-                Showing Normal Stock Materials ({{ page_obj.paginator.count }})
-                {% elif stock_status == 'low' %}
-                Showing Low Stock Materials ({{ page_obj.paginator.count }})
-                {% elif stock_status == 'out_of_stock' %}
-                Showing Out of Stock Materials ({{ page_obj.paginator.count }})
-                {% else %}
-                Showing All NOC Materials ({{ page_obj.paginator.count }})
-                {% endif %}
-            </span>
-
-            {% if search_query or stock_status %}
-            <a href="{% url 'noc:materials' %}"
-                class="text-sm text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-bold transition flex items-center gap-1">
-                <i class="fas fa-times"></i> Clear Filters
-            </a>
-            {% endif %}
-        </div>
-
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr
                         class="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-50/50 dark:bg-midnight-950/50 border-b border-slate-200/60 dark:border-midnight-800">
-                        <th class="px-5 py-3 text-center">SL</th>
+                        <th class="px-5 py-3 text-center">Index</th>
                         <th class="px-5 py-3 text-left">Material Name</th>
                         <th class="px-5 py-3 text-center">In Stock Quantity</th>
                         <th class="px-5 py-3 text-center">Min Stock Threshold</th>

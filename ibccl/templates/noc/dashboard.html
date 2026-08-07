@@ -80,7 +80,7 @@
                     <i class="fas fa-box text-xl text-red-600 dark:text-red-400"></i>
                 </div>
                 <div class="ml-4">
-                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Low Stock</p>
+                    <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Out of Stock</p>
                     <p class="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{{ low_stock_materials }}</p>
                 </div>
             </div>
@@ -136,13 +136,15 @@
         <!-- 8. Destroy Materials Card -->
         <div onclick="document.getElementById('destroyMaterialsModal').classList.remove('hidden')"
             class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-            <div class="flex items-center">
-                <div class="p-3 bg-red-100 dark:bg-red-900/30 rounded-full">
-                    <i class="fas fa-trash-alt text-xl text-red-600 dark:text-red-400"></i>
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <div class="p-3 bg-red-100 dark:bg-red-900/30 rounded-full">
+                    <i class="fas fa-dumpster text-red-500 animate-pulse"></i>
                 </div>
                 <div class="ml-4">
                     <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Destroy Logs</p>
-                    <p class="text-base font-bold text-gray-900 dark:text-white">Log</p>
+                    <p class="text-base font-bold text-gray-900 dark:text-white">View</p>
+                </div>
                 </div>
             </div>
         </div>
