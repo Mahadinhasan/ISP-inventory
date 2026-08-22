@@ -1,29 +1,45 @@
 {% extends 'inventory/base.html' %}
+{% load humanize %}
 {% block title %}ISP-Inventory: Dashboard{% endblock %}
 {% block content %}
 <div class="fade-in">
-    <!-- Page header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div class="flex items-center gap-4">
-            <div class="hidden sm:flex h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 items-center justify-center shadow-lg shadow-indigo-200 dark:shadow-indigo-900/40 flex-shrink-0">
-                <i class="fas fa-gauge-high text-white text-2xl"></i>
+    <!-- Page header (Minimized & Sleek) -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5 p-3.5 sm:p-4 mb-6 bg-white/70 dark:bg-midnight-900/60 backdrop-blur-md border border-gray-200/70 dark:border-midnight-800 rounded-2xl shadow-xs">
+        <!-- Left Side: Icon + Title + Greeting -->
+        <div class="flex items-center gap-3">
+            <div class="relative flex h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 items-center justify-center text-white shadow-md shadow-indigo-500/20 flex-shrink-0">
+                <i class="fas fa-gauge-high text-sm sm:text-base"></i>
+                <span class="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border border-white dark:border-midnight-900"></span>
+                </span>
             </div>
             <div>
-                <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">Dashboard</h1>
-                <p class="mt-1 text-base text-gray-500 dark:text-gray-400">Welcome back, <span class="font-semibold text-gray-700 dark:text-gray-300">{{ user.username }}</span>!</p>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-base sm:text-lg font-black text-gray-900 dark:text-white tracking-tight">Dashboard</h1>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/40">
+                        <span class="w-1 h-1 rounded-full bg-emerald-500"></span>
+                        Live
+                    </span>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                    Welcome back, <span class="font-bold text-gray-800 dark:text-gray-200">{{ user.username }}</span>
+                </p>
             </div>
         </div>
 
-        <!--Right side add count total materials price value-->
+        <!-- Right Side: Total Inventory Value (Admin / Storekeeper Only) -->
         {% if user.userprofile.role != 'Branch' %}
-        <div class="inline-flex items-center gap-3 px-5 py-3 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-200 dark:shadow-indigo-900/40">
-            <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
-                <i class="fas fa-taka-sign text-lg">৳</i>
+        <div class="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/20 self-start sm:self-auto">
+            <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-white text-xs">
+                <i class="fas fa-coins"></i>
             </span>
-            <span class="leading-tight">
-                <span class="block text-[10px] font-semibold uppercase tracking-widest text-indigo-100">Total Inventory Value</span>
-                <span class="block text-xl font-extrabold">{{ total_price1|floatformat:2 }}</span>
-            </span>
+            <div class="leading-none">
+                <span class="block text-[9px] font-bold uppercase tracking-wider text-indigo-200">Total Value</span>
+                <span class="block text-xs sm:text-sm font-black text-white mt-0.5">
+                    {{ total_price1|floatformat:2|intcomma }} <span class="text-[10px] font-bold text-indigo-200">৳</span>
+                </span>
+            </div>
         </div>
         {% endif %}
     </div>
@@ -162,7 +178,7 @@
                 </div>
                 <div class="ml-4">
                     <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Monitoring</p>
-                    <p class="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{{ materials_monitoring|length }}</p>
+                    <p class="text-base font-bold text-gray-900 dark:text-white">Real-time Tracking</p>
                 </div>
             </div>
         </div>
@@ -599,122 +615,114 @@
     </div>
 </div>
 
-<!-- Tasks Modal
-    <div id="tasksModal"
-        class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
-        onclick="if(event.target === this) this.classList.add('hidden')">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4">
-            <div class="p-6 border-b flex justify-between items-center">
-                <h3 class="text-xl font-bold text-gray-900">Recent Tasks</h3>
-                <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'tasksTable')"
-                    class="border rounded px-2 py-1 ml-4 text-sm focus:ring-indigo-500 focus:border-indigo-500">
-                <button onclick="document.getElementById('tasksModal').classList.add('hidden')"
-                    class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
-            </div>
-            <div class="p-6 overflow-y-auto">
-                <table id="tasksTable" class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200">
-                        {% for task in all_tasks %}
-                        <tr>
-                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ task.title }}</td>
-                            <td class="px-6 py-4 text-sm text-gray-500">{{ task.customer }}</td>
-                            <td class="px-6 py-4 text-sm text-gray-500">{{ task.technician.username }}</td>
-                            <td class="px-6 py-4 text-sm">
-                                <span class="px-2 py-1 rounded-full text-xs font-semibold
-                                    {% if task.status == 'Completed' %}bg-green-100 text-green-800
-                                    {% elif task.status == 'In Progress' %}bg-blue-100 text-blue-800
-                                    {% else %}bg-gray-100 text-gray-800{% endif %}">
-                                    {{ task.status }}
-                                </span>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div> -->
-
 <!-- Used Materials Modal -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!-- 📦 MODAL: USED MATERIALS MODAL -->
 <!-- 📝 Description: Shows comprehensive log of materials used by branches. -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <div id="usedMaterialsModal" 
-    class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm"
+    class="fixed inset-0 bg-midnight-950/80 hidden flex items-center justify-center z-50 backdrop-blur-sm p-3 sm:p-4"
     onclick="if(event.target === this) this.classList.add('hidden')">
-    <div id="usedMaterialsModalContent" class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col m-4 transform transition-all duration-300">
-        <div class="p-6 border-b flex justify-between items-center">
-            <h3 class="text-xl font-bold text-gray-900">Used Materials</h3>
-            <div class="flex items-center gap-3 ml-auto">
-                <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'usedMaterialsTable')"
-                    class="border rounded px-2 py-1 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+    <div id="usedMaterialsModalContent" class="bg-white dark:bg-midnight-900 border border-gray-200 dark:border-midnight-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col transform transition-all duration-300 overflow-hidden">
+        <!-- Modal Header -->
+        <div class="p-4 sm:p-5 border-b border-gray-100 dark:border-midnight-800 flex flex-wrap gap-3 justify-between items-center bg-gray-50/50 dark:bg-midnight-950/50">
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-sm">
+                    <i class="fas fa-boxes-packing"></i>
+                </div>
+                <div>
+                    <h3 class="text-base sm:text-lg font-black text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
+                        <span>Used Materials</span>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/40">Last 10</span>
+                    </h3>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400 font-medium">Recent branch usage activity log</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 ml-auto">
+                <div class="relative">
+                    <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'usedMaterialsTable')"
+                        class="pl-7 pr-3 py-1.5 bg-white dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl text-xs text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 w-32 sm:w-44 transition">
+                </div>
                 <button onclick="toggleModalSize('usedMaterialsModalContent', 'btnToggleUsedSize')" id="btnToggleUsedSize"
-                    class="text-gray-500 hover:text-gray-700 transition-colors" title="Toggle Size">
-                    <i class="fas fa-expand-alt text-lg"></i>
+                    class="w-8 h-8 rounded-xl bg-white dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center justify-center transition shadow-xs" title="Toggle Size">
+                    <i class="fas fa-expand-alt text-xs"></i>
                 </button>
                 <button onclick="document.getElementById('usedMaterialsModal').classList.add('hidden')"
-                    class="text-gray-500 hover:text-gray-700 text-2xl font-bold">&times;</button>
+                    class="w-8 h-8 rounded-xl bg-white dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 flex items-center justify-center text-sm font-bold transition shadow-xs">&times;</button>
             </div>
         </div>
-        <div class="p-6 overflow-y-auto">
-            <table id="usedMaterialsTable" class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Material</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">MAC/Serial</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date Used</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200">
-                    {% for used in all_used_materials %}
-                    <tr>
-                        <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ used.technician.username }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">
-                            {{ used.material.name }}
-                            {% if used.is_pop_entry %}
-                            <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 uppercase tracking-wider">pop</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-6 py-4 text-sm text-gray-500 font-mono">
-                            {{ used.mac_serial.mac_serial|default:"N/A" }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900 font-bold">{{ used.quantity }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-600">{{ used.added_at|date:"Y-m-d" }}</td>
-                        <td class="px-6 py-4 text-sm">
-                            <span class="px-2 py-1 rounded-full text-xs font-semibold
-                                    {% if used.status == 'Accepted' %}bg-green-100 text-green-800
-                                    {% elif used.status == 'Rejected' %}bg-red-100 text-red-800
-                                    {% else %}bg-yellow-100 text-yellow-800{% endif %}">
-                                {{ used.status }}
-                            </span>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="6" class="px-6 py-12 text-center text-gray-500">
-                            <i class="fas fa-inbox text-4xl mb-3 text-gray-300"></i><br>
-                            No used materials found
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            <!--Pagination add-->
 
-            <div class="mt-4 text-right">
-                <a href="{% url 'used_materials' %}" class="text-indigo-600 hover:text-indigo-900 font-medium">Go to
-                    Used Materials Page &rarr;</a>
+        <!-- Table Container -->
+        <div class="p-4 sm:p-5 overflow-y-auto max-h-[calc(85vh-130px)]">
+            <div class="overflow-x-auto rounded-xl border border-gray-100 dark:border-midnight-800">
+                <table id="usedMaterialsTable" class="min-w-full divide-y divide-gray-100 dark:divide-midnight-800 text-xs">
+                    <thead class="bg-gray-50/80 dark:bg-midnight-950/80 text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider text-[10px]">
+                        <tr>
+                            <th class="px-4 py-3 text-left">Branch / User</th>
+                            <th class="px-4 py-3 text-left">Material</th>
+                            <th class="px-4 py-3 text-left">MAC/Serial</th>
+                            <th class="px-4 py-3 text-center">Quantity</th>
+                            <th class="px-4 py-3 text-left">Date Used</th>
+                            <th class="px-4 py-3 text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-midnight-800/80 bg-white dark:bg-midnight-900">
+                        {% for used in all_used_materials %}
+                        <tr class="hover:bg-gray-50/60 dark:hover:bg-midnight-950/40 transition">
+                            <td class="px-4 py-3 font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                <div class="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-[10px] font-black uppercase">
+                                    {{ used.technician.username|slice:":2" }}
+                                </div>
+                                <span>{{ used.technician.username }}</span>
+                            </td>
+                            <td class="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200">
+                                <span>{{ used.material.name }}</span>
+                                {% if used.is_pop_entry %}
+                                <span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-black bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 uppercase tracking-wider">pop</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-[11px]">
+                                {{ used.mac_serial.mac_serial|default:"-" }}
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                <span class="px-2 py-0.5 rounded-md font-black bg-gray-100 dark:bg-midnight-950 text-gray-800 dark:text-gray-200">
+                                    {{ used.quantity }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                                {{ used.added_at|date:"d M Y, h:i A" }}
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                <span class="px-2.5 py-1 rounded-full text-[10px] font-black inline-flex items-center gap-1
+                                        {% if used.status == 'Accepted' %}bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-200 dark:border-green-800/40
+                                        {% elif used.status == 'Rejected' %}bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 border border-rose-200 dark:border-rose-800/40
+                                        {% else %}bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40{% endif %}">
+                                    {% if used.status == 'Accepted' %}<i class="fas fa-check text-[9px]"></i>
+                                    {% elif used.status == 'Rejected' %}<i class="fas fa-times text-[9px]"></i>
+                                    {% else %}<i class="fas fa-clock text-[9px]"></i>{% endif %}
+                                    {{ used.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
+                                <i class="fas fa-inbox text-3xl mb-2 text-gray-300 dark:text-gray-600 block"></i>
+                                <span class="text-xs font-semibold">No used materials found</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-4 flex items-center justify-between pt-2">
+                <span class="text-[11px] text-gray-500 dark:text-gray-400">Showing latest {{ all_used_materials|length }} entries</span>
+                <a href="{% url 'used_materials' %}" class="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 hover:underline transition">
+                    <span>View All Used Materials</span>
+                    <i class="fas fa-arrow-right text-[10px]"></i>
+                </a>
             </div>
         </div>
     </div>
@@ -1875,6 +1883,13 @@
         </button>
     </div>
 </div>
+<style>
+    .text-3xl {
+    font-size: 1.50rem;
+    line-height: 2.25rem;
+}
+</style>
+
 <script>
 (function() {
     var ROWS_PER_PAGE = 20;

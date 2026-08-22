@@ -1,6 +1,6 @@
 {% extends 'noc/base.html' %}
 {% load humanize %}
-{% block title %}Material Requests{% endblock %}
+{% block title %}{% if user.is_authenticated %}{{ user.username }} | Stock Transfer {% else %} Stock Transfer {% endif %}{% endblock %}
 
 {% block content %}
 <div class="fade-in">
@@ -330,7 +330,14 @@
     </nav>
 </div>
 {% endif %}
-
+<style>
+    @media (min-width: 640px) {
+    .sm\:text-4xl {
+        font-size: 1.50rem;
+        line-height: 2.5rem;
+    }
+}
+</style>
 <script>
     let searchTimer;
     function handleAutoSearch() {

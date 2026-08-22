@@ -234,11 +234,17 @@ def dashboard(request):
     # Data for dashboard modals - Role-specific
     # all_tasks = Task.objects.all().order_by('-created_at')
     all_requests = MaterialRequest.objects.filter(requester=request.user, is_archived=False).order_by('-requested_at')
-    today = timezone.localtime(now).date()
-    all_used_materials = UsedMaterial.objects.filter(
-        is_archived=False,
-        added_at__date=today
-    ).select_related('technician', 'material').order_by('-added_at')[:20]  # Today's used materials only, limit 20
+    
+    # Last 10 used materials for Dashboard Used Materials Modal
+    if role in ['Admin', 'Storekeeper']:
+        all_used_materials = UsedMaterial.objects.filter(
+            is_archived=False
+        ).select_related('technician', 'material', 'mac_serial').order_by('-added_at')[:10]
+    else:
+        all_used_materials = UsedMaterial.objects.filter(
+            technician=request.user,
+            is_archived=False
+        ).select_related('technician', 'material', 'mac_serial').order_by('-added_at')[:10]
     
     # Role-specific material data for the materials modal
     technician_approved_materials = None
@@ -1404,8 +1410,35 @@ def requests_view(request):
             # Q(requester__username__icontains=search_query)
         )
 
-    # Combine all requests (both Regular and Advance) for unified table display
-    all_requests = base_requests.order_by('-requested_at')
+    # Status Filter Logic
+    status_filter = request.GET.get('status', '').strip()
+    if status_filter:
+        base_requests = base_requests.filter(status__iexact=status_filter)
+
+    # Total Price Metrics & Sorting (Admin & Storekeeper only)
+    total_price_value = 0
+    pending_total_price = 0
+    approved_total_price = 0
+    dispatched_total_price = 0
+    received_total_price = 0
+    rejected_total_price = 0
+
+    if role in ['Admin', 'Storekeeper']:
+        total_price_value = base_requests.aggregate(total=Sum('total_price'))['total'] or 0
+        pending_total_price = base_requests.filter(status='Pending').aggregate(total=Sum('total_price'))['total'] or 0
+        approved_total_price = base_requests.filter(status='Approved').aggregate(total=Sum('total_price'))['total'] or 0
+        dispatched_total_price = base_requests.filter(status='Dispatched').aggregate(total=Sum('total_price'))['total'] or 0
+        received_total_price = base_requests.filter(status='Received').aggregate(total=Sum('total_price'))['total'] or 0
+        rejected_total_price = base_requests.filter(status='Rejected').aggregate(total=Sum('total_price'))['total'] or 0
+
+    price_sort = request.GET.get('price_sort', '').strip()
+    if price_sort == 'high' and role in ['Admin', 'Storekeeper']:
+        all_requests = base_requests.order_by('-total_price', '-requested_at')
+    elif price_sort == 'low' and role in ['Admin', 'Storekeeper']:
+        all_requests = base_requests.order_by('total_price', '-requested_at')
+    else:
+        # Combine all requests (both Regular and Advance) for unified table display
+        all_requests = base_requests.order_by('-requested_at')
     
     # Pagination applied to all requests combined
     paginator = Paginator(all_requests, 20)  # Show 20 requests per page
@@ -1685,6 +1718,14 @@ def requests_view(request):
         'noc_requests_count': noc_requests_count,
         'admin_requests_count': admin_requests_count,
         'total_requests_count': total_requests_count,
+        'status_filter': status_filter,
+        'total_price_value': total_price_value,
+        'pending_total_price': pending_total_price,
+        'approved_total_price': approved_total_price,
+        'dispatched_total_price': dispatched_total_price,
+        'received_total_price': received_total_price,
+        'rejected_total_price': rejected_total_price,
+        'price_sort': price_sort,
         'requests': requests_page, 
         'form': form,
         'role': role,

@@ -1,6 +1,6 @@
 {% extends 'noc/base.html' %}
 
-{% block title %}ISP Inventory-Used Materials{% endblock %}
+{% block title %}{{ user.username }} | Used Materials{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
@@ -272,7 +272,12 @@
         </div>
     </div>
 </div>
-
+<style>
+    .text-3xl {
+    font-size: 1.50rem;
+    line-height: 2.25rem;
+}
+</style>
 <script>
     function updateSelectionState() {
         const checkboxes = document.querySelectorAll('.used-material-checkbox:checked');

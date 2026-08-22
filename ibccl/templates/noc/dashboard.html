@@ -1,29 +1,45 @@
 {% extends 'noc/base.html' %}
-{% block title %}ISP-Inventory: NOC Dashboard{% endblock %}
+{% load humanize %}
+{% block title %}{{ user.username }} | NOC Dashboard{% endblock %}
 {% block content %}
 <div class="fade-in">
-    <!-- Page header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div class="flex items-center gap-4">
-            <div class="hidden sm:flex h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 items-center justify-center shadow-lg shadow-indigo-200 dark:shadow-indigo-900/40 flex-shrink-0">
-                <i class="fas fa-gauge-high text-white text-2xl"></i>
+    <!-- Page header (Minimized & Sleek) -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5 p-3.5 sm:p-4 mb-6 bg-white/70 dark:bg-midnight-900/60 backdrop-blur-md border border-gray-200/70 dark:border-midnight-800 rounded-2xl shadow-xs">
+        <!-- Left Side: Icon + Title + Greeting -->
+        <div class="flex items-center gap-3">
+            <div class="relative flex h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 items-center justify-center text-white shadow-md shadow-indigo-500/20 flex-shrink-0">
+                <i class="fas fa-network-wired text-sm sm:text-base"></i>
+                <span class="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border border-white dark:border-midnight-900"></span>
+                </span>
             </div>
             <div>
-                <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">NOC Dashboard</h1>
-                <p class="mt-1 text-base text-gray-500 dark:text-gray-400">Welcome back, <span class="font-semibold text-gray-700 dark:text-gray-300">{{ user.username }}</span>!</p>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-base sm:text-lg font-black text-gray-900 dark:text-white tracking-tight">NOC Dashboard</h1>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/40">
+                        <span class="w-1 h-1 rounded-full bg-emerald-500"></span>
+                        Live
+                    </span>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                    Welcome back, <span class="font-bold text-gray-800 dark:text-gray-200">{{ user.username }}</span>
+                </p>
             </div>
         </div>
 
-        <!-- Total Inventory Value — NOC / Admin / Storekeeper only -->
+        <!-- Right Side: Total Inventory Value (Compact Pill) -->
         {% if user.userprofile.role == 'NOC' or user.userprofile.role == 'Admin' or user.userprofile.role == 'Storekeeper' %}
-        <div class="inline-flex items-center gap-3 px-5 py-3 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-200 dark:shadow-indigo-900/40">
-            <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
-                <i class="fas fa-taka-sign text-lg">৳</i>
+        <div class="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/20 self-start sm:self-auto">
+            <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-white text-xs">
+                <i class="fas fa-coins"></i>
             </span>
-            <span class="leading-tight">
-                <span class="block text-[10px] font-semibold uppercase tracking-widest text-indigo-100">Total Inventory Value</span>
-                <span class="block text-xl font-extrabold">{{ total_price1|floatformat:2 }}</span>
-            </span>
+            <div class="leading-none">
+                <span class="block text-[9px] font-bold uppercase tracking-wider text-indigo-200">Total Value</span>
+                <span class="block text-xs sm:text-sm font-black text-white mt-0.5">
+                    {{ total_price1|floatformat:2|intcomma }} <span class="text-[10px] font-bold text-indigo-200">৳</span>
+                </span>
+            </div>
         </div>
         {% endif %}
     </div>
@@ -893,6 +909,24 @@
         {% endif %}
     </div>
 </div>
+<style>
+    @media (min-width: 640px) {
+        .sm\:text-3xl {
+            font-size: 1.50rem;
+            line-height: 2.25rem;
+        }
+    }
+    @media (min-width: 1024px) {
+        .lg\:text-3xl {
+            font-size: 1.5rem;
+            line-height: 2.25rem;
+        }
+    }
+    .text-3xl {
+        font-size: 1.50rem;
+        line-height: 2.25rem;
+    }
+</style>
 
 <script>
     // Tabs switching within Destroy Materials Modal

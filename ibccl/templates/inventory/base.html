@@ -221,6 +221,36 @@
         .status-online { background-color: #10b981; }
         .status-offline { background-color: #9ca3af; }
 
+        /* Typography & Metric Font Size Scaling */
+        .text-3xl {
+            font-size: 1.50rem;
+            line-height: 2.25rem;
+        }
+        .text-4xl {
+            font-size: 1.75rem;
+            line-height: 2.5rem;
+        }
+        @media (min-width: 640px) {
+            .sm\:text-3xl {
+                font-size: 1.50rem;
+                line-height: 2.25rem;
+            }
+            .sm\:text-4xl {
+                font-size: 1.50rem;
+                line-height: 2.5rem;
+            }
+        }
+        @media (min-width: 1024px) {
+            .lg\:text-3xl {
+                font-size: 1.50rem;
+                line-height: 2.25rem;
+            }
+            .lg\:text-4xl {
+                font-size: 1.75rem;
+                line-height: 2.5rem;
+            }
+        }
+
         /* ============================================================
            DARK-MODE SAFETY NET
            Provides readable dark defaults for any element that does

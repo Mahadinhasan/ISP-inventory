@@ -1,5 +1,5 @@
 {% extends 'noc/base.html' %}
-{% block title %}Reports & Analytics — ISP Inventory{% endblock %}{% load static %}
+{% block title %}{{ user.username }} | Reports{% endblock %}{% load static %}
 
 {% block content %}
 <!-- Chart.js CDN -->
@@ -453,6 +453,12 @@
         {% endif %}
     </div>
 </div>
+<style>
+    .text-3xl {
+    font-size: 1.50rem;
+    line-height: 2.25rem;
+}
+</style>
 
 <!-- ── Charts JavaScript ── -->
 <script>
