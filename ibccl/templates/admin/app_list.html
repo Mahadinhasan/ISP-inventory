@@ -1,0 +1,86 @@
+{% load i18n %}
+
+{% if app_list %}
+  {% for app in app_list %}
+    <div class="app-{{ app.app_label }} module{% if app.app_url in request.path|urlencode %} current-app{% endif %}">
+      <table>
+        <caption>
+          <a href="{{ app.app_url }}" class="section" title="{% blocktranslate with name=app.name %}Models in the {{ name }} application{% endblocktranslate %}">
+            {% if app.app_label == 'auth' %}
+                <i class="fas fa-shield-alt mr-2 text-indigo-400"></i>
+            {% elif app.app_label == 'isp_inventory' %}
+                <i class="fas fa-network-wired mr-2 text-indigo-400"></i>
+            {% elif app.app_label == 'Noc' %}
+                <i class="fas fa-satellite-dish mr-2 text-indigo-400"></i>
+            {% else %}
+                <i class="fas fa-cubes mr-2 text-indigo-400"></i>
+            {% endif %}
+            {{ app.name }}
+          </a>
+          <span style="font-size: 0.72rem; color: var(--sa-text-muted); font-weight: 600; letter-spacing: 0.05em;">{{ app.models|length }} MODELS REGISTERED</span>
+        </caption>
+        <tbody>
+        {% for model in app.models %}
+          <tr class="model-{{ model.object_name|lower }}{% if model.admin_url in request.path|urlencode %} current-model{% endif %}">
+            <th scope="row" style="display: flex; align-items: center;">
+              {% if model.admin_url %}
+                <a href="{{ model.admin_url }}"{% if model.admin_url in request.path|urlencode %} aria-current="page"{% endif %}>
+                  <span class="model-row-icon">
+                    {% if 'user' in model.object_name|lower %}
+                        <i class="fas fa-user"></i>
+                    {% elif 'group' in model.object_name|lower %}
+                        <i class="fas fa-users-rectangle"></i>
+                    {% elif 'request' in model.object_name|lower %}
+                        <i class="fas fa-file-invoice"></i>
+                    {% elif 'used' in model.object_name|lower %}
+                        <i class="fas fa-dolly"></i>
+                    {% elif 'damage' in model.object_name|lower %}
+                        <i class="fas fa-triangle-exclamation" style="color: #f43f5e;"></i>
+                    {% elif 'refund' in model.object_name|lower %}
+                        <i class="fas fa-rotate-left" style="color: #38bdf8;"></i>
+                    {% elif 'serial' in model.object_name|lower or 'mac' in model.object_name|lower %}
+                        <i class="fas fa-barcode"></i>
+                    {% elif 'log' in model.object_name|lower or 'activity' in model.object_name|lower %}
+                        <i class="fas fa-list-check"></i>
+                    {% elif 'backup' in model.object_name|lower %}
+                        <i class="fas fa-database" style="color: #a855f7;"></i>
+                    {% elif 'setting' in model.object_name|lower or 'notification' in model.object_name|lower %}
+                        <i class="fas fa-gear"></i>
+                    {% elif 'trash' in model.object_name|lower %}
+                        <i class="fas fa-trash-can"></i>
+                    {% else %}
+                        <i class="fas fa-box-archive"></i>
+                    {% endif %}
+                  </span>
+                  <span>{{ model.name }}</span>
+                </a>
+              {% else %}
+                {{ model.name }}
+              {% endif %}
+            </th>
+
+            <td style="text-align: right; white-space: nowrap;">
+              {% if model.add_url %}
+                <a href="{{ model.add_url }}" class="addlink">
+                  <i class="fas fa-plus"></i> {% translate 'Add' %}
+                </a>
+              {% endif %}
+              {% if model.admin_url %}
+                {% if model.view_only %}
+                  <a href="{{ model.admin_url }}" class="viewlink"><i class="fas fa-eye"></i> {% translate 'View' %}</a>
+                {% else %}
+                  <a href="{{ model.admin_url }}" class="changelink">
+                    <i class="fas fa-pen-to-square"></i> {% translate 'Change' %}
+                  </a>
+                {% endif %}
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endfor %}
+{% else %}
+  <p>{% translate 'You don’t have permission to view or edit anything.' %}</p>
+{% endif %}

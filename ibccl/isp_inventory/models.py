@@ -156,6 +156,8 @@ class Material(models.Model):
             models.Index(fields=['status']),
             models.Index(fields=['is_deleted']),
             models.Index(fields=['created_by']),
+            models.Index(fields=['-added_at']),
+            models.Index(fields=['status', 'quantity']),
         ]
 
     def __str__(self):
@@ -388,9 +390,13 @@ class MaterialRequest(models.Model):
         verbose_name = 'Material Request'
         verbose_name_plural = 'Material Requests'
         indexes = [
+            models.Index(fields=['-requested_at']),
             models.Index(fields=['status', '-requested_at']),
             models.Index(fields=['requester', '-requested_at']),
             models.Index(fields=['material', '-requested_at']),
+            models.Index(fields=['is_archived', '-requested_at']),
+            models.Index(fields=['requester', 'status', 'is_archived']),
+            models.Index(fields=['requester', 'material', 'status']),
             models.Index(fields=['is_archived']),
             models.Index(fields=['is_hidden_by_admin']),
             models.Index(fields=['is_hidden_by_noc']),
@@ -533,7 +539,11 @@ class UsedMaterial(models.Model):
         verbose_name = 'Used Material'
         verbose_name_plural = 'Used Materials'
         indexes = [
+            models.Index(fields=['-added_at']),
+            models.Index(fields=['is_archived', '-added_at']),
             models.Index(fields=['technician', '-added_at']),
+            models.Index(fields=['technician', 'is_archived', '-added_at']),
+            models.Index(fields=['technician', 'material', 'is_archived']),
             models.Index(fields=['material', '-added_at']),
             models.Index(fields=['status']),
             models.Index(fields=['material_request', 'technician']),
@@ -675,6 +685,8 @@ class ActivityLog(models.Model):
         verbose_name = "Activity Log"
         verbose_name_plural = "Activity Logs"
         indexes = [
+            models.Index(fields=['-timestamp']),
+            models.Index(fields=['timestamp']),
             models.Index(fields=['user', '-timestamp']),
             models.Index(fields=['activity_type', '-timestamp']),
         ]
@@ -807,6 +819,8 @@ class MacSerialNumber(models.Model):
         verbose_name = 'Mac/Serial Number'
         verbose_name_plural = 'Mac/Serial Numbers'
         indexes = [
+            models.Index(fields=['-created_at']),
+            models.Index(fields=['mac_serial']),
             models.Index(fields=['material', '-created_at']),
             models.Index(fields=['assigned_to', '-created_at']),
             models.Index(fields=['status']),
@@ -973,7 +987,9 @@ class DamageMaterial(models.Model):
         verbose_name = 'Damage Material'
         verbose_name_plural = 'Damage Materials'
         indexes = [
+            models.Index(fields=['-added_at']),
             models.Index(fields=['branch_user', '-added_at']),
+            models.Index(fields=['branch_user', 'material']),
             models.Index(fields=['material', '-added_at']),
             models.Index(fields=['status']),
         ]

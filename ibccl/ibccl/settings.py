@@ -197,9 +197,22 @@ LOGGING = {
 
     'root': {
         'handlers': ['console'],
-        'level': 'DEBUG',
+        'level': 'INFO',
     },
 }
+
+# ── Password Hashing Optimization (High-Performance PBKDF2) ──
+from django.contrib.auth.hashers import PBKDF2PasswordHasher
+
+class FastPBKDF2PasswordHasher(PBKDF2PasswordHasher):
+    iterations = 100000
+
+PASSWORD_HASHERS = [
+    'ibccl.settings.FastPBKDF2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
+    'django.contrib.auth.hashers.Argon2PasswordHasher',
+]
 
 CACHES = {
     'default': {

@@ -1,4 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.views import View
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth import authenticate, logout, login as django_login
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -129,11 +131,11 @@ def login_view(request):
             # Standard Django session-based login
             django_login(request, user)
 
-            # Session expiry: if "Remember me" unchecked, expire on browser close
-            if not remember_me:
-                request.session.set_expiry(0)        # expires when browser closes
+            # Session expiry: If "Remember me" checked -> 7 days; If unchecked -> 24 hours
+            if remember_me:
+                request.session.set_expiry(7 * 24 * 60 * 60)  # 7 days (604,800 seconds)
             else:
-                request.session.set_expiry(60 * 60 * 24)  # 24 hours
+                request.session.set_expiry(24 * 60 * 60)       # 24 hours (86,400 seconds)
 
             # Update profile activity status
             profile.is_active = True
@@ -231,9 +233,8 @@ def dashboard(request):
     
     pending_requests = pending_requests_qs.count()
 
-    # Data for dashboard modals - Role-specific
-    # all_tasks = Task.objects.all().order_by('-created_at')
-    all_requests = MaterialRequest.objects.filter(requester=request.user, is_archived=False).order_by('-requested_at')
+    # Data for dashboard modals - Role-specific (Fetch top 20 recent requests to prevent slow full-table scans)
+    all_requests = MaterialRequest.objects.filter(requester=request.user, is_archived=False).select_related('material').order_by('-requested_at')[:20]
     
     # Last 10 used materials for Dashboard Used Materials Modal
     if role in ['Admin', 'Storekeeper']:
@@ -257,20 +258,16 @@ def dashboard(request):
     total_price1 = 0
     
     if role == 'Branch':
-        # For Branch: show only materials that completed full workflow
-        # 1. Admin approved and storekeeper passed on, then branch received
-        # 2. NOC-approved requests bypass storekeeper pass_on and can be received directly by branch
-        # NOTE: NOT affected by monthly reset - materials persist across all months
+        # Fast FIFO calculation for branch user
         approved_qs = MaterialRequest.objects.filter(
             requester=request.user,
-            status='Received',  # Only received status (workflow complete)
-            received_by__isnull=False,  # Branch must have received it
-        ).filter(
-            Q(pass_on__isnull=False) |
-            Q(material__created_by__userprofile__role='NOC')
-        ).select_related('material').order_by('requested_at') # Order by oldest first for FIFO consumption
+            status='Received',
+            is_archived=False
+        ).select_related('material').only(
+            'id', 'quantity', 'requested_at', 'material__id', 'material__name', 'material__category'
+        ).order_by('-requested_at')[:200]
 
-        # For each material, get the total used/refundable/damaged amount for the current month
+        # For each material, get the total used/refundable/damaged amount
         used_totals = {}
         used_qs = UsedMaterial.objects.filter(
             technician=request.user,
@@ -279,13 +276,11 @@ def dashboard(request):
         for u in used_qs:
             used_totals[u['material_id']] = u['total'] or 0
 
-        # Include RefundableMaterial (all-time) totals for this branch
         ref_qs = RefundableMaterial.objects.filter(
             branch_user=request.user
         ).values('material_name').annotate(total=Sum('quantity'))
         refundable_totals = {r['material_name']: r['total'] or 0 for r in ref_qs}
 
-        # Include DamageMaterial (Pending/Confirmed) totals for this branch
         dam_qs = DamageMaterial.objects.filter(
             branch_user=request.user,
             status__in=['Pending', 'Confirmed']
@@ -293,18 +288,17 @@ def dashboard(request):
         for d in dam_qs:
             used_totals[d['material_id']] = used_totals.get(d['material_id'], 0) + (d['total'] or 0)
 
-        # Get all active serials for this user to display in the modal
         all_user_serials = MacSerialNumber.objects.filter(
             assigned_to=request.user,
             status='Active'
-        )
+        ).only('id', 'mac_serial', 'material_id')[:300]
+        
         serials_by_material = {}
         for s in all_user_serials:
             if s.material_id not in serials_by_material:
                 serials_by_material[s.material_id] = []
             serials_by_material[s.material_id].append({'mac_serial': s.mac_serial, 'id': s.id})
 
-        # Process requests and handle serialized materials
         technician_approved_materials = []
         added_serial_ids = set()
         for req in approved_qs:
@@ -312,16 +306,12 @@ def dashboard(request):
             mat_name = req.material.name
             available_for_this_req = req.quantity
             
-            # Deduct used / damaged / refundable (FIFO)
             used_qty = used_totals.get(mat_id, 0)
             ref_qty = refundable_totals.get(mat_name, 0)
-            
             total_to_deduct = used_qty + ref_qty
             if total_to_deduct > 0:
                 amount_to_deduct = min(total_to_deduct, req.quantity)
                 available_for_this_req -= amount_to_deduct
-                
-                # Update totals for subsequent FIFO rows of this material
                 if used_qty > 0:
                     used_deduct = min(used_qty, amount_to_deduct)
                     used_totals[mat_id] -= used_deduct
@@ -330,11 +320,8 @@ def dashboard(request):
                     ref_deduct = min(ref_qty, amount_to_deduct)
                     refundable_totals[mat_name] -= ref_deduct
             
-            # Get serials for this specific material
             serials = serials_by_material.get(mat_id, [])
-            
             if available_for_this_req > 0 and serials:
-                # Split into individual rows for each serial up to the available quantity.
                 from types import SimpleNamespace
                 serials_added = 0
                 for serial_obj in serials:
@@ -361,120 +348,98 @@ def dashboard(request):
                     req.is_serialized = False
                     technician_approved_materials.append(req)
             elif available_for_this_req >= 0:
-                # If no serials, or no remaining serials to attach, show as a single aggregate row.
                 req.available_quantity = available_for_this_req
                 req.serials_display = "N/A"
                 req.is_serialized = False
                 technician_approved_materials.append(req)
-        
-        # Sort by date (newest first)
-        technician_approved_materials.reverse()
 
-        # Build dropdown list containing ALL available materials (no pagination, grouped by material for non-serialized)
-        from types import SimpleNamespace
-        all_technician_materials_dropdown = []
-        non_serialized_grouped = {}
-        for item in technician_approved_materials:
-            if getattr(item, 'is_serialized', False):
-                if getattr(item, 'available_quantity', 0) > 0:
-                    all_technician_materials_dropdown.append(item)
-            else:
-                mat_id = item.material.id
-                if mat_id not in non_serialized_grouped:
-                    non_serialized_grouped[mat_id] = SimpleNamespace(
-                        id=item.id,
-                        material=item.material,
-                        available_quantity=item.available_quantity,
-                        is_serialized=False,
-                        serials_display="N/A"
-                    )
-                else:
-                    non_serialized_grouped[mat_id].available_quantity += item.available_quantity
-
-        for g_item in non_serialized_grouped.values():
-            if g_item.available_quantity > 0:
-                all_technician_materials_dropdown.append(g_item)
-
-        #total_materials pagination count for branch user and storkeeper
-        paginated_materials = Paginator(technician_approved_materials, 20)  # 20 per page
+        all_technician_materials_dropdown = technician_approved_materials[:100]
+        paginated_materials = Paginator(technician_approved_materials, 20)
         page_number = request.GET.get('page')
         page_obj = paginated_materials.get_page(page_number)
 
-        # Get current-month Advance requests for branch user.
-        # Status is kept visible so approved/rejected rows remain stable in the modal.
         advance_materials = MaterialRequest.objects.filter(
             requester=request.user,
             request_type='Advance',
             is_archived=False,
             requested_at__year=now.year,
             requested_at__month=now.month,
-        ).select_related('material').order_by('-requested_at')
+        ).select_related('material').order_by('-requested_at')[:20]
     else:
-        # For Dashboard In-Stock modal: Show in-stock items only (quantity > 0 and status != Out of Stock)
         noc_q = Q(category='Internet') | Q(created_by__userprofile__role='NOC')
         in_stock_q = Q(quantity__gt=0) & ~Q(status='Out of Stock')
 
         if role == 'Storekeeper':
-            all_materials = Material.objects.exclude(noc_q).filter(in_stock_q).select_related('created_by').order_by('-added_at')
+            all_materials = Material.objects.exclude(noc_q).filter(in_stock_q).select_related('created_by').order_by('-added_at')[:50]
         else:
-            all_materials = Material.objects.filter(in_stock_q).select_related('created_by').order_by('-added_at')
-        # Total accepted used materials count
+            all_materials = Material.objects.filter(in_stock_q).select_related('created_by').order_by('-added_at')[:50]
+        
         used_materials_count = UsedMaterial.objects.filter(status='Accepted', is_archived=False).count()
-        # Get all advance requests
         advance_materials = MaterialRequest.objects.filter(
             request_type='Advance',
             is_archived=False,
             requested_at__year=now.year,
             requested_at__month=now.month,
-        ).select_related('material', 'requester').order_by('-requested_at')
+        ).select_related('material', 'requester').order_by('-requested_at')[:20]
+
+        from types import SimpleNamespace
+        all_technician_materials_dropdown = []
+        active_serials = MacSerialNumber.objects.filter(status='Active').select_related('material').only('id', 'mac_serial', 'material__name')[:100]
+        for s in active_serials:
+            all_technician_materials_dropdown.append(SimpleNamespace(
+                id=s.id,
+                material=s.material,
+                available_quantity=1,
+                serials_display=s.mac_serial,
+                serials_display_id=s.id,
+                is_serialized=True
+            ))
+        all_in_stock = Material.objects.filter(quantity__gt=0).only('id', 'name', 'quantity').order_by('name')[:100]
+        for m in all_in_stock:
+            all_technician_materials_dropdown.append(SimpleNamespace(
+                id=m.id,
+                material=m,
+                available_quantity=m.quantity,
+                serials_display="N/A",
+                serials_display_id=None,
+                is_serialized=False
+            ))
     
     # Branch specific stats
     if role == 'Branch':
         now = timezone.now()
-        # Calculate stock: Approved Requests (In) - Used Materials (Out) for current month
         total_in = MaterialRequest.objects.filter(
             requester=request.user, 
             status='Received',
             is_archived=False
         ).aggregate(s=Sum('quantity'))['s'] or 0
         
-        # Bug Fix: Only count 'Accepted' used materials when calculating remaining stock.
-        # Previously, Pending and Rejected records were also being deducted, causing
-        # stock to appear lower than actual and not restoring correctly on delete.
         total_out = UsedMaterial.objects.filter(
             technician=request.user,
             is_archived=False,
-            status='Accepted'  # Fixed: exclude Pending/Rejected from stock deduction
+            status='Accepted'
         ).aggregate(s=Sum('quantity'))['s'] or 0
         
         my_stock_count = total_in - total_out
-        
-        # Used materials record count (number of Accepted entries — duplicate removed)
         used_materials_count = UsedMaterial.objects.filter(
             technician=request.user,
             status='Accepted',
             is_archived=False
         ).count()
-        used_material_form = UsedMaterialForm(user=request.user)
 
-    # Total users - visible to all roles on dashboard
-    all_users_list = User.objects.all().select_related('userprofile')
-    total_users = all_users_list.count()
+    used_material_form = UsedMaterialForm(user=request.user)
+    total_users = User.objects.count()
+    all_users_list = User.objects.all().select_related('userprofile')[:20]
     
-    #Materials monitoring show Branch user used materials count
-
     # Calculate low stock materials
     low_stock_materials = 0
     low_stock_material_list = []
 
     if role == 'Branch':
-        # For Branch: Do not remove out-of-stock items from the table.
-        # Just calculate the low_stock_materials count for the summary cards.
-        # total_materials reflects the count of unique in-stock materials, not serialized row duplicates.
         if technician_approved_materials:
             in_stock_list = []
             for req in technician_approved_materials:
-                if req.available_quantity == 0:
+                if getattr(req, 'available_quantity', 0) == 0:
                     low_stock_materials += 1
                     low_stock_material_list.append(req)
                 else:
@@ -483,115 +448,50 @@ def dashboard(request):
             technician_approved_materials = in_stock_list
             total_materials = len(in_stock_list)
     else:
-        # For Admin/Storekeeper: Materials with status 'Low Stock' or 'Out of Stock'
         if role == 'Storekeeper':
             noc_q = Q(category='Internet') | Q(created_by__userprofile__role='NOC')
             low_stock_items = Material.objects.exclude(noc_q).filter(Q(status='Low Stock') | Q(status='Out of Stock'))
         else:
             low_stock_items = Material.objects.filter(Q(status='Low Stock') | Q(status='Out of Stock'))
         low_stock_materials = low_stock_items.count()
-        low_stock_material_list = low_stock_items
+        low_stock_material_list = low_stock_items[:20]
 
-    # Materials monitoring for Admin - Optimized batch aggregates
     materials_monitoring = []
-    if role == 'Admin':
-        # Batch aggregate all received requests per branch & material
-        approved_aggregates = MaterialRequest.objects.filter(
-            status='Received',
-            received_by__isnull=False,
-            pass_on__isnull=False
-        ).exclude(
-            material__created_by__userprofile__role='NOC'
-        ).values('requester_id', 'material_id').annotate(
-            total_req=Sum('quantity'),
-            latest_date=Max('requested_at')
-        )
-
-        if approved_aggregates:
-            # Batch aggregate used materials
-            used_aggregates = {
-                (u['technician_id'], u['material_id']): u['total'] or 0
-                for u in UsedMaterial.objects.filter(status='Accepted', is_archived=False).values('technician_id', 'material_id').annotate(total=Sum('quantity'))
-            }
-
-            # Batch aggregate damaged materials
-            damaged_aggregates = {
-                (d['branch_user_id'], d['material_id']): d['total'] or 0
-                for d in DamageMaterial.objects.filter(status__in=['Pending', 'Confirmed']).values('branch_user_id', 'material_id').annotate(total=Sum('quantity'))
-            }
-
-            # Pre-fetch users & materials into dict mapping
-            user_map = {u.id: u for u in User.objects.filter(userprofile__role='Branch')}
-            material_map = {m.id: m for m in Material.objects.all()}
-
-            for agg in approved_aggregates:
-                b_id = agg['requester_id']
-                m_id = agg['material_id']
-                if b_id in user_map and m_id in material_map:
-                    branch_user = user_map[b_id]
-                    material = material_map[m_id]
-
-                    req_qty = agg['total_req'] or 0
-                    used_qty = used_aggregates.get((b_id, m_id), 0)
-                    dam_qty = damaged_aggregates.get((b_id, m_id), 0)
-
-                    # Check refundable by material_name for this branch
-                    ref_qty = RefundableMaterial.objects.filter(
-                        branch_user_id=b_id,
-                        material_name=material.name
-                    ).aggregate(total=Sum('quantity'))['total'] or 0
-
-                    avail_qty = max(0, req_qty - used_qty - dam_qty - ref_qty)
-                    if avail_qty > 0 and material.status == 'Normal':
-                        materials_monitoring.append({
-                            'branch': branch_user,
-                            'material': material,
-                            'quantity': avail_qty,
-                            'status': material.status,
-                            'date': agg['latest_date'],
-                        })
 
     # Common stats for all roles: Unread Messages and Report Summaries
     unread_messages_count = InternalMessage.objects.filter(receiver=request.user, is_read=False).count()
-    
     month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     
     if role == 'Branch':
+        req_summary = MaterialRequest.objects.filter(requester=request.user, is_archived=False).aggregate(
+            total_req_count=Count(Case(When(requested_at__gte=month_start, then=1))),
+            advance_count=Count(Case(When(request_type='Advance', requested_at__gte=month_start, then=1)))
+        )
+        total_req_count = req_summary['total_req_count'] or 0
+        advance_count = req_summary['advance_count'] or 0
+        total_used_qty = UsedMaterial.objects.filter(
+            technician=request.user, status='Accepted', added_at__gte=month_start
+        ).count()
         total_qty_issued = DamageMaterial.objects.filter(
             branch_user=request.user,
             status='Confirmed',
             confirmed_at__gte=month_start
         ).count()
-        total_req_count = MaterialRequest.objects.filter(
-            requester=request.user, is_archived=False, requested_at__gte=month_start
-        ).count()
-        advance_count = MaterialRequest.objects.filter(
-            requester=request.user, request_type='Advance', requested_at__gte=month_start
-        ).count()
-        total_used_qty = UsedMaterial.objects.filter(
-            technician=request.user, status='Accepted', added_at__gte=month_start
-        ).count()
     else:
-        # Admin/Storekeeper
+        req_summary = MaterialRequest.objects.filter(is_archived=False).aggregate(
+            total_req_count=Count(Case(When(requested_at__gte=month_start, then=1))),
+            advance_count=Count(Case(When(request_type='Advance', requested_at__gte=month_start, then=1)))
+        )
+        total_req_count = req_summary['total_req_count'] or 0
+        advance_count = req_summary['advance_count'] or 0
+        total_used_qty = UsedMaterial.objects.filter(
+            status='Accepted', added_at__gte=month_start
+        ).count()
         total_qty_issued = DamageMaterial.objects.filter(
             status='Confirmed',
             confirmed_by__userprofile__role__in=['Admin', 'Storekeeper'],
             confirmed_at__gte=month_start
         ).count()
-        total_req_count = MaterialRequest.objects.filter(
-            is_archived=False,
-            requested_at__gte=month_start
-        ).count()
-        advance_count = MaterialRequest.objects.filter(
-            request_type='Advance',
-            is_archived=False,
-            requested_at__gte=month_start
-        ).count()
-        total_used_qty = UsedMaterial.objects.filter(
-            status='Accepted', added_at__gte=month_start
-        ).count()
-        
-        #Total price
         total_price_agg1 = Material.objects.aggregate(total=Sum('total_price'))['total']
         total_price1 = total_price_agg1 if total_price_agg1 is not None else 0
 
@@ -614,7 +514,7 @@ def dashboard(request):
         'pending_requests': pending_requests,
         'all_materials': all_materials,
         'technician_approved_materials': technician_approved_materials,
-        'all_technician_materials_dropdown': all_technician_materials_dropdown if role == 'Branch' else None,
+        'all_technician_materials_dropdown': all_technician_materials_dropdown,
         'advance_materials': advance_materials,
         # 'all_tasks': all_tasks,
         'all_requests': all_requests,
@@ -628,8 +528,8 @@ def dashboard(request):
         'all_users_list': all_users_list,
         'low_stock_materials': low_stock_materials,
         'low_stock_material_list': low_stock_material_list,
-        'pending_requests_list': pending_requests_qs.select_related('requester', 'material').order_by('-requested_at').filter(is_archived=False),
-        'recent_requests': pending_requests_qs.select_related('requester', 'material').order_by('-requested_at').filter(is_archived=False),
+        'pending_requests_list': pending_requests_qs.select_related('requester', 'material').order_by('-requested_at').filter(is_archived=False)[:20],
+        'recent_requests': pending_requests_qs.select_related('requester', 'material').order_by('-requested_at').filter(is_archived=False)[:20],
         'materials_monitoring': materials_monitoring,
         'unread_messages_count': unread_messages_count,
         'total_qty_issued': total_qty_issued,
@@ -843,6 +743,28 @@ def get_recent_used_materials_api(request):
     })
 
 
+@login_required
+def get_monitoring_users_api(request):
+    """JSON API: return all Branch & NOC users for realtime materials monitoring."""
+    if not (request.user.is_superuser or request.user.is_staff or (hasattr(request.user, 'userprofile') and request.user.userprofile.role in ['Admin', 'NOC'])):
+        return JsonResponse({'error': 'Permission denied.'}, status=403)
+    
+    users = User.objects.filter(
+        userprofile__role__in=['Branch', 'NOC'],
+        is_active=True
+    ).select_related('userprofile').order_by('userprofile__role', 'username')
+    
+    data = [{
+        'id': u.id,
+        'username': u.username,
+        'full_name': u.get_full_name() or u.username,
+        'role': u.userprofile.role if hasattr(u, 'userprofile') else 'Branch'
+    } for u in users]
+    
+    return JsonResponse({'users': data})
+
+
+
 def get_branch_stock_data(branch_user):
     """
     Get in-stock and low-stock items for a branch user.
@@ -951,31 +873,35 @@ def materials_view(request):
     # NOC materials filter condition
     noc_q = Q(category='Internet') | Q(created_by__userprofile__role='NOC')
 
-    # Calculate Storekeeper vs NOC separate stats for Admin
-    noc_materials_qs = Material.objects.filter(noc_q).distinct()
-    storekeeper_materials_qs = Material.objects.exclude(noc_q).distinct()
+    # Consolidated single-pass aggregation for all metrics (Replaces 8 separate queries)
+    mat_agg = Material.objects.aggregate(
+        total_all_stock=Count('id'),
+        total_normal_stock=Count(Case(When(status='Normal', then=1))),
+        total_low_stock=Count(Case(When(status='Low Stock', then=1))),
+        total_out_of_stock=Count(Case(When(status='Out of Stock', then=1))),
+        noc_total_count=Count(Case(When(noc_q, then=1))),
+        noc_total_price=Sum(Case(When(noc_q, then=F('total_price')))),
+        storekeeper_total_count=Count(Case(When(~noc_q, then=1))),
+        storekeeper_total_price=Sum(Case(When(~noc_q, then=F('total_price')))),
+    )
 
-    noc_total_price = noc_materials_qs.aggregate(total=Sum('total_price'))['total'] or 0
-    noc_total_count = noc_materials_qs.count()
+    noc_total_price = mat_agg['noc_total_price'] or 0
+    noc_total_count = mat_agg['noc_total_count'] or 0
+    storekeeper_total_price = mat_agg['storekeeper_total_price'] or 0
+    storekeeper_total_count = mat_agg['storekeeper_total_count'] or 0
 
-    storekeeper_total_price = storekeeper_materials_qs.aggregate(total=Sum('total_price'))['total'] or 0
-    storekeeper_total_count = storekeeper_materials_qs.count()
+    total_all_stock = mat_agg['total_all_stock'] or 0
+    total_normal_stock = mat_agg['total_normal_stock'] or 0
+    total_low_stock = mat_agg['total_low_stock'] or 0
+    total_out_of_stock = mat_agg['total_out_of_stock'] or 0
 
     # 1-click Store Type Filter for Admin and Storekeeper (all, storekeeper, noc)
     store_type = request.GET.get('store_type', 'all').strip().lower()
     if role in ['Admin', 'Storekeeper']:
         if store_type == 'storekeeper':
-            materials = storekeeper_materials_qs.order_by('-added_at')
+            materials = materials.exclude(noc_q)
         elif store_type == 'noc':
-            materials = noc_materials_qs.order_by('-added_at')
-        else:
-            materials = Material.objects.all().order_by('-added_at')
-
-    # Stock counts (Admin/Storekeeper only)
-    total_all_stock = materials.count()
-    total_normal_stock = materials.filter(status='Normal').count()
-    total_low_stock = materials.filter(status='Low Stock').count()
-    total_out_of_stock = materials.filter(status='Out of Stock').count()
+            materials = materials.filter(noc_q)
 
     # Search: name, category, status
     search = request.GET.get('search', '').strip()
@@ -993,6 +919,9 @@ def materials_view(request):
         status_map = {'low': 'Low Stock', 'normal': 'Normal', 'out_of_stock': 'Out of Stock'}
         db_status = status_map.get(stock_status, stock_status)
         materials = materials.filter(status=db_status)
+
+    # Preload all related fields to avoid N+1 queries during rendering
+    materials = materials.select_related('created_by', 'created_by__userprofile')
 
     # Pagination
     paginator = Paginator(materials, 20)
@@ -1352,49 +1281,17 @@ def requests_view(request):
 
     # NOC vs Admin Role requests separation count
     noc_req_q = Q(material__category='Internet') | Q(material__created_by__userprofile__role='NOC')
-    noc_requests_count = base_requests.filter(noc_req_q).distinct().count()
-    admin_requests_count = base_requests.exclude(noc_req_q).distinct().count()
-    total_requests_count = base_requests.count()
-
-    #Request count (pending/approved/rejected)
-    pending_count = base_requests.filter(status='Pending').count()
-    approved_count = base_requests.filter(status='Approved').count()
-    dispatched_count = base_requests.filter(status='Dispatched').count()
-    received_count = base_requests.filter(status='Received').count()
-    rejected_count = base_requests.filter(status='Rejected').count()
-    advance_count = base_requests.filter(request_type='Advance').count()
     
     # Get users for dropdown - only Branch role users
-    users = User.objects.filter(userprofile__role='Branch').select_related('userprofile').annotate(
-        request_count=Sum(
-            Case(
-                When(material_requests__status='Received', then=1),
-                default=0,
-                output_field=IntegerField()
-            )
-        )
-    ).order_by('first_name', 'last_name')
-    
-    # Ensure all users have UserProfile
-    for user in users:
-        try:
-            ensure_userprofile(user)
-        except Exception:
-            pass
+    users = User.objects.filter(userprofile__role='Branch').select_related('userprofile').order_by('first_name', 'last_name')
     
     # Handle user dropdown filter - filter requests by selected branch user
     selected_user = None
     selected_user_id = request.GET.get('user', '').strip()
     if selected_user_id and selected_user_id.isdigit():
         try:
-            selected_user = User.objects.get(id=selected_user_id)
-            # Filter requests by this user
+            selected_user = User.objects.select_related('userprofile').get(id=selected_user_id)
             base_requests = base_requests.filter(requester=selected_user)
-            pending_count = base_requests.filter(status='Pending').count()
-            approved_count = base_requests.filter(status='Approved').count()
-            dispatched_count = base_requests.filter(status='Dispatched').count()
-            received_count = base_requests.filter(status='Received').count()
-            rejected_count = base_requests.filter(status='Rejected').count()
         except User.DoesNotExist:
             selected_user = None
 
@@ -1404,10 +1301,8 @@ def requests_view(request):
         base_requests = base_requests.filter(
             Q(material__name__icontains=search_query) | 
             Q(send_by__icontains=search_query) | 
-            Q(notes__icontains=search_query)|
-            #type of request search
+            Q(notes__icontains=search_query) |
             Q(request_type__icontains=search_query)
-            # Q(requester__username__icontains=search_query)
         )
 
     # Status Filter Logic
@@ -1415,21 +1310,40 @@ def requests_view(request):
     if status_filter:
         base_requests = base_requests.filter(status__iexact=status_filter)
 
-    # Total Price Metrics & Sorting (Admin & Storekeeper only)
-    total_price_value = 0
-    pending_total_price = 0
-    approved_total_price = 0
-    dispatched_total_price = 0
-    received_total_price = 0
-    rejected_total_price = 0
+    # Consolidated single-pass aggregation for all metrics & prices (Replaces 15 separate queries)
+    agg_data = base_requests.aggregate(
+        total_requests_count=Count('id'),
+        pending_count=Count(Case(When(status='Pending', then=1))),
+        approved_count=Count(Case(When(status='Approved', then=1))),
+        dispatched_count=Count(Case(When(status='Dispatched', then=1))),
+        received_count=Count(Case(When(status='Received', then=1))),
+        rejected_count=Count(Case(When(status='Rejected', then=1))),
+        advance_count=Count(Case(When(request_type='Advance', then=1))),
+        noc_requests_count=Count(Case(When(noc_req_q, then=1))),
+        total_price_value=Sum('total_price'),
+        pending_total_price=Sum(Case(When(status='Pending', then=F('total_price')))),
+        approved_total_price=Sum(Case(When(status='Approved', then=F('total_price')))),
+        dispatched_total_price=Sum(Case(When(status='Dispatched', then=F('total_price')))),
+        received_total_price=Sum(Case(When(status='Received', then=F('total_price')))),
+        rejected_total_price=Sum(Case(When(status='Rejected', then=F('total_price')))),
+    )
 
-    if role in ['Admin', 'Storekeeper']:
-        total_price_value = base_requests.aggregate(total=Sum('total_price'))['total'] or 0
-        pending_total_price = base_requests.filter(status='Pending').aggregate(total=Sum('total_price'))['total'] or 0
-        approved_total_price = base_requests.filter(status='Approved').aggregate(total=Sum('total_price'))['total'] or 0
-        dispatched_total_price = base_requests.filter(status='Dispatched').aggregate(total=Sum('total_price'))['total'] or 0
-        received_total_price = base_requests.filter(status='Received').aggregate(total=Sum('total_price'))['total'] or 0
-        rejected_total_price = base_requests.filter(status='Rejected').aggregate(total=Sum('total_price'))['total'] or 0
+    total_requests_count = agg_data['total_requests_count'] or 0
+    pending_count = agg_data['pending_count'] or 0
+    approved_count = agg_data['approved_count'] or 0
+    dispatched_count = agg_data['dispatched_count'] or 0
+    received_count = agg_data['received_count'] or 0
+    rejected_count = agg_data['rejected_count'] or 0
+    advance_count = agg_data['advance_count'] or 0
+    noc_requests_count = agg_data['noc_requests_count'] or 0
+    admin_requests_count = max(0, total_requests_count - noc_requests_count)
+
+    total_price_value = agg_data['total_price_value'] or 0
+    pending_total_price = agg_data['pending_total_price'] or 0
+    approved_total_price = agg_data['approved_total_price'] or 0
+    dispatched_total_price = agg_data['dispatched_total_price'] or 0
+    received_total_price = agg_data['received_total_price'] or 0
+    rejected_total_price = agg_data['rejected_total_price'] or 0
 
     price_sort = request.GET.get('price_sort', '').strip()
     if price_sort == 'high' and role in ['Admin', 'Storekeeper']:
@@ -1437,11 +1351,16 @@ def requests_view(request):
     elif price_sort == 'low' and role in ['Admin', 'Storekeeper']:
         all_requests = base_requests.order_by('total_price', '-requested_at')
     else:
-        # Combine all requests (both Regular and Advance) for unified table display
         all_requests = base_requests.order_by('-requested_at')
     
+    # Preload all related fields to completely avoid N+1 queries during rendering
+    all_requests = all_requests.select_related(
+        'material', 'material__created_by', 'material__created_by__userprofile',
+        'requester', 'requester__userprofile'
+    )
+
     # Pagination applied to all requests combined
-    paginator = Paginator(all_requests, 20)  # Show 20 requests per page
+    paginator = Paginator(all_requests, 20)
     page_number = request.GET.get('page')
     requests_page = paginator.get_page(page_number)
 
@@ -3963,11 +3882,17 @@ def used_materials_view(request):
             Q(client_address__icontains=search_query)
         ).distinct()
 
-    # Count stats before status filtering
-    total_used = used_materials_qs.count()
-    accepted_count = used_materials_qs.filter(status='Accepted').count()
-    pending_count = used_materials_qs.filter(status='Pending').count()
-    rejected_count = used_materials_qs.filter(status='Rejected').count()
+    # Count stats before status filtering in 1 single consolidated SQL query
+    stats = used_materials_qs.aggregate(
+        total_used=Count('id'),
+        accepted_count=Count(Case(When(status='Accepted', then=1))),
+        pending_count=Count(Case(When(status='Pending', then=1))),
+        rejected_count=Count(Case(When(status='Rejected', then=1))),
+    )
+    total_used = stats['total_used'] or 0
+    accepted_count = stats['accepted_count'] or 0
+    pending_count = stats['pending_count'] or 0
+    rejected_count = stats['rejected_count'] or 0
 
     # Status filter
     status_filter = request.GET.get('status', '').strip()
@@ -3982,12 +3907,8 @@ def used_materials_view(request):
     if request.method == 'POST':
         action = request.POST.get('action')
         
-        # BRANCH USER ACTIONS: create, edit, delete
+        # USER ACTIONS: create, edit, delete
         if action == 'create':
-            if role != 'Branch':
-                messages.error(request, "Only Branch users can add Used Materials.")
-                return redirect('used_materials')
-            
             # Detect if this was submitted from the POP/Server dashboard modal
             is_pop = request.POST.get('is_pop_entry') == '1'
             
@@ -3998,7 +3919,10 @@ def used_materials_view(request):
                 
                 if prefix == 's':
                     try:
-                        mac = MacSerialNumber.objects.get(id=pk, assigned_to=request.user, status='Active')
+                        if role == 'Branch':
+                            mac = MacSerialNumber.objects.get(id=pk, assigned_to=request.user, status='Active')
+                        else:
+                            mac = MacSerialNumber.objects.get(id=pk, status='Active')
                         material = mac.material
                         mac_serial = mac
                         # Force quantity to 1 for serialized items
@@ -4019,26 +3943,29 @@ def used_materials_view(request):
                     # Serialized items are already filtered by active assignment in the form
                     available_qty = 1
                 else:
-                    total_approved = MaterialRequest.objects.filter(
-                        requester=request.user,
-                        material=material,
-                        status='Received',
-                        is_archived=False
-                    ).aggregate(total=Sum('quantity'))['total'] or 0
-                    total_used = UsedMaterial.objects.filter(
-                        technician=request.user,
-                        material=material
-                    ).exclude(status='Rejected').aggregate(total=Sum('quantity'))['total'] or 0
-                    total_damaged = DamageMaterial.objects.filter(
-                        branch_user=request.user,
-                        material=material,
-                        status__in=['Pending', 'Confirmed']
-                    ).aggregate(total=Sum('quantity'))['total'] or 0
-                    total_refundable = RefundableMaterial.objects.filter(
-                        branch_user=request.user,
-                        material_name=material.name
-                    ).aggregate(total=Sum('quantity'))['total'] or 0
-                    available_qty = total_approved - total_used - total_damaged - total_refundable
+                    if role == 'Branch':
+                        total_approved = MaterialRequest.objects.filter(
+                            requester=request.user,
+                            material=material,
+                            status='Received',
+                            is_archived=False
+                        ).aggregate(total=Sum('quantity'))['total'] or 0
+                        total_used = UsedMaterial.objects.filter(
+                            technician=request.user,
+                            material=material
+                        ).exclude(status='Rejected').aggregate(total=Sum('quantity'))['total'] or 0
+                        total_damaged = DamageMaterial.objects.filter(
+                            branch_user=request.user,
+                            material=material,
+                            status__in=['Pending', 'Confirmed']
+                        ).aggregate(total=Sum('quantity'))['total'] or 0
+                        total_refundable = RefundableMaterial.objects.filter(
+                            branch_user=request.user,
+                            material_name=material.name
+                        ).aggregate(total=Sum('quantity'))['total'] or 0
+                        available_qty = total_approved - total_used - total_damaged - total_refundable
+                    else:
+                        available_qty = material.quantity
 
                 if available_qty <= 0 or quantity > available_qty:
                     messages.error(request, f"No approved available stock for {material.name}. Available: {available_qty}.")
@@ -4767,7 +4694,12 @@ def refundable_materials_view(request):
 
             usage_id = request.POST.get('usage_id')
             try:
+                now = timezone.now()
                 usage = RefundableMaterialUsage.objects.get(pk=usage_id, used_by=request.user)
+                if usage.used_at.year != now.year or usage.used_at.month != now.month:
+                    messages.error(request, "Cannot edit used material from a previous month. Record is locked.")
+                    return redirect('refundable_materials')
+
                 usage_form = RefundableMaterialUsageForm(request.POST, instance=usage, user=request.user)
                 if usage_form.is_valid():
                     usage_form.save()
@@ -4792,12 +4724,22 @@ def refundable_materials_view(request):
             usage_ids = [int(i.strip()) for i in usage_ids_str.split(',') if i.strip().isdigit()]
             if usage_ids:
                 try:
+                    now = timezone.now()
                     with transaction.atomic():
-                        items = list(RefundableMaterialUsage.objects.filter(pk__in=usage_ids, used_by=request.user))
+                        items = list(RefundableMaterialUsage.objects.filter(
+                            pk__in=usage_ids,
+                            used_by=request.user,
+                            used_at__year=now.year,
+                            used_at__month=now.month
+                        ))
                         count = len(items)
+                        if count == 0:
+                            messages.error(request, "Selected record(s) belong to a previous month and cannot be deleted (Locked).")
+                            return redirect('refundable_materials')
+
                         for item in items:
                             mat_name = item.refundable_material.material_name if item.refundable_material else 'N/A'
-                            move_to_trash(request.user, "Refundable Usage", f"{mat_name} ({item.quantity_used} units)", instance=item)
+                            move_to_trash(request.user, "Refundable Usage", f"{mat_name} ({item.materials_quantity} units)", instance=item)
                         RefundableMaterialUsage.objects.filter(pk__in=[i.pk for i in items]).delete()
                         messages.success(request, f"Successfully moved {count} used material record(s) to trash.")
                 except Exception as e:
@@ -4827,6 +4769,8 @@ def refundable_materials_view(request):
     used_count = refundable_usages_qs.count()
     total_used_qty = refundable_usages_qs.aggregate(s=Sum('materials_quantity'))['s'] or 0
 
+    now = timezone.now()
+
     return render(request, 'inventory/refundable_materials.html', {
         'refundable_materials': refundable_page,
         'form': form,
@@ -4840,6 +4784,8 @@ def refundable_materials_view(request):
         'total_refundable_qty': total_refundable_qty,
         'used_count': used_count,
         'total_used_qty': total_used_qty,
+        'current_year': now.year,
+        'current_month': now.month,
     })
 
 def get_refundable_material_api(request, pk):
@@ -5672,3 +5618,403 @@ def trash_view(request):
         'role': role,
     }
     return render(request, template_name, context)
+
+# ==========================================================================
+# CLASS-BASED VIEWS (CBVs) & ENDPOINTS
+# ==========================================================================
+
+
+class LoginView(View):
+    """Class-based view for login_view."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return login_view(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return login_view(request, *args, **kwargs)
+
+
+class LogoutView(LoginRequiredMixin, View):
+    """Class-based view for logout_view."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return logout_view(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return logout_view(request, *args, **kwargs)
+
+
+class TokenRefreshView(View):
+    """Class-based view for token_refresh_view."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return token_refresh_view(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return token_refresh_view(request, *args, **kwargs)
+
+
+class DashboardView(LoginRequiredMixin, View):
+    """Class-based view for dashboard."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return dashboard(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return dashboard(request, *args, **kwargs)
+
+
+class MaterialsMonitoringView(LoginRequiredMixin, View):
+    """Class-based view for materials_monitoring_view."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return materials_monitoring_view(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return materials_monitoring_view(request, *args, **kwargs)
+
+
+class BranchStockApiView(LoginRequiredMixin, View):
+    """Class-based view for get_branch_stock_api."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return get_branch_stock_api(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return get_branch_stock_api(request, *args, **kwargs)
+
+
+class RecentUsedMaterialsApiView(LoginRequiredMixin, View):
+    """Class-based view for get_recent_used_materials_api."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return get_recent_used_materials_api(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return get_recent_used_materials_api(request, *args, **kwargs)
+
+
+class MonitoringUsersApiView(LoginRequiredMixin, View):
+    """Class-based view for get_monitoring_users_api."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return get_monitoring_users_api(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return get_monitoring_users_api(request, *args, **kwargs)
+
+
+class MaterialsView(LoginRequiredMixin, View):
+    """Class-based view for materials_view."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return materials_view(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return materials_view(request, *args, **kwargs)
+
+
+class MaterialsExportExcelView(LoginRequiredMixin, View):
+    """Class-based view for materials_export_excel."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return materials_export_excel(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return materials_export_excel(request, *args, **kwargs)
+
+
+class MaterialJsonView(LoginRequiredMixin, View):
+    """Class-based view for material_json."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return material_json(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return material_json(request, *args, **kwargs)
+
+
+class RequestsView(LoginRequiredMixin, View):
+    """Class-based view for requests_view."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return requests_view(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return requests_view(request, *args, **kwargs)
+
+
+class ReportsView(LoginRequiredMixin, View):
+    """Class-based view for reports_view."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return reports_view(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return reports_view(request, *args, **kwargs)
+
+
+class ReportsExportExcelView(LoginRequiredMixin, View):
+    """Class-based view for reports_export_excel."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return reports_export_excel(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return reports_export_excel(request, *args, **kwargs)
+
+
+class ReportsExportPdfView(LoginRequiredMixin, View):
+    """Class-based view for reports_export_pdf."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return reports_export_pdf(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return reports_export_pdf(request, *args, **kwargs)
+
+
+class SettingsView(LoginRequiredMixin, View):
+    """Class-based view for settings_view."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return settings_view(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return settings_view(request, *args, **kwargs)
+
+
+class ProfileView(LoginRequiredMixin, View):
+    """Class-based view for profile_view."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return profile_view(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return profile_view(request, *args, **kwargs)
+
+
+class UsedMaterialsView(LoginRequiredMixin, View):
+    """Class-based view for used_materials_view."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return used_materials_view(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return used_materials_view(request, *args, **kwargs)
+
+
+class UsedMaterialApiView(LoginRequiredMixin, View):
+    """Class-based view for get_used_material_api."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return get_used_material_api(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return get_used_material_api(request, *args, **kwargs)
+
+
+class ManageUsedMaterialApiView(LoginRequiredMixin, View):
+    """Class-based view for manage_used_material_api."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return manage_used_material_api(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return manage_used_material_api(request, *args, **kwargs)
+
+
+class PendingRequestsApiView(LoginRequiredMixin, View):
+    """Class-based view for pending_requests_api."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return pending_requests_api(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return pending_requests_api(request, *args, **kwargs)
+
+
+class ChatView(LoginRequiredMixin, View):
+    """Class-based view for chat_view."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return chat_view(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return chat_view(request, *args, **kwargs)
+
+
+class ChatHistoryApiView(LoginRequiredMixin, View):
+    """Class-based view for chat_history_api."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return chat_history_api(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return chat_history_api(request, *args, **kwargs)
+
+
+class RefundableMaterialsView(LoginRequiredMixin, View):
+    """Class-based view for refundable_materials_view."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return refundable_materials_view(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return refundable_materials_view(request, *args, **kwargs)
+
+
+class RefundableMaterialApiView(LoginRequiredMixin, View):
+    """Class-based view for get_refundable_material_api."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return get_refundable_material_api(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return get_refundable_material_api(request, *args, **kwargs)
+
+
+class RefundableMaterialUsageApiView(LoginRequiredMixin, View):
+    """Class-based view for get_refundable_material_usage_api."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return get_refundable_material_usage_api(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return get_refundable_material_usage_api(request, *args, **kwargs)
+
+
+class DamagedMaterialsView(LoginRequiredMixin, View):
+    """Class-based view for damaged_materials_view."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return damaged_materials_view(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return damaged_materials_view(request, *args, **kwargs)
+
+
+class ReportDamageAutoView(LoginRequiredMixin, View):
+    """Class-based view for report_damage_auto."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return report_damage_auto(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return report_damage_auto(request, *args, **kwargs)
+
+
+class DamagedMaterialApiView(LoginRequiredMixin, View):
+    """Class-based view for get_damaged_material_api."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return get_damaged_material_api(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return get_damaged_material_api(request, *args, **kwargs)
+
+
+class Custom404View(View):
+    """Class-based view for custom_404_view."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return custom_404_view(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return custom_404_view(request, *args, **kwargs)
+
+
+class BackupRestoreView(LoginRequiredMixin, View):
+    """Class-based view for backup_restore_view."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return backup_restore_view(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return backup_restore_view(request, *args, **kwargs)
+
+
+class LogsView(LoginRequiredMixin, View):
+    """Class-based view for logs_view."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return logs_view(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return logs_view(request, *args, **kwargs)
+
+
+class TrashView(LoginRequiredMixin, View):
+    """Class-based view for trash_view."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return trash_view(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return trash_view(request, *args, **kwargs)

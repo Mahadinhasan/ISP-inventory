@@ -358,11 +358,6 @@ def log_user_login(sender, request, user, **kwargs):
                 ip_address=ip_address,
                 user_agent=user_agent[:500],
             )
-            
-            # Automatically delete log data older than 30 days (1 month)
-            from datetime import timedelta
-            cutoff_date = timezone.now() - timedelta(days=30)
-            ActivityLog.objects.filter(timestamp__lt=cutoff_date).delete()
     except Exception:
         pass
 

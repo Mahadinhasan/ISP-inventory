@@ -1,0 +1,18 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} | IBCCL SuperAdmin Enterprise Control Center{% endblock %}
+
+{% block branding %}
+<div id="branding">
+    <h1>
+        <a href="{% url 'admin:index' %}">
+            <span class="sa-brand-badge"><i class="fas fa-shield-halved mr-1"></i> SUPERADMIN</span>
+            <span style="font-weight: 800; letter-spacing: -0.03em;">IBCCL CENTRAL</span>
+        </a>
+    </h1>
+    <span class="sa-live-indicator"><span class="sa-pulse-dot"></span> SYSTEM ACTIVE</span>
+</div>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

@@ -141,6 +141,12 @@ class RequestForm(forms.ModelForm):
             'request_type': forms.HiddenInput(),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Ultra-fast material queryset: fetch only required fields and limit active options
+        if 'material' in self.fields:
+            self.fields['material'].queryset = Material.objects.only('id', 'name', 'category', 'status')[:1000]
+
 class SystemSettingForm(forms.ModelForm):
     class Meta:
         model = SystemSetting
@@ -313,9 +319,17 @@ class UsedMaterialForm(forms.ModelForm):
                         choices = [('', 'No approved in-stock materials available')]
                 else:
                     # Admin/Storekeeper can see all materials
-                    all_mats = Material.objects.all().order_by('name')
+                    # 1. Active MAC/Serial items
+                    active_serials = MacSerialNumber.objects.filter(
+                        status='Active'
+                    ).select_related('material').only('id', 'mac_serial', 'material__name')[:300]
+                    for s in active_serials:
+                        choices.append((f"s:{s.id}", f"{s.material.name} - {s.mac_serial}"))
+
+                    # 2. General materials with available quantity (optimized fetch)
+                    all_mats = Material.objects.only('id', 'name', 'quantity').order_by('name')[:500]
                     for m in all_mats:
-                        choices.append((f"m:{m.id}", m.name))
+                        choices.append((f"m:{m.id}", f"{m.name} ({m.quantity} available)"))
 
                 # When EDITING an existing record, pre-select the current material/serial
                 if self.instance and self.instance.pk:
@@ -886,22 +900,21 @@ class DamageMaterialForm(forms.ModelForm):
                         assigned_to=user
                     ).values_list('material_id', flat=True).distinct()
                     
-                    approved_requests = MaterialRequest.objects.filter(
+                    approved_mats = MaterialRequest.objects.filter(
                         requester=user, 
                         status='Received'
-                    ).exclude(material__category='Internet').exclude(material_id__in=serialized_material_ids).select_related('material')
+                    ).exclude(material__category='Internet').exclude(
+                        material_id__in=serialized_material_ids
+                    ).values('material_id', 'material__name').distinct()[:300]
                     
-                    mats_added = set()
-                    for req in approved_requests:
-                        if req.material.id not in mats_added:
-                            choices.append((f"m:{req.material.id}", f"{req.material.name}"))
-                            mats_added.add(req.material.id)
+                    for m in approved_mats:
+                        choices.append((f"m:{m['material_id']}", m['material__name']))
                 else:
                     # Admin/Storekeeper/NOC can see all materials
                     if profile and profile.role == 'NOC':
-                        all_mats = Material.objects.filter(category='Internet', created_by=user).order_by('name')
+                        all_mats = Material.objects.filter(category='Internet', created_by=user).only('id', 'name').order_by('name')[:300]
                     else:
-                        all_mats = Material.objects.exclude(category='Internet').order_by('name')
+                        all_mats = Material.objects.exclude(category='Internet').only('id', 'name').order_by('name')[:300]
                     
                     for m in all_mats:
                         choices.append((f"m:{m.id}", m.name))

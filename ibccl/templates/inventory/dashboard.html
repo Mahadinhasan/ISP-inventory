@@ -84,7 +84,7 @@
                 </div>
                 <div class="ml-4">
                     <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Advance Materials</p>
-                    <p class="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{{ advance_materials|length }}</p>
+                    <p class="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{{ advance_count }}</p>
                 </div>
             </div>
         </div>
@@ -1034,54 +1034,64 @@
             <input type="hidden" name="client_phone" value="N/A">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="col-span-1">
-                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Material Name</label>
-                    <select name="material_selection" id="popMaterial" required onchange="updatePopMaterialInfo(this)"
-                        class="w-full px-4 py-2.5 border border-gray-200 dark:border-midnight-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent dark:bg-midnight-950 dark:text-white transition">
-                        <option value="">Select Material</option>
-                        {% if all_technician_materials_dropdown %}
-                        {% for req in all_technician_materials_dropdown %}
-                            {% if req.is_serialized %}
-                            <option value="s:{{ req.serials_display_id }}"
-                                data-category="{{ req.material.category }}"
-                                data-serialized="1"
-                                data-mac="{{ req.serials_display }}"
-                                data-pop="pop">
-                                {{ req.material.name }}—{{ req.serials_display }}
-                            </option>
-                            {% else %}
-                            <option value="m:{{ req.material.id }}"
-                                data-category="{{ req.material.category }}"
-                                data-serialized="0"
-                                data-mac="N/A"
-                                data-pop="N/A">
-                                {{ req.material.name }} ({{ req.available_quantity }})
-                            </option>
-                            {% endif %}
-                        {% endfor %}
-                        {% elif technician_approved_materials %}
-                        {% for req in technician_approved_materials %}
-                            {% if req.is_serialized %}
-                            <option value="s:{{ req.serials_display_id }}"
-                                data-category="{{ req.material.category }}"
-                                data-serialized="1"
-                                data-mac="{{ req.serials_display }}"
-                                data-pop="pop">
-                                {{ req.material.name }}—{{ req.serials_display }}
-                            </option>
-                            {% else %}
-                            <option value="m:{{ req.material.id }}"
-                                data-category="{{ req.material.category }}"
-                                data-serialized="0"
-                                data-mac="N/A"
-                                data-pop="N/A">
-                                {{ req.material.name }} ({{ req.available_quantity }})
-                            </option>
-                            {% endif %}
-                        {% endfor %}
-                        {% else %}
-                        <option disabled>No approved materials available</option>
-                        {% endif %}
-                    </select>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Material Name <span class="text-red-500">*</span></label>
+                    <div class="relative" id="customPopMaterialSelectContainer">
+                        <!-- Original Hidden Select for Form submission -->
+                        <div class="hidden">
+                            <select name="material_selection" id="popMaterial" required>
+                                <option value="">Select Material</option>
+                                {% if used_material_form and used_material_form.fields.material_selection.choices %}
+                                    {% for val, label in used_material_form.fields.material_selection.choices %}
+                                        {% if val %}
+                                        <option value="{{ val }}">{{ label }}</option>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% elif all_technician_materials_dropdown %}
+                                    {% for req in all_technician_materials_dropdown %}
+                                        {% if req.is_serialized %}
+                                        <option value="s:{{ req.serials_display_id }}">{{ req.material.name }} - {{ req.serials_display }}</option>
+                                        {% else %}
+                                        <option value="m:{{ req.material.id }}">{{ req.material.name }} ({{ req.available_quantity }} available)</option>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            </select>
+                        </div>
+
+                        <!-- Direct Search Input Field -->
+                        <div class="relative flex items-center">
+                            <i class="fas fa-search absolute left-3.5 text-gray-400 dark:text-gray-500 text-xs pointer-events-none"></i>
+                            <input type="text" id="popMaterialSearchInput"
+                                placeholder="Search material or serial..."
+                                autocomplete="off"
+                                onfocus="openPopMaterialSuggestions()"
+                                onclick="openPopMaterialSuggestions()"
+                                oninput="onPopMaterialSearchInput()"
+                                class="w-full bg-white dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl pl-9 pr-9 py-2.5 text-xs font-medium text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all cursor-pointer shadow-xs">
+                            <button type="button" id="popMaterialSearchClearBtn" onclick="clearPopMaterialSearch(event)"
+                                class="hidden absolute right-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xs transition cursor-pointer p-1"
+                                title="Clear selection">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            <i id="popMaterialSearchDropdownIcon" class="fas fa-chevron-down absolute right-3.5 text-gray-400 text-xs pointer-events-none transition-transform duration-200"></i>
+                        </div>
+
+                        <!-- Suggestions Dropdown List -->
+                        <div id="popMaterialSuggestionsDropdown"
+                            class="hidden absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-midnight-900 border border-gray-200 dark:border-midnight-800 rounded-xl shadow-2xl shadow-black/20 dark:shadow-black/70 z-50 p-2 space-y-1 max-w-full">
+                            
+                            <!-- Options Container (Scrollable) -->
+                            <div id="popMaterialOptionsList" class="max-h-60 overflow-y-auto space-y-1 pr-1">
+                                <!-- Populated dynamically from popMaterial options -->
+                            </div>
+
+                            <!-- Empty State -->
+                            <div id="popMaterialOptionsEmptyState" class="hidden py-4 text-center text-xs text-gray-400 dark:text-gray-500">
+                                <i class="fas fa-search text-gray-300 dark:text-gray-600 text-base mb-1 block"></i>
+                                No matching materials found
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="col-span-1">
                     <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Dispatched to <span class="text-red-500">*</span></label>
@@ -1816,7 +1826,7 @@
     <div class="px-6 py-4 bg-slate-50/70 dark:bg-midnight-950/40 border-b border-slate-200/70 dark:border-midnight-800 flex items-center justify-between">
         <h3 class="text-base font-bold text-gray-900 dark:text-white flex items-center">
             <i class="fas fa-history mr-3 text-indigo-600"></i>
-            Pending Requests <span id="pendingReqCount" class="ml-2 text-indigo-600">({{ recent_requests|length }})</span>
+            Pending Requests <span id="pendingReqCount" class="ml-2 text-indigo-600">({{ pending_requests }})</span>
         </h3>
         <span id="pendingReqPageInfo" class="text-xs text-slate-500 dark:text-slate-400"></span>
     </div>
@@ -2646,6 +2656,279 @@
         }
     }
 
+    // ── Ultra High Performance Searchable Material Select Logic for POP Material Modal ──
+    let popMaterialOptionsCache = [];
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function initPopMaterialSelect() {
+        loadPopMaterialOptionsCache();
+        syncPopMaterialSelect();
+        
+        const list = document.getElementById('popMaterialOptionsList');
+        if (list && !list.dataset.delegated) {
+            list.dataset.delegated = 'true';
+            list.addEventListener('click', function(e) {
+                const btn = e.target.closest('button[data-material-val]');
+                if (btn) {
+                    e.preventDefault();
+                    const val = btn.getAttribute('data-material-val');
+                    selectPopMaterialOption(val);
+                }
+            });
+        }
+    }
+
+    function loadPopMaterialOptionsCache() {
+        const select = document.getElementById('popMaterial');
+        if (!select) return;
+        popMaterialOptionsCache = [];
+        const opts = select.options;
+        for (let i = 0; i < opts.length; i++) {
+            const opt = opts[i];
+            const val = opt.value;
+            if (!val || opt.disabled) continue;
+            const text = opt.textContent.trim();
+            popMaterialOptionsCache.push({
+                value: val,
+                text: text,
+                lowerText: text.toLowerCase(),
+                isSerial: val.startsWith('s:')
+            });
+        }
+    }
+
+    function filterAndRenderPopMaterialOptions(searchQuery = null) {
+        const select = document.getElementById('popMaterial');
+        const list = document.getElementById('popMaterialOptionsList');
+        const searchInput = document.getElementById('popMaterialSearchInput');
+        const emptyState = document.getElementById('popMaterialOptionsEmptyState');
+        if (!list || !select) return;
+
+        let query = '';
+        if (searchQuery !== null) {
+            query = searchQuery.toLowerCase().trim();
+        } else if (searchInput) {
+            const selectedOpt = select.options[select.selectedIndex];
+            const selectedText = selectedOpt && selectedOpt.value ? selectedOpt.textContent.trim().toLowerCase() : '';
+            const currentInputText = searchInput.value.toLowerCase().trim();
+            if (currentInputText && currentInputText !== selectedText) {
+                query = currentInputText;
+            }
+        }
+
+        const currentVal = select.value;
+        const maxItems = 60;
+        let matchCount = 0;
+        let html = '';
+
+        for (let i = 0; i < popMaterialOptionsCache.length; i++) {
+            const item = popMaterialOptionsCache[i];
+            if (!query || item.lowerText.includes(query)) {
+                matchCount++;
+                if (matchCount <= maxItems) {
+                    const isSelected = (currentVal === item.value);
+
+                    let titleHtml = '';
+                    if (item.isSerial) {
+                        let dashIdx = item.text.indexOf('—');
+                        let sepLen = 1;
+                        if (dashIdx === -1) {
+                            dashIdx = item.text.indexOf(' - ');
+                            sepLen = 3;
+                        }
+                        let matName = item.text;
+                        let serialText = '';
+                        if (dashIdx !== -1) {
+                            matName = item.text.substring(0, dashIdx).trim();
+                            serialText = item.text.substring(dashIdx + sepLen).trim();
+                        }
+                        titleHtml = `
+                            <div class="flex flex-col min-w-0 flex-1 pr-2">
+                                <span class="truncate font-semibold text-gray-900 dark:text-white text-xs">${escapeHtml(matName)}</span>
+                                <span class="text-[11px] font-mono font-medium text-amber-600 dark:text-amber-400 truncate flex items-center gap-1.5 mt-0.5">
+                                    <i class="fas fa-barcode text-[10px]"></i> ${escapeHtml(serialText || item.text)}
+                                </span>
+                            </div>
+                        `;
+                    } else {
+                        let matName = item.text;
+                        let qtyText = '';
+                        const matchQty = item.text.match(/^(.*?)\s*\((.*?available.*?|\d+.*?)\)$/i);
+                        if (matchQty) {
+                            matName = matchQty[1];
+                            qtyText = matchQty[2];
+                        }
+                        titleHtml = `
+                            <div class="flex flex-col min-w-0 flex-1 pr-2">
+                                <span class="truncate font-semibold text-gray-900 dark:text-white text-xs">${escapeHtml(matName)}</span>
+                                ${qtyText ? `<span class="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 truncate flex items-center gap-1.5 mt-0.5"><i class="fas fa-cubes text-[10px]"></i> ${escapeHtml(qtyText)}</span>` : ''}
+                            </div>
+                        `;
+                    }
+
+                    html += `
+                        <button type="button"
+                            data-material-val="${item.value}"
+                            class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all text-left group cursor-pointer ${
+                                isSelected
+                                    ? 'bg-teal-50 text-teal-700 dark:bg-teal-950/70 dark:text-teal-300 font-bold border border-teal-200 dark:border-teal-800/60 shadow-xs'
+                                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-midnight-800 hover:text-teal-600 dark:hover:text-teal-400'
+                            }">
+                            <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                                <div class="w-7 h-7 rounded-lg ${item.isSerial ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400' : 'bg-teal-100 dark:bg-teal-900/40 text-teal-600 dark:text-teal-400'} flex items-center justify-center flex-shrink-0">
+                                    <i class="fas ${item.isSerial ? 'fa-barcode' : 'fa-box'} text-xs"></i>
+                                </div>
+                                ${titleHtml}
+                            </div>
+                            ${isSelected ? '<i class="fas fa-check text-teal-600 dark:text-teal-400 text-xs ml-2 flex-shrink-0"></i>' : ''}
+                        </button>
+                    `;
+                }
+            }
+        }
+
+        if (matchCount > maxItems) {
+            html += `<div class="px-3 py-1.5 text-center text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-50/50 dark:bg-midnight-950/50 rounded-md">Showing top ${maxItems} of ${matchCount} matches (type to narrow down)</div>`;
+        }
+
+        list.innerHTML = html;
+
+        if (emptyState) {
+            emptyState.classList.toggle('hidden', matchCount > 0);
+        }
+    }
+
+    function selectPopMaterialOption(val) {
+        const select = document.getElementById('popMaterial');
+        const qtyInput = document.getElementById('popQuantity');
+        if (!select) return;
+        select.value = val;
+        select.dispatchEvent(new Event('change'));
+
+        // Set quantity 1 for serials
+        if (qtyInput) {
+            if (val.startsWith('s:')) {
+                qtyInput.value = 1;
+                qtyInput.setAttribute('readonly', 'readonly');
+            } else {
+                qtyInput.removeAttribute('readonly');
+            }
+        }
+
+        syncPopMaterialSelect();
+        closePopMaterialSuggestions();
+    }
+
+    function syncPopMaterialSelect() {
+        const select = document.getElementById('popMaterial');
+        const searchInput = document.getElementById('popMaterialSearchInput');
+        const clearBtn = document.getElementById('popMaterialSearchClearBtn');
+        const icon = document.getElementById('popMaterialSearchDropdownIcon');
+        const qtyInput = document.getElementById('popQuantity');
+        if (!select || !searchInput) return;
+
+        const selectedOpt = select.options[select.selectedIndex];
+        if (selectedOpt && selectedOpt.value) {
+            searchInput.value = selectedOpt.textContent.trim();
+            if (clearBtn) clearBtn.classList.remove('hidden');
+            if (icon) icon.classList.add('hidden');
+            if (qtyInput && selectedOpt.value.startsWith('s:')) {
+                qtyInput.value = 1;
+                qtyInput.setAttribute('readonly', 'readonly');
+            }
+        } else {
+            searchInput.value = '';
+            if (clearBtn) clearBtn.classList.add('hidden');
+            if (icon) icon.classList.remove('hidden');
+            if (qtyInput) qtyInput.removeAttribute('readonly');
+        }
+    }
+
+    function openPopMaterialSuggestions() {
+        loadPopMaterialOptionsCache();
+        const dropdown = document.getElementById('popMaterialSuggestionsDropdown');
+        const icon = document.getElementById('popMaterialSearchDropdownIcon');
+        if (dropdown) dropdown.classList.remove('hidden');
+        if (icon) icon.classList.add('rotate-180');
+        filterAndRenderPopMaterialOptions();
+    }
+
+    function closePopMaterialSuggestions() {
+        const dropdown = document.getElementById('popMaterialSuggestionsDropdown');
+        const icon = document.getElementById('popMaterialSearchDropdownIcon');
+        if (dropdown) dropdown.classList.add('hidden');
+        if (icon) icon.classList.remove('rotate-180');
+        syncPopMaterialSelect();
+    }
+
+    function onPopMaterialSearchInput() {
+        const dropdown = document.getElementById('popMaterialSuggestionsDropdown');
+        const icon = document.getElementById('popMaterialSearchDropdownIcon');
+        const clearBtn = document.getElementById('popMaterialSearchClearBtn');
+        const searchInput = document.getElementById('popMaterialSearchInput');
+
+        if (dropdown && dropdown.classList.contains('hidden')) {
+            dropdown.classList.remove('hidden');
+            if (icon) icon.classList.add('rotate-180');
+        }
+
+        const val = searchInput ? searchInput.value.trim() : '';
+        if (clearBtn) {
+            clearBtn.classList.toggle('hidden', val.length === 0);
+        }
+        if (icon) {
+            icon.classList.toggle('hidden', val.length > 0);
+        }
+
+        filterAndRenderPopMaterialOptions(val);
+    }
+
+    function clearPopMaterialSearch(event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        const select = document.getElementById('popMaterial');
+        if (select) {
+            select.value = '';
+            select.dispatchEvent(new Event('change'));
+        }
+        const searchInput = document.getElementById('popMaterialSearchInput');
+        if (searchInput) {
+            searchInput.value = '';
+            searchInput.focus();
+        }
+        syncPopMaterialSelect();
+        openPopMaterialSuggestions();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initPopMaterialSelect();
+    });
+
+    document.addEventListener('click', function(event) {
+        const container = document.getElementById('customPopMaterialSelectContainer');
+        if (container && !container.contains(event.target)) {
+            closePopMaterialSuggestions();
+        }
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closePopMaterialSuggestions();
+            const popModal = document.getElementById('popModal');
+            if (popModal) popModal.classList.add('hidden');
+        }
+    });
 </script>
 
 {% endblock %}

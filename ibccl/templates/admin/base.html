@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+{% load i18n static %}
+<html lang="{{ LANGUAGE_CODE|default:"en-us" }}" {% if LANGUAGE_BIDI %}dir="rtl"{% endif %}>
+<head>
+<title>{% block title %}{% endblock %}</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link rel="stylesheet" href="{% static "admin/css/base.css" %}">
+<link rel="stylesheet" href="{% static "admin/css/responsive.css" %}">
+<link rel="stylesheet" href="{% static "admin/css/superadmin_custom.css" %}?v=4.0.0">
+{% block extrastyle %}{% endblock %}
+{% block extrahead %}{% endblock %}
+{% block responsive %}
+    <meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1.0, maximum-scale=1.0">
+{% endblock %}
+{% block blockbots %}<meta name="robots" content="NONE,NOARCHIVE">{% endblock %}
+</head>
+
+<body class="{% if is_popup %}popup {% endif %}{% block bodyclass %}{% endblock %}"
+  data-admin-utc-offset="{% now "Z" %}">
+
+<!-- Container -->
+<div id="container">
+
+    {% if not is_popup %}
+    <!-- Header -->
+    <header id="header">
+        <div class="sa-header-inner">
+            <div id="branding">
+            {% block branding %}
+                <h1><a href="{% url 'admin:index' %}"><span class="sa-brand-badge">SUPERADMIN</span> IBCCL Control Hub</a></h1>
+            {% endblock %}
+            </div>
+            {% block usertools %}
+            {% if has_permission %}
+            <div id="user-tools">
+                <button type="button" onclick="openSuperadminMonitoringModal()" class="sa-monitor-top-btn" title="Open Realtime Materials Monitoring Modal">
+                    <i class="fas fa-chart-line text-emerald-500 mr-1"></i> <span class="sa-hide-mobile">Live Monitoring</span>
+                </button>
+                <a href="/" target="_blank" title="Open Main Application">
+                    <i class="fas fa-desktop mr-1"></i> <span class="sa-hide-mobile">Main App</span>
+                </a>
+                <a href="/settings/" target="_blank" title="Settings & User Control">
+                    <i class="fas fa-sliders mr-1"></i> <span class="sa-hide-mobile">Settings</span>
+                </a>
+                {% block welcome-msg %}
+                    <span class="sa-user-pill"><i class="fas fa-user-circle mr-1 text-indigo-500"></i><strong>{% firstof user.get_short_name user.get_username %}</strong></span>
+                {% endblock %}
+                {% block userlinks %}
+                    <form id="logout-form" method="post" action="{% url 'admin:logout' %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" title="Logout"><i class="fas fa-right-from-bracket"></i></button>
+                    </form>
+                {% endblock %}
+            </div>
+            {% endif %}
+            {% endblock %}
+            {% block nav-global %}{% endblock %}
+        </div>
+    </header>
+    <!-- END Header -->
+
+    {% block breadcrumbs %}
+    <div class="breadcrumbs">
+        <div class="sa-breadcrumbs-inner">
+            <span><a href="{% url 'admin:index' %}"><i class="fas fa-house mr-1"></i> {% translate 'Home' %}</a></span>
+            {% if title %}<span class="sa-breadcrumb-sep">&rsaquo;</span> <span class="sa-breadcrumb-current">{{ title }}</span>{% endif %}
+        </div>
+    </div>
+    {% endblock %}
+    {% endif %}
+
+    <div class="main" id="main">
+      <div class="sa-main-inner">
+          {% block messages %}
+            {% if messages %}
+              <ul class="messagelist">{% for message in messages %}
+                <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message|capfirst }}</li>
+              {% endfor %}</ul>
+            {% endif %}
+          {% endblock messages %}
+
+          <div class="content">
+            {% block content %}
+              {% block object-tools %}{% endblock %}
+              {{ content }}
+            {% endblock %}
+            {% block sidebar %}{% endblock %}
+            <br class="clear">
+          </div>
+      </div>
+      <!-- END Content -->
+</div>
+<!-- END Container -->
+
+{% include "admin/monitoring_modal.html" %}
+
+</body>
+</html>

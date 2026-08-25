@@ -55,11 +55,11 @@ def noc_login_view(request):
                 # Standard Django login
                 django_login(request, user)
 
-                # Session expiry: if "Remember me" unchecked, expire on browser close
-                if not remember_me:
-                    request.session.set_expiry(0)         # expires when browser closes
+                # Session expiry: If "Remember me" checked -> 7 days; If unchecked -> 24 hours
+                if remember_me:
+                    request.session.set_expiry(7 * 24 * 60 * 60)  # 7 days (604,800 seconds)
                 else:
-                    request.session.set_expiry(60 * 60 * 24)  # 24 hours
+                    request.session.set_expiry(24 * 60 * 60)       # 24 hours (86,400 seconds)
                 
                 # Update profile activity status
                 profile.is_active = True
@@ -189,41 +189,41 @@ def noc_dashboard(request):
     # Internal Communication: unread messages
     unread_messages_count = InternalMessage.objects.filter(receiver=request.user, is_read=False).count()
 
-    # Context for modals
+    # Context for modals (optimized with limits to prevent full-table loads)
     total_users = UserProfile.objects.count()
-    all_users_list = UserProfile.objects.select_related('user').order_by('-user__date_joined')
+    all_users_list = UserProfile.objects.select_related('user').order_by('-user__date_joined')[:20]
 
     pending_requests_list = mat_req_base.filter(
         status='Pending',
         requested_at__year=now.year,
         requested_at__month=now.month,
-    ).select_related('material', 'requester').order_by('-requested_at')
+    ).select_related('material', 'requester').order_by('-requested_at')[:20]
 
     advance_materials = mat_req_base.filter(
         request_type='Advance',
         requested_at__year=now.year,
         requested_at__month=now.month,
-    ).select_related('material', 'requester').order_by('-requested_at')
+    ).select_related('material', 'requester').order_by('-requested_at')[:20]
 
     materials_monitoring = MaterialRequest.objects.filter(
         material__category='Internet',
         status='Approved',
         is_hidden_by_noc=False
-    ).select_related('material', 'requester').order_by('-requested_at')
+    ).select_related('material', 'requester').order_by('-requested_at')[:20]
 
     all_used_materials = UsedMaterial.objects.filter(
         material__category='Internet'
-    ).select_related('technician', 'material').order_by('-added_at')[:50]
+    ).select_related('technician', 'material').order_by('-added_at')[:20]
 
     technician_approved_materials = MaterialRequest.objects.filter(
         status='Approved',
         material__category='Internet',
         is_hidden_by_noc=False
-    ).select_related('material')
+    ).select_related('material')[:50]
 
     low_stock_material_list = internet_materials.filter(
         Q(status='Low Stock') | Q(status='Out of Stock')
-    ).order_by('status', 'name')
+    ).order_by('status', 'name')[:20]
 
     # Today's Used Materials for NOC Dashboard (Paginated)
     today_used_materials_all = UsedMaterial.objects.filter(
@@ -245,9 +245,9 @@ def noc_dashboard(request):
         is_hidden_by_noc=False
     ).select_related('material', 'requester').order_by('-requested_at')[:5]
 
-    refundable_materials = RefundableMaterial.objects.filter(branch_user__userprofile__role='Branch').select_related('branch_user').order_by('-added_at')
-    damaged_materials = DamageMaterial.objects.filter(material__category='Internet').select_related('branch_user', 'material', 'confirmed_by').order_by('-added_at')
-    branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
+    refundable_materials = RefundableMaterial.objects.filter(branch_user__userprofile__role='Branch').select_related('branch_user').order_by('-added_at')[:10]
+    damaged_materials = DamageMaterial.objects.filter(material__category='Internet').select_related('branch_user', 'material', 'confirmed_by').order_by('-added_at')[:10]
+    branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').only('id', 'username').order_by('username')
 
     refundable_form = NocRefundableMaterialForm(noc_user=request.user)
     damaged_form = NocDamageMaterialForm(noc_user=request.user)
@@ -585,11 +585,17 @@ def noc_requests(request):
         is_archived=show_archived,  # Default: show current month (not archived)
     )
 
-    # Summary counts for the top cards (calculated on base queryset before search/status filter)
-    pending_count = base_requests_qs.filter(status='Pending').count()
-    approved_count = base_requests_qs.filter(status='Approved').count()
-    rejected_count = base_requests_qs.filter(status='Rejected').count()
-    received_count = base_requests_qs.filter(status='Received').count()
+    # Summary counts for the top cards (calculated in 1 single DB pass)
+    summary_stats = base_requests_qs.aggregate(
+        pending=Count(Case(When(status='Pending', then=1))),
+        approved=Count(Case(When(status='Approved', then=1))),
+        rejected=Count(Case(When(status='Rejected', then=1))),
+        received=Count(Case(When(status='Received', then=1))),
+    )
+    pending_count  = summary_stats['pending'] or 0
+    approved_count = summary_stats['approved'] or 0
+    rejected_count = summary_stats['rejected'] or 0
+    received_count = summary_stats['received'] or 0
 
     requests_qs = base_requests_qs
 
@@ -759,11 +765,17 @@ def noc_used_materials(request):
             Q(client_address__icontains=search_query)
         )
     
-    # Stats calculated before status filter
-    total_count = used_qs.count()
-    accepted_count = used_qs.filter(status='Accepted').count()
-    pending_count = used_qs.filter(status='Pending').count()
-    rejected_count = used_qs.filter(status='Rejected').count()
+    # Stats calculated before status filter (Single DB pass)
+    used_stats = used_qs.aggregate(
+        total=Count('id'),
+        accepted=Count(Case(When(status='Accepted', then=1))),
+        pending=Count(Case(When(status='Pending', then=1))),
+        rejected=Count(Case(When(status='Rejected', then=1)))
+    )
+    total_count    = used_stats['total'] or 0
+    accepted_count = used_stats['accepted'] or 0
+    pending_count  = used_stats['pending'] or 0
+    rejected_count = used_stats['rejected'] or 0
     
     if status_filter:
         used_qs = used_qs.filter(status=status_filter)
@@ -804,8 +816,11 @@ def noc_materials_monitoring(request):
     ws_host = request.get_host()
     ws_path = '/ws/inventory/materials-monitoring/'
     ws_url = f'{ws_scheme}://{ws_host}{ws_path}'
-    return render(request, 'noc/materials_monitoring.html', {
+    branch_list = User.objects.filter(userprofile__role='Branch').only('id', 'username')
+    return render(request, 'inventory/materials_monitoring.html', {
         'ws_url': ws_url,
+        'branch_list': branch_list,
+        'role': 'NOC'
     })
 
 @login_required
@@ -862,28 +877,46 @@ def noc_reports(request):
         is_hidden_by_noc=False
     ).select_related('material', 'requester')
 
-    # ── Summary Stats ────────
-    total_requests   = requests_qs.count()
-    approved_count   = requests_qs.filter(status='Approved').count()
-    pending_count    = requests_qs.filter(status='Pending').count()
-    rejected_count   = requests_qs.filter(status='Rejected').count()
-    total_qty_issued = requests_qs.filter(status='Approved').aggregate(total=Sum('quantity'))['total'] or 0
-    advance_count    = requests_qs.filter(request_type='Advance').count()
+    # ── Summary Stats (Single-pass aggregations) ────────
+    req_stats = requests_qs.aggregate(
+        total_requests=Count('id'),
+        approved_count=Count(Case(When(status='Approved', then=1))),
+        pending_count=Count(Case(When(status='Pending', then=1))),
+        rejected_count=Count(Case(When(status='Rejected', then=1))),
+        total_qty_issued=Sum(Case(When(status='Approved', then='quantity'), default=0)),
+        advance_count=Count(Case(When(request_type='Advance', then=1)))
+    )
+    total_requests   = req_stats['total_requests'] or 0
+    approved_count   = req_stats['approved_count'] or 0
+    pending_count    = req_stats['pending_count'] or 0
+    rejected_count   = req_stats['rejected_count'] or 0
+    total_qty_issued = req_stats['total_qty_issued'] or 0
+    advance_count    = req_stats['advance_count'] or 0
 
-    # Material stock summary
-    total_materials  = noc_materials_qs.count()
-    low_stock_items  = noc_materials_qs.filter(status='Low Stock').count()
-    out_of_stock     = noc_materials_qs.filter(status='Out of Stock').count()
-    normal_stock     = noc_materials_qs.filter(status='Normal').count()
+    # Material stock summary (Single-pass aggregation)
+    mat_summary = noc_materials_qs.aggregate(
+        total_materials=Count('id'),
+        low_stock_items=Count(Case(When(status='Low Stock', then=1))),
+        out_of_stock=Count(Case(When(status='Out of Stock', then=1))),
+        normal_stock=Count(Case(When(status='Normal', then=1)))
+    )
+    total_materials  = mat_summary['total_materials'] or 0
+    low_stock_items  = mat_summary['low_stock_items'] or 0
+    out_of_stock     = mat_summary['out_of_stock'] or 0
+    normal_stock     = mat_summary['normal_stock'] or 0
 
-    # Used materials in period
+    # Used materials in period (Single-pass aggregation)
     used_qs = UsedMaterial.objects.filter(
         material__in=noc_materials_qs,
         added_at__date__gte=start,
         added_at__date__lte=end
     )
-    total_used_records = used_qs.count()
-    total_used_qty     = used_qs.aggregate(total=Sum('quantity'))['total'] or 0
+    used_summary = used_qs.aggregate(
+        total_used_records=Count('id'),
+        total_used_qty=Sum('quantity')
+    )
+    total_used_records = used_summary['total_used_records'] or 0
+    total_used_qty     = used_summary['total_used_qty'] or 0
 
     # ── Top materials by approved quantity - Paginated at 10 per page ────────
     top_materials_qs = (

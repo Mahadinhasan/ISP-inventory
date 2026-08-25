@@ -437,44 +437,95 @@
     </div>
     <div id="requestModal"
         class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-50 backdrop-blur-sm">
-        <div class="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md transform transition-all scale-100">
-            <h3 class="text-2xl font-bold mb-2 flex items-center text-gray-800" id="modalTitle">
+        <div class="bg-white dark:bg-midnight-900 rounded-xl shadow-2xl p-8 w-full max-w-md transform transition-all scale-100 border dark:border-midnight-800">
+            <h3 class="text-2xl font-bold mb-2 flex items-center text-gray-800 dark:text-white" id="modalTitle">
                 <i class="fas fa-paper-plane mr-2 text-indigo-600"></i> Request Material
             </h3>
-            <p class="text-sm text-gray-600 mb-6" id="modalSubtitle">Submit a regular material request</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6" id="modalSubtitle">Submit a regular material request</p>
 
-            <div class="bg-blue-50 p-3 rounded-lg mb-4 hidden" id="typeIndicator">
-                <p class="text-xs font-medium text-blue-800"><i class="fas fa-info-circle mr-2"></i><span
+            <div class="bg-blue-50 dark:bg-blue-950/40 p-3 rounded-lg mb-4 hidden border dark:border-blue-900/40" id="typeIndicator">
+                <p class="text-xs font-medium text-blue-800 dark:text-blue-300"><i class="fas fa-info-circle mr-2"></i><span
                         id="typeText">Regular Request</span></p>
             </div>
 
-            <form method="post">
+            <form method="post" id="requestMaterialForm">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="create">
                 <input type="hidden" name="request_type" id="requestType" value="Regular">
 
                 <div class="space-y-4">
                     <div class="form-group">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Material</label>
-                        {{ form.material }}
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">
+                            <i class="fas fa-box text-indigo-600 mr-1"></i>Material <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative" id="customMaterialSearchSelectContainer">
+                            <!-- Original Hidden Select for Django Form binding & POST data -->
+                            <div class="hidden">
+                                {{ form.material }}
+                            </div>
+
+                            <!-- Direct Search Input Field -->
+                            <div class="relative flex items-center">
+                                <i class="fas fa-search absolute left-3.5 text-gray-400 dark:text-gray-500 text-xs pointer-events-none"></i>
+                                <input type="text" id="materialSearchInput"
+                                    placeholder="Search or select material..."
+                                    autocomplete="off"
+                                    onfocus="openMaterialSuggestions()"
+                                    onclick="openMaterialSuggestions()"
+                                    oninput="onMaterialSearchInput()"
+                                    class="w-full bg-white dark:bg-midnight-950 border-2 border-gray-300 dark:border-midnight-800 rounded-lg pl-9 pr-9 py-2.5 text-xs font-medium text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer shadow-xs">
+                                <button type="button" id="materialSearchClearBtn" onclick="clearMaterialSearch(event)"
+                                    class="hidden absolute right-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xs transition cursor-pointer p-1"
+                                    title="Clear selection">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                                <i id="materialSearchDropdownIcon" class="fas fa-chevron-down absolute right-3.5 text-gray-400 text-xs pointer-events-none transition-transform duration-200"></i>
+                            </div>
+
+                            <!-- Suggestions Dropdown List -->
+                            <div id="materialSuggestionsDropdown"
+                                class="hidden absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-midnight-900 border border-gray-200 dark:border-midnight-800 rounded-xl shadow-2xl shadow-black/20 dark:shadow-black/70 z-50 p-2 space-y-1 max-w-full">
+                                
+                                <!-- Options Container (Scrollable) -->
+                                <div id="materialOptionsList" class="max-h-60 overflow-y-auto space-y-1 pr-1">
+                                    <!-- Populated dynamically from id_material options -->
+                                </div>
+
+                                <!-- Empty State -->
+                                <div id="materialOptionsEmptyState" class="hidden py-4 text-center text-xs text-gray-400 dark:text-gray-500">
+                                    <i class="fas fa-search text-gray-300 dark:text-gray-600 text-base mb-1 block"></i>
+                                    No matching materials found
+                                </div>
+                            </div>
+
+                            {% if form.material.errors %}
+                            <p class="text-red-500 text-xs mt-1">{{ form.material.errors.0 }}</p>
+                            {% endif %}
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">
+                            <i class="fas fa-cubes text-indigo-600 mr-1"></i>Quantity <span class="text-red-500">*</span>
+                        </label>
                         <input type="number" name="quantity"
-                            class="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2"
+                            class="w-full bg-white dark:bg-midnight-950 border-2 border-gray-300 dark:border-midnight-800 rounded-lg px-3.5 py-2.5 text-xs text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 border transition"
+                            placeholder="Enter quantity..."
                             required>
                     </div>
                     <div class="form-group">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Send By</label>
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">
+                            <i class="fas fa-sticky-note text-indigo-600 mr-1"></i>Send By / User Notes
+                        </label>
                         <textarea name="send_by" rows="3"
-                            class="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2"></textarea>
+                            class="w-full bg-white dark:bg-midnight-950 border-2 border-gray-300 dark:border-midnight-800 rounded-lg px-3.5 py-2.5 text-xs text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 border transition"
+                            placeholder="Enter any notes or remarks..."></textarea>
                     </div>
                 </div>
                 <div class="flex justify-end space-x-4 mt-8">
-                    <button type="button" onclick="document.getElementById('requestModal').classList.add('hidden')"
-                        class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium">Cancel</button>
+                    <button type="button" onclick="closeRequestModal()"
+                        class="px-6 py-2 border border-gray-300 dark:border-midnight-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-midnight-800 transition font-medium text-xs cursor-pointer">Cancel</button>
                     <button type="submit" id="submitBtn"
-                        class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium shadow-md">Submit</button>
+                        class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium shadow-md text-xs cursor-pointer">Submit</button>
                 </div>
             </form>
         </div>
@@ -653,12 +704,215 @@
     {% endif %}
 
     <script>
+        // ── Ultra High Performance Searchable Material Select Logic for Request Modal ──
+        let materialOptionsCache = [];
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function initCustomMaterialSelect() {
+            loadMaterialOptionsCache();
+            syncCustomMaterialSelect();
+            
+            const list = document.getElementById('materialOptionsList');
+            if (list && !list.dataset.delegated) {
+                list.dataset.delegated = 'true';
+                list.addEventListener('click', function(e) {
+                    const btn = e.target.closest('button[data-material-val]');
+                    if (btn) {
+                        e.preventDefault();
+                        const val = btn.getAttribute('data-material-val');
+                        selectCustomMaterialOption(val);
+                    }
+                });
+            }
+        }
+
+        function loadMaterialOptionsCache() {
+            const select = document.getElementById('id_material');
+            if (!select) return;
+            materialOptionsCache = [];
+            const opts = select.options;
+            for (let i = 0; i < opts.length; i++) {
+                const opt = opts[i];
+                const val = opt.value;
+                if (!val) continue; // Skip blank placeholder
+                const text = opt.textContent.trim();
+                materialOptionsCache.push({
+                    value: val,
+                    text: text,
+                    lowerText: text.toLowerCase()
+                });
+            }
+        }
+
+        function filterAndRenderCustomMaterialOptions(searchQuery = null) {
+            const select = document.getElementById('id_material');
+            const list = document.getElementById('materialOptionsList');
+            const searchInput = document.getElementById('materialSearchInput');
+            const emptyState = document.getElementById('materialOptionsEmptyState');
+            if (!list || !select) return;
+
+            let query = '';
+            if (searchQuery !== null) {
+                query = searchQuery.toLowerCase().trim();
+            } else if (searchInput) {
+                const selectedOpt = select.options[select.selectedIndex];
+                const selectedText = selectedOpt && selectedOpt.value ? selectedOpt.textContent.trim().toLowerCase() : '';
+                const currentInputText = searchInput.value.toLowerCase().trim();
+                if (currentInputText && currentInputText !== selectedText) {
+                    query = currentInputText;
+                }
+            }
+
+            const currentVal = select.value;
+            const maxItems = 60;
+            let matchCount = 0;
+            let html = '';
+
+            for (let i = 0; i < materialOptionsCache.length; i++) {
+                const item = materialOptionsCache[i];
+                if (!query || item.lowerText.includes(query)) {
+                    matchCount++;
+                    if (matchCount <= maxItems) {
+                        const isSelected = (currentVal === item.value);
+                        html += `
+                            <button type="button"
+                                data-material-val="${item.value}"
+                                class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all text-left group cursor-pointer ${
+                                    isSelected
+                                        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800/60'
+                                        : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-midnight-800 hover:text-indigo-600 dark:hover:text-indigo-400'
+                                }">
+                                <div class="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
+                                    <div class="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-box text-xs"></i>
+                                    </div>
+                                    <span class="truncate font-semibold text-gray-900 dark:text-white text-xs">${escapeHtml(item.text)}</span>
+                                </div>
+                                ${isSelected ? '<i class="fas fa-check text-indigo-600 dark:text-indigo-400 text-xs ml-2 flex-shrink-0"></i>' : ''}
+                            </button>
+                        `;
+                    }
+                }
+            }
+
+            if (matchCount > maxItems) {
+                html += `<div class="px-3 py-1.5 text-center text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-50/50 dark:bg-midnight-950/50 rounded-md">Showing top ${maxItems} of ${matchCount} matches (type to narrow down)</div>`;
+            }
+
+            list.innerHTML = html;
+
+            if (emptyState) {
+                emptyState.classList.toggle('hidden', matchCount > 0);
+            }
+        }
+
+        function selectCustomMaterialOption(val) {
+            const select = document.getElementById('id_material');
+            if (!select) return;
+            select.value = val;
+            select.dispatchEvent(new Event('change'));
+            syncCustomMaterialSelect();
+            closeMaterialSuggestions();
+        }
+
+        function syncCustomMaterialSelect() {
+            const select = document.getElementById('id_material');
+            const searchInput = document.getElementById('materialSearchInput');
+            const clearBtn = document.getElementById('materialSearchClearBtn');
+            const icon = document.getElementById('materialSearchDropdownIcon');
+            if (!select || !searchInput) return;
+
+            const selectedOpt = select.options[select.selectedIndex];
+            if (selectedOpt && selectedOpt.value) {
+                searchInput.value = selectedOpt.textContent.trim();
+                if (clearBtn) clearBtn.classList.remove('hidden');
+                if (icon) icon.classList.add('hidden');
+            } else {
+                searchInput.value = '';
+                if (clearBtn) clearBtn.classList.add('hidden');
+                if (icon) icon.classList.remove('hidden');
+            }
+        }
+
+        function openMaterialSuggestions() {
+            loadMaterialOptionsCache();
+            const dropdown = document.getElementById('materialSuggestionsDropdown');
+            const icon = document.getElementById('materialSearchDropdownIcon');
+            if (dropdown) dropdown.classList.remove('hidden');
+            if (icon) icon.classList.add('rotate-180');
+            filterAndRenderCustomMaterialOptions();
+        }
+
+        function closeMaterialSuggestions() {
+            const dropdown = document.getElementById('materialSuggestionsDropdown');
+            const icon = document.getElementById('materialSearchDropdownIcon');
+            if (dropdown) dropdown.classList.add('hidden');
+            if (icon) icon.classList.remove('rotate-180');
+            syncCustomMaterialSelect();
+        }
+
+        function onMaterialSearchInput() {
+            const dropdown = document.getElementById('materialSuggestionsDropdown');
+            const icon = document.getElementById('materialSearchDropdownIcon');
+            const clearBtn = document.getElementById('materialSearchClearBtn');
+            const searchInput = document.getElementById('materialSearchInput');
+
+            if (dropdown && dropdown.classList.contains('hidden')) {
+                dropdown.classList.remove('hidden');
+                if (icon) icon.classList.add('rotate-180');
+            }
+
+            const val = searchInput ? searchInput.value.trim() : '';
+            if (clearBtn) {
+                clearBtn.classList.toggle('hidden', val.length === 0);
+            }
+            if (icon) {
+                icon.classList.toggle('hidden', val.length > 0);
+            }
+
+            filterAndRenderCustomMaterialOptions(val);
+        }
+
+        function clearMaterialSearch(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            const select = document.getElementById('id_material');
+            if (select) {
+                select.value = '';
+                select.dispatchEvent(new Event('change'));
+            }
+            const searchInput = document.getElementById('materialSearchInput');
+            if (searchInput) {
+                searchInput.value = '';
+                searchInput.focus();
+            }
+            syncCustomMaterialSelect();
+            openMaterialSuggestions();
+        }
+
+        function closeRequestModal() {
+            const modal = document.getElementById('requestModal');
+            if (modal) modal.classList.add('hidden');
+            closeMaterialSuggestions();
+        }
 
         document.addEventListener('DOMContentLoaded', () => {
-            const selects = document.querySelectorAll('select:not(.no-auto-style)');
+            const selects = document.querySelectorAll('select:not(.no-auto-style):not(#id_material)');
             selects.forEach(s => {
                 s.classList.add('w-full', 'border-gray-300', 'rounded-md', 'shadow-sm', 'focus:ring-indigo-500', 'focus:border-indigo-500', 'border', 'p-2');
             });
+            initCustomMaterialSelect();
         });
 
         function openAdminModal(id, note, quantity) {
@@ -765,20 +1019,21 @@
                 modalTitle.innerHTML = '<i class="fas fa-star mr-2 text-indigo-600"></i> Advance Materials';
                 modalSubtitle.textContent = 'Submit an advance material request';
                 typeIndicator.classList.remove('hidden');
-                typeIndicator.className = 'bg-indigo-50 p-3 rounded-lg mb-4';
-                typeIndicator.querySelector('p').className = 'text-xs font-medium text-indigo-800';
+                typeIndicator.className = 'bg-indigo-50 dark:bg-indigo-950/40 p-3 rounded-lg mb-4 border dark:border-indigo-900/40';
+                typeIndicator.querySelector('p').className = 'text-xs font-medium text-indigo-800 dark:text-indigo-300';
                 typeText.textContent = 'Advance Request';
-                submitBtn.className = 'px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium shadow-md';
+                submitBtn.className = 'px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium shadow-md text-xs cursor-pointer';
             } else {
                 modalTitle.innerHTML = '<i class="fas fa-paper-plane mr-2 text-blue-600"></i> Request Material';
                 modalSubtitle.textContent = 'Submit a regular material request';
                 typeIndicator.classList.remove('hidden');
-                typeIndicator.className = 'bg-blue-50 p-3 rounded-lg mb-4';
-                typeIndicator.querySelector('p').className = 'text-xs font-medium text-blue-800';
+                typeIndicator.className = 'bg-blue-50 dark:bg-blue-950/40 p-3 rounded-lg mb-4 border dark:border-blue-900/40';
+                typeIndicator.querySelector('p').className = 'text-xs font-medium text-blue-800 dark:text-blue-300';
                 typeText.textContent = 'Regular Request';
-                submitBtn.className = 'px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-md';
+                submitBtn.className = 'px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-md text-xs cursor-pointer';
             }
 
+            syncCustomMaterialSelect();
             modal.classList.remove('hidden');
         }
 
@@ -870,17 +1125,37 @@
                     dropdown.classList.add('hidden');
                 }
             }
-        });
 
-        // Close on outside click
-        window.onclick = function (event) {
-            if (event.target.id === 'requestModal') {
-                document.getElementById('requestModal').classList.add('hidden');
+            const container = document.getElementById('customMaterialSearchSelectContainer');
+            if (container && !container.contains(event.target)) {
+                closeMaterialSuggestions();
+            }
+
+            const requestModal = document.getElementById('requestModal');
+            if (event.target === requestModal) {
+                closeRequestModal();
             }
             if (event.target.id === 'passOnModal') {
                 document.getElementById('passOnModal').classList.add('hidden');
             }
-        }
+            if (event.target.id === 'receivedByModal') {
+                document.getElementById('receivedByModal').classList.add('hidden');
+            }
+            if (event.target.id === 'adminModal') {
+                document.getElementById('adminModal').classList.add('hidden');
+            }
+        });
+
+        // Close on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeMaterialSuggestions();
+                closeRequestModal();
+                if (document.getElementById('passOnModal')) document.getElementById('passOnModal').classList.add('hidden');
+                if (document.getElementById('receivedByModal')) document.getElementById('receivedByModal').classList.add('hidden');
+                if (document.getElementById('adminModal')) document.getElementById('adminModal').classList.add('hidden');
+            }
+        });
     </script>
 
     {% endblock %}

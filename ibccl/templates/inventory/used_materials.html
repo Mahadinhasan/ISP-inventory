@@ -344,35 +344,30 @@
                                 {{ form.material_selection }}
                             </div>
 
-                            <!-- Custom Select Trigger -->
-                            <button type="button" id="materialSelectTrigger" onclick="toggleCustomMaterialDropdown(event)"
-                                class="w-full flex items-center justify-between px-3.5 py-2.5 bg-white dark:bg-midnight-950 border-2 border-gray-300 dark:border-midnight-800 rounded-lg text-left text-xs font-medium text-gray-800 dark:text-gray-200 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer shadow-xs">
-                                <div class="flex items-center gap-2 min-w-0 flex-1 truncate">
-                                    <i class="fas fa-box text-indigo-500 text-xs flex-shrink-0"></i>
-                                    <span id="materialSelectTriggerLabel" class="truncate text-gray-500 dark:text-gray-400">Select Material</span>
-                                </div>
-                                <i class="fas fa-chevron-down text-gray-400 text-xs ml-2 transition-transform duration-200" id="materialSelectTriggerIcon"></i>
-                            </button>
+                            <!-- Direct Search Input Field -->
+                            <div class="relative flex items-center">
+                                <i class="fas fa-search absolute left-3.5 text-gray-400 dark:text-gray-500 text-xs pointer-events-none"></i>
+                                <input type="text" id="materialSearchInput"
+                                    placeholder="Search or select material / serial..."
+                                    autocomplete="off"
+                                    onfocus="openMaterialSuggestions()"
+                                    onclick="openMaterialSuggestions()"
+                                    oninput="onMaterialSearchInput()"
+                                    class="w-full bg-white dark:bg-midnight-950 border-2 border-gray-300 dark:border-midnight-800 rounded-lg pl-9 pr-9 py-2.5 text-xs font-medium text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer shadow-xs">
+                                <button type="button" id="materialSearchClearBtn" onclick="clearMaterialSearch(event)"
+                                    class="hidden absolute right-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xs transition cursor-pointer p-1"
+                                    title="Clear selection">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                                <i id="materialSearchDropdownIcon" class="fas fa-chevron-down absolute right-3.5 text-gray-400 text-xs pointer-events-none transition-transform duration-200"></i>
+                            </div>
 
-                            <!-- Custom Dropdown Panel with Search Input & Options -->
-                            <div id="materialSelectDropdown"
-                                class="hidden absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-midnight-900 border border-gray-200 dark:border-midnight-800 rounded-xl shadow-2xl shadow-black/20 dark:shadow-black/70 z-50 p-2 space-y-2 max-w-full">
+                            <!-- Suggestions Dropdown List -->
+                            <div id="materialSuggestionsDropdown"
+                                class="hidden absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-midnight-900 border border-gray-200 dark:border-midnight-800 rounded-xl shadow-2xl shadow-black/20 dark:shadow-black/70 z-50 p-2 space-y-1 max-w-full">
                                 
-                                <!-- Search Input Box inside dropdown -->
-                                <div class="relative flex items-center">
-                                    <i class="fas fa-search absolute left-3 text-gray-400 dark:text-gray-500 text-xs pointer-events-none"></i>
-                                    <input type="text" id="materialDropdownSearchInput"
-                                        placeholder="Search material or serial..."
-                                        autocomplete="off"
-                                        oninput="filterCustomMaterialOptions()"
-                                        class="w-full bg-gray-50 dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-lg pl-8 pr-7 py-2 text-xs text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all font-medium">
-                                    <button type="button" id="materialDropdownClearBtn" onclick="clearMaterialDropdownSearch()" class="hidden absolute right-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xs cursor-pointer">
-                                        <i class="fas fa-times"></i>
-                                    </button>
-                                </div>
-
                                 <!-- Options Container (Scrollable) -->
-                                <div id="materialOptionsList" class="max-h-56 overflow-y-auto space-y-1 pr-1">
+                                <div id="materialOptionsList" class="max-h-60 overflow-y-auto space-y-1 pr-1">
                                     <!-- Populated dynamically from id_material_selection options -->
                                 </div>
 
@@ -816,7 +811,6 @@
 
     // ── Ultra High Performance Searchable Material Select Logic ──
     let materialOptionsCache = [];
-    let materialSelectInitialized = false;
 
     function escapeHtml(str) {
         if (!str) return '';
@@ -866,17 +860,23 @@
         }
     }
 
-    function filterAndRenderCustomMaterialOptions() {
+    function filterAndRenderCustomMaterialOptions(searchQuery = null) {
         const select = document.getElementById('id_material_selection');
         const list = document.getElementById('materialOptionsList');
-        const searchInput = document.getElementById('materialDropdownSearchInput');
-        const clearBtn = document.getElementById('materialDropdownClearBtn');
+        const searchInput = document.getElementById('materialSearchInput');
         const emptyState = document.getElementById('materialOptionsEmptyState');
         if (!list || !select) return;
 
-        const query = (searchInput ? searchInput.value : '').toLowerCase().trim();
-        if (clearBtn) {
-            clearBtn.classList.toggle('hidden', query.length === 0);
+        let query = '';
+        if (searchQuery !== null) {
+            query = searchQuery.toLowerCase().trim();
+        } else if (searchInput) {
+            const selectedOpt = select.options[select.selectedIndex];
+            const selectedText = selectedOpt && selectedOpt.value ? selectedOpt.textContent.trim().toLowerCase() : '';
+            const currentInputText = searchInput.value.toLowerCase().trim();
+            if (currentInputText && currentInputText !== selectedText) {
+                query = currentInputText;
+            }
         }
 
         const currentVal = select.value;
@@ -890,24 +890,57 @@
                 matchCount++;
                 if (matchCount <= maxItems) {
                     const isSelected = (currentVal === item.value);
+
+                    let titleHtml = '';
+                    if (item.isSerial) {
+                        // Extract Material Name & MAC/Serial
+                        const dashIdx = item.text.indexOf(' - ');
+                        let matName = item.text;
+                        let serialText = '';
+                        if (dashIdx !== -1) {
+                            matName = item.text.substring(0, dashIdx);
+                            serialText = item.text.substring(dashIdx + 3);
+                        }
+                        titleHtml = `
+                            <div class="flex flex-col min-w-0 flex-1 pr-2">
+                                <span class="truncate font-semibold text-gray-900 dark:text-white text-xs">${escapeHtml(matName)}</span>
+                                <span class="text-[11px] font-mono font-medium text-amber-600 dark:text-amber-400 truncate flex items-center gap-1.5 mt-0.5">
+                                    <i class="fas fa-barcode text-[10px]"></i> ${escapeHtml(serialText || item.text)}
+                                </span>
+                            </div>
+                        `;
+                    } else {
+                        // Non-serialized item with quantity
+                        let matName = item.text;
+                        let qtyText = '';
+                        const matchQty = item.text.match(/^(.*?)\s*\((.*?available.*?|\d+.*?)\)$/i);
+                        if (matchQty) {
+                            matName = matchQty[1];
+                            qtyText = matchQty[2];
+                        }
+                        titleHtml = `
+                            <div class="flex flex-col min-w-0 flex-1 pr-2">
+                                <span class="truncate font-semibold text-gray-900 dark:text-white text-xs">${escapeHtml(matName)}</span>
+                                ${qtyText ? `<span class="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 truncate flex items-center gap-1.5 mt-0.5"><i class="fas fa-cubes text-[10px]"></i> ${escapeHtml(qtyText)}</span>` : ''}
+                            </div>
+                        `;
+                    }
+
                     html += `
                         <button type="button"
                             data-material-val="${item.value}"
                             class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all text-left group cursor-pointer ${
                                 isSelected
-                                    ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800/60'
+                                    ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800/60 shadow-xs'
                                     : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-midnight-800 hover:text-indigo-600 dark:hover:text-indigo-400'
                             }">
-                            <div class="flex items-center gap-2 min-w-0 flex-1 pr-2">
-                                ${item.isSerial ? '<i class="fas fa-barcode text-amber-500 text-xs flex-shrink-0"></i>' : '<i class="fas fa-box text-indigo-500 text-xs flex-shrink-0"></i>'}
-                                <span class="truncate">${escapeHtml(item.text)}</span>
+                            <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                                <div class="w-7 h-7 rounded-lg ${item.isSerial ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400' : 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400'} flex items-center justify-center flex-shrink-0">
+                                    <i class="fas ${item.isSerial ? 'fa-barcode' : 'fa-box'} text-xs"></i>
+                                </div>
+                                ${titleHtml}
                             </div>
-                            <div class="flex items-center gap-1.5 flex-shrink-0">
-                                ${item.isSerial 
-                                    ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 flex-shrink-0 flex items-center gap-1"><i class="fas fa-barcode text-[9px]"></i>Serial</span>'
-                                    : '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 flex-shrink-0 flex items-center gap-1"><i class="fas fa-box text-[9px]"></i>Item</span>'}
-                                ${isSelected ? '<i class="fas fa-check text-indigo-600 dark:text-indigo-400 text-xs ml-1 flex-shrink-0"></i>' : ''}
-                            </div>
+                            ${isSelected ? '<i class="fas fa-check text-indigo-600 dark:text-indigo-400 text-xs ml-2 flex-shrink-0"></i>' : ''}
                         </button>
                     `;
                 }
@@ -931,89 +964,103 @@
         select.value = val;
         select.dispatchEvent(new Event('change'));
         syncCustomMaterialSelect();
-        closeCustomMaterialDropdown();
+        closeMaterialSuggestions();
     }
 
     function syncCustomMaterialSelect() {
         const select = document.getElementById('id_material_selection');
-        const label = document.getElementById('materialSelectTriggerLabel');
-        if (!select || !label) return;
+        const searchInput = document.getElementById('materialSearchInput');
+        const clearBtn = document.getElementById('materialSearchClearBtn');
+        const icon = document.getElementById('materialSearchDropdownIcon');
+        if (!select || !searchInput) return;
 
         const selectedOpt = select.options[select.selectedIndex];
         if (selectedOpt && selectedOpt.value) {
-            label.textContent = selectedOpt.textContent.trim();
-            label.className = 'truncate text-gray-900 dark:text-white font-semibold';
+            searchInput.value = selectedOpt.textContent.trim();
+            if (clearBtn) clearBtn.classList.remove('hidden');
+            if (icon) icon.classList.add('hidden');
         } else {
-            label.textContent = 'Select Material';
-            label.className = 'truncate text-gray-500 dark:text-gray-400 font-normal';
+            searchInput.value = '';
+            if (clearBtn) clearBtn.classList.add('hidden');
+            if (icon) icon.classList.remove('hidden');
         }
     }
 
-    function toggleCustomMaterialDropdown(event) {
+    function openMaterialSuggestions() {
+        loadMaterialOptionsCache();
+        const dropdown = document.getElementById('materialSuggestionsDropdown');
+        const icon = document.getElementById('materialSearchDropdownIcon');
+        if (dropdown) dropdown.classList.remove('hidden');
+        if (icon) icon.classList.add('rotate-180');
+        filterAndRenderCustomMaterialOptions();
+    }
+
+    function closeMaterialSuggestions() {
+        const dropdown = document.getElementById('materialSuggestionsDropdown');
+        const icon = document.getElementById('materialSearchDropdownIcon');
+        if (dropdown) dropdown.classList.add('hidden');
+        if (icon) icon.classList.remove('rotate-180');
+        syncCustomMaterialSelect();
+    }
+
+    function onMaterialSearchInput() {
+        const dropdown = document.getElementById('materialSuggestionsDropdown');
+        const icon = document.getElementById('materialSearchDropdownIcon');
+        const clearBtn = document.getElementById('materialSearchClearBtn');
+        const searchInput = document.getElementById('materialSearchInput');
+
+        if (dropdown && dropdown.classList.contains('hidden')) {
+            dropdown.classList.remove('hidden');
+            if (icon) icon.classList.add('rotate-180');
+        }
+
+        const val = searchInput ? searchInput.value.trim() : '';
+        if (clearBtn) {
+            clearBtn.classList.toggle('hidden', val.length === 0);
+        }
+        if (icon) {
+            icon.classList.toggle('hidden', val.length > 0);
+        }
+
+        filterAndRenderCustomMaterialOptions(val);
+    }
+
+    function clearMaterialSearch(event) {
         if (event) {
             event.preventDefault();
             event.stopPropagation();
         }
-        const dropdown = document.getElementById('materialSelectDropdown');
-        const icon = document.getElementById('materialSelectTriggerIcon');
-        const searchInput = document.getElementById('materialDropdownSearchInput');
-        if (!dropdown) return;
-
-        const isHidden = dropdown.classList.contains('hidden');
-        if (isHidden) {
-            // Re-sync cache in case options were added
-            loadMaterialOptionsCache();
-            dropdown.classList.remove('hidden');
-            if (icon) icon.classList.add('rotate-180');
-            if (searchInput) {
-                searchInput.value = '';
-                filterAndRenderCustomMaterialOptions();
-                requestAnimationFrame(() => searchInput.focus());
-            } else {
-                filterAndRenderCustomMaterialOptions();
-            }
-        } else {
-            closeCustomMaterialDropdown();
+        const select = document.getElementById('id_material_selection');
+        if (select) {
+            select.value = '';
+            select.dispatchEvent(new Event('change'));
         }
-    }
-
-    function closeCustomMaterialDropdown() {
-        const dropdown = document.getElementById('materialSelectDropdown');
-        const icon = document.getElementById('materialSelectTriggerIcon');
-        if (dropdown) dropdown.classList.add('hidden');
-        if (icon) icon.classList.remove('rotate-180');
-    }
-
-    function filterCustomMaterialOptions() {
-        filterAndRenderCustomMaterialOptions();
-    }
-
-    function clearMaterialDropdownSearch() {
-        const searchInput = document.getElementById('materialDropdownSearchInput');
+        const searchInput = document.getElementById('materialSearchInput');
         if (searchInput) {
             searchInput.value = '';
-            filterAndRenderCustomMaterialOptions();
             searchInput.focus();
         }
+        syncCustomMaterialSelect();
+        openMaterialSuggestions();
     }
 
-    // Close searchable select dropdown on outside click
+    // Close suggestions on outside click
     document.addEventListener('click', function(event) {
         const container = document.getElementById('customMaterialSearchSelectContainer');
         if (container && !container.contains(event.target)) {
-            closeCustomMaterialDropdown();
+            closeMaterialSuggestions();
         }
     });
 
     function closeModal() {
         document.getElementById('addEditModal').classList.add('hidden');
-        closeCustomMaterialDropdown();
+        closeMaterialSuggestions();
     }
 
     // Close modals on Escape key
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
-            closeCustomMaterialDropdown();
+            closeMaterialSuggestions();
             closeModal();
             closeDeleteModal();
         }
@@ -1021,7 +1068,7 @@
 
     // Style Django form fields inside Add/Edit Modal and attach listeners
     document.addEventListener('DOMContentLoaded', () => {
-        const inputs = document.querySelectorAll('#addEditModal select:not(#id_material_selection), #addEditModal input[type="text"]:not(#materialDropdownSearchInput), #addEditModal input[type="tel"], #addEditModal input[type="number"], #addEditModal textarea');
+        const inputs = document.querySelectorAll('#addEditModal select:not(#id_material_selection), #addEditModal input[type="text"]:not(#materialSearchInput), #addEditModal input[type="tel"], #addEditModal input[type="number"], #addEditModal textarea');
         inputs.forEach(input => {
             if (!input.classList.contains('styled')) {
                 input.classList.add('w-full', 'px-4', 'py-3', 'border-2', 'border-gray-300', 'dark:border-midnight-800', 'dark:bg-midnight-950', 'dark:text-white', 'rounded-lg', 'focus:outline-none', 'focus:border-indigo-600', 'focus:ring-2', 'focus:ring-indigo-200', 'transition');
