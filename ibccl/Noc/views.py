@@ -98,7 +98,7 @@ def noc_dashboard(request):
         action = request.POST.get('action')
         req_id = request.POST.get('req_id')
         if action and req_id:
-            mat_request = get_object_or_404(MaterialRequest, pk=req_id, material__category='Internet', material__created_by=request.user)
+            mat_request = get_object_or_404(MaterialRequest, pk=req_id, material__category='Internet')
             if action == 'accept':
                 if mat_request.status == 'Approved':
                     messages.warning(request, f"Request for {mat_request.material.name} is already approved.")
@@ -128,7 +128,7 @@ def noc_dashboard(request):
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     today = now.date()
 
-    noc_mats_q = Q(category='Internet') & (Q(created_by=request.user) | Q(created_by__isnull=True) | Q(created_by__userprofile__role='NOC'))
+    noc_mats_q = Q(category='Internet')
     internet_materials = Material.objects.filter(noc_mats_q)
     in_stock_q = Q(quantity__gt=0) & ~Q(status='Out of Stock')
     all_internet_materials = internet_materials.filter(in_stock_q).order_by('-added_at')
@@ -151,7 +151,6 @@ def noc_dashboard(request):
     # Batch MaterialRequest count queries — single DB query
     mat_req_base = MaterialRequest.objects.filter(
         material__category='Internet',
-        material__created_by=request.user,
         is_archived=False,
     )
     req_stats = mat_req_base.aggregate(
@@ -172,7 +171,6 @@ def noc_dashboard(request):
     # UsedMaterial counts — single DB query
     used_stats = UsedMaterial.objects.filter(
         material__category='Internet',
-        material__created_by=request.user,
         status='Accepted',
     ).aggregate(
         used_materials_count=Count('id'),
@@ -185,7 +183,6 @@ def noc_dashboard(request):
     total_qty_issued = DamageMaterial.objects.filter(
         status='Confirmed',
         material__category='Internet',
-        material__created_by=request.user,
         confirmed_at__gte=month_start
     ).count()
 
@@ -210,20 +207,17 @@ def noc_dashboard(request):
 
     materials_monitoring = MaterialRequest.objects.filter(
         material__category='Internet',
-        material__created_by=request.user,
         status='Approved',
         is_hidden_by_noc=False
     ).select_related('material', 'requester').order_by('-requested_at')
 
     all_used_materials = UsedMaterial.objects.filter(
-        material__category='Internet',
-        material__created_by=request.user
+        material__category='Internet'
     ).select_related('technician', 'material').order_by('-added_at')[:50]
 
     technician_approved_materials = MaterialRequest.objects.filter(
         status='Approved',
         material__category='Internet',
-        material__created_by=request.user,
         is_hidden_by_noc=False
     ).select_related('material')
 
@@ -234,7 +228,6 @@ def noc_dashboard(request):
     # Today's Used Materials for NOC Dashboard (Paginated)
     today_used_materials_all = UsedMaterial.objects.filter(
         material__category='Internet',
-        material__created_by=request.user,
         added_at__date=today
     ).select_related('technician', 'material').order_by('-added_at')
 
@@ -249,12 +242,11 @@ def noc_dashboard(request):
 
     recent_requests = MaterialRequest.objects.filter(
         material__category='Internet',
-        material__created_by=request.user,
         is_hidden_by_noc=False
     ).select_related('material', 'requester').order_by('-requested_at')[:5]
 
     refundable_materials = RefundableMaterial.objects.filter(branch_user__userprofile__role='Branch').select_related('branch_user').order_by('-added_at')
-    damaged_materials = DamageMaterial.objects.filter(material__category='Internet', material__created_by=request.user).select_related('branch_user', 'material', 'confirmed_by').order_by('-added_at')
+    damaged_materials = DamageMaterial.objects.filter(material__category='Internet').select_related('branch_user', 'material', 'confirmed_by').order_by('-added_at')
     branch_users = User.objects.select_related('userprofile').filter(userprofile__role='Branch').order_by('username')
 
     refundable_form = NocRefundableMaterialForm(noc_user=request.user)
@@ -302,7 +294,7 @@ def noc_materials(request):
     stock_status = request.GET.get('stock_status', '').strip()
     
     # Base queryset - all Internet materials for NOC role
-    noc_mats_q = Q(category='Internet') & (Q(created_by=request.user) | Q(created_by__isnull=True) | Q(created_by__userprofile__role='NOC'))
+    noc_mats_q = Q(category='Internet')
     all_materials = Material.objects.filter(noc_mats_q)
     materials_qs = all_materials.select_related('created_by__userprofile').order_by('-added_at')
 
@@ -445,7 +437,7 @@ def add_material(request):
 def edit_material(request, pk):
     if not check_noc_permission(request):
         return redirect('dashboard')
-    noc_mats_q = Q(category='Internet') & (Q(created_by=request.user) | Q(created_by__isnull=True) | Q(created_by__userprofile__role='NOC'))
+    noc_mats_q = Q(category='Internet')
     material = get_object_or_404(Material, noc_mats_q, pk=pk)
     if request.method == 'POST':
         # NOC can edit quantity, rate, and min_stock_level
@@ -463,7 +455,7 @@ def edit_material(request, pk):
 def delete_material(request, pk):
     if not check_noc_permission(request):
         return redirect('dashboard')
-    noc_mats_q = Q(category='Internet') & (Q(created_by=request.user) | Q(created_by__isnull=True) | Q(created_by__userprofile__role='NOC'))
+    noc_mats_q = Q(category='Internet')
     material = get_object_or_404(Material, noc_mats_q, pk=pk)
     if request.method == 'POST':
         material.delete()
@@ -479,11 +471,7 @@ def noc_requests(request):
         action = request.POST.get('action')
         req_id = request.POST.get('req_id')
         if action and req_id:
-            noc_req_q = Q(material__category='Internet') & (
-                Q(material__created_by=request.user) |
-                Q(material__created_by__isnull=True) |
-                Q(material__created_by__userprofile__role='NOC')
-            )
+            noc_req_q = Q(material__category='Internet')
             mat_request = get_object_or_404(MaterialRequest, noc_req_q, pk=req_id)
             if action == 'accept':
                 if mat_request.status == 'Approved':
@@ -563,7 +551,6 @@ def noc_requests(request):
             # Archive all requests from months BEFORE the current month
             old_requests_qs = MaterialRequest.objects.filter(
                 material__category='Internet',
-                material__created_by=request.user,
                 is_archived=False,
             ).exclude(
                 requested_at__year=now.year,
@@ -590,11 +577,7 @@ def noc_requests(request):
     status_filter = request.GET.get('status', '').strip()
     show_archived = request.GET.get('archived', '') == '1'
 
-    noc_req_q = Q(material__category='Internet') & (
-        Q(material__created_by=request.user) |
-        Q(material__created_by__isnull=True) |
-        Q(material__created_by__userprofile__role='NOC')
-    )
+    noc_req_q = Q(material__category='Internet')
 
     base_requests_qs = MaterialRequest.objects.filter(
         noc_req_q,
@@ -653,7 +636,7 @@ def noc_requests(request):
 def approve_request(request, pk):
     if not check_noc_permission(request):
         return redirect('dashboard')
-    mat_request = get_object_or_404(MaterialRequest, pk=pk, material__category='Internet', material__created_by=request.user)
+    mat_request = get_object_or_404(MaterialRequest, pk=pk, material__category='Internet')
     if request.method == 'POST':
         if mat_request.status == 'Approved':
             messages.warning(request, "Request already approved.")
@@ -671,7 +654,7 @@ def approve_request(request, pk):
 def reject_request(request, pk):
     if not check_noc_permission(request):
         return redirect('dashboard')
-    mat_request = get_object_or_404(MaterialRequest, pk=pk, material__category='Internet', material__created_by=request.user)
+    mat_request = get_object_or_404(MaterialRequest, pk=pk, material__category='Internet')
     if request.method == 'POST':
         if mat_request.status == 'Received':
             messages.error(request, "Cannot reject a request after it has been received.")
@@ -695,7 +678,7 @@ def noc_used_materials(request):
         action = request.POST.get('action')
         used_id = request.POST.get('used_id')
         if action and used_id:
-            used_mat = get_object_or_404(UsedMaterial, pk=used_id, material__created_by=request.user)
+            used_mat = get_object_or_404(UsedMaterial, pk=used_id, material__category='Internet')
             if action == 'accept':
                 if used_mat.status == 'Accepted':
                     messages.warning(request, "Usage record already accepted.")
@@ -734,7 +717,7 @@ def noc_used_materials(request):
                 if used_ids:
                     try:
                         with transaction.atomic():
-                            used_materials = list(UsedMaterial.objects.filter(pk__in=used_ids, material__created_by=request.user))
+                            used_materials = list(UsedMaterial.objects.filter(pk__in=used_ids, material__category='Internet'))
                             count = len(used_materials)
                             macs_to_sync = [um.mac_serial for um in used_materials if um.mac_serial]
                             
@@ -759,8 +742,7 @@ def noc_used_materials(request):
     user_id = request.GET.get('user_id', '')
     
     used_qs = UsedMaterial.objects.filter(
-        material__category='Internet',
-        material__created_by=request.user
+        material__category='Internet'
     ).select_related('technician', 'material', 'mac_serial').order_by('-added_at')
     
     if user_id:
@@ -871,8 +853,7 @@ def noc_reports(request):
         to_date   = end.strftime('%Y-%m-%d')
 
     # ── Base queryset (NOC specific) ────────
-    # We only care about materials created by THIS NOC user
-    noc_materials_qs = Material.objects.filter(category='Internet', created_by=request.user)
+    noc_materials_qs = Material.objects.filter(category='Internet')
     
     requests_qs = MaterialRequest.objects.filter(
         material__in=noc_materials_qs,
@@ -1286,7 +1267,9 @@ def list_mac_serials(request):
     if not check_noc_permission(request):
         return redirect('dashboard')
     """View all Mac/Serial numbers managed by NOC"""
-    mac_serials = MacSerialNumber.objects.filter(added_by=request.user).select_related('material', 'assigned_to').order_by('-created_at')
+    mac_serials = MacSerialNumber.objects.filter(
+        Q(material__category='Internet') | Q(added_by__userprofile__role='NOC')
+    ).select_related('material', 'assigned_to').order_by('-created_at')
     
     # Filter by Branch User
     user_filter = request.GET.get('user_id')
@@ -1337,7 +1320,7 @@ def delete_mac_serial(request, pk):
     if not check_noc_permission(request):
         return redirect('dashboard')
     """Delete a Mac/Serial number"""
-    mac_serial = get_object_or_404(MacSerialNumber, pk=pk, added_by=request.user)
+    mac_serial = get_object_or_404(MacSerialNumber, pk=pk)
     
     if request.method == 'POST':
         material_name = mac_serial.material.name if mac_serial.material else 'N/A'
@@ -1462,8 +1445,7 @@ class NocDamageMaterialForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.noc_user = kwargs.pop('noc_user', None)
         super().__init__(*args, **kwargs)
-        if self.noc_user:
-            self.fields['material'].queryset = Material.objects.filter(category='Internet', created_by=self.noc_user).order_by('name')
+        self.fields['material'].queryset = Material.objects.filter(category='Internet').order_by('name')
 
 
 # ── NOC Custom Views for Refundable & Damaged Materials ───────────────────
@@ -1505,7 +1487,7 @@ def noc_delete_damaged(request, pk):
 
 @login_required
 def noc_process_damaged(request, pk):
-    dm = get_object_or_404(DamageMaterial, pk=pk, material__category='Internet', material__created_by=request.user)
+    dm = get_object_or_404(DamageMaterial, pk=pk, material__category='Internet')
     if request.method == 'POST':
         action = request.POST.get('action')
         admin_note = request.POST.get('admin_note', '').strip()
@@ -1548,7 +1530,7 @@ def noc_get_refundable_api(request, pk):
 
 @login_required
 def noc_get_damaged_api(request, pk):
-    dm = get_object_or_404(DamageMaterial, pk=pk, material__category='Internet', material__created_by=request.user)
+    dm = get_object_or_404(DamageMaterial, pk=pk, material__category='Internet')
     return JsonResponse({
         'id': dm.id,
         'branch_user': dm.branch_user_id,
@@ -1646,7 +1628,7 @@ def noc_refundable_materials_view(request):
 def noc_damaged_materials_view(request):
     if not check_noc_permission(request):
         return redirect('dashboard')
-    damaged_qs = DamageMaterial.objects.filter(material__category='Internet', material__created_by=request.user).select_related('branch_user', 'material', 'confirmed_by').order_by('-added_at')
+    damaged_qs = DamageMaterial.objects.filter(material__category='Internet').select_related('branch_user', 'material', 'confirmed_by').order_by('-added_at')
     branch_users = User.objects.filter(Q(userprofile__role='Branch') | Q(groups__name='Branch')).distinct().order_by('username')
     
     selected_user_id = request.GET.get('user_id')
@@ -1673,7 +1655,7 @@ def noc_damaged_materials_view(request):
             dm_id = request.POST.get('dm_id')
             admin_note = request.POST.get('admin_note', '').strip()
             try:
-                dm = DamageMaterial.objects.get(pk=dm_id, material__category='Internet', material__created_by=request.user)
+                dm = DamageMaterial.objects.get(pk=dm_id, material__category='Internet')
                 dm.status = 'Confirmed' if action == 'confirm' else 'Rejected'
                 dm.admin_note = admin_note
                 if action == 'confirm':
