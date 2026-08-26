@@ -1197,8 +1197,25 @@ def material_json(request, pk):
     }
     return JsonResponse(data)
 
-# @login_required
-# def tasks_view(request):
+
+@login_required
+def material_search_api(request):
+    """Fast JSON endpoint for autocomplete search of materials."""
+    q = (request.GET.get('q') or '').strip()
+    category = (request.GET.get('category') or '').strip()
+
+    qs = Material.objects.all()
+    if hasattr(Material, 'is_deleted'):
+        qs = qs.filter(is_deleted=False)
+
+    if q:
+        qs = qs.filter(Q(name__icontains=q) | Q(category__icontains=q))
+    if category:
+        qs = qs.filter(category=category)
+
+    results = list(qs.values('id', 'name', 'category', 'status')[:40])
+    return JsonResponse({'results': results})
+
 #     profile = ensure_userprofile(request.user)
 #     role = profile.role if profile else 'Branch'
 
@@ -4501,7 +4518,8 @@ def chat_history_api(request, user_id):
             'sender_id': m.sender.id,
             'content': m.content,
             'created_at': m.created_at.isoformat(),
-            'is_me': m.sender_id == request.user.id
+            'is_me': m.sender_id == request.user.id,
+            'metadata': m.analysis_metadata or {}
         })
     
     return JsonResponse({
@@ -6018,3 +6036,13 @@ class TrashView(LoginRequiredMixin, View):
 
     def post(self, request, *args, **kwargs):
         return trash_view(request, *args, **kwargs)
+
+
+class MaterialSearchApiView(LoginRequiredMixin, View):
+    """Class-based view for material_search_api."""
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return material_search_api(request, *args, **kwargs)
+

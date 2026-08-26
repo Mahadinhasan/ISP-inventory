@@ -108,7 +108,7 @@
                                     <span class="text-[10px] font-extrabold uppercase tracking-wide text-gray-600 dark:text-gray-300">Total Valuation</span>
                                 </div>
                                 <span class="text-xs font-black text-emerald-600 dark:text-emerald-400">
-                                    {{ total_price_value|floatformat:2|intcomma }} ৳
+                                    {{ total_price_value|floatformat:"-2"|intcomma }} ৳
                                 </span>
                             </div>
                         </div>
@@ -128,7 +128,7 @@
                                 </div>
                                 <div class="flex items-center gap-1.5 flex-shrink-0">
                                     {% if role == 'Admin' or role == 'Storekeeper' %}
-                                    <span class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">{{ total_price_value|floatformat:0|intcomma }}৳</span>
+                                    <span class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">{{ total_price_value|floatformat:"-2"|intcomma }}৳</span>
                                     {% endif %}
                                     <span class="px-2 py-0.5 rounded-full text-[10px] font-black {% if not status_filter %}bg-indigo-600 text-white shadow-xs{% else %}bg-gray-100 dark:bg-midnight-800 text-gray-600 dark:text-gray-400{% endif %}">{{ total_requests_count|default:"0" }}</span>
                                     {% if not status_filter %}<i class="fas fa-check text-indigo-600 dark:text-indigo-400 text-xs ml-0.5"></i>{% endif %}
@@ -147,7 +147,7 @@
                                 </div>
                                 <div class="flex items-center gap-1.5 flex-shrink-0">
                                     {% if role == 'Admin' or role == 'Storekeeper' %}
-                                    <span class="text-[10px] font-bold text-amber-600 dark:text-amber-400">{{ pending_total_price|floatformat:0|intcomma }}৳</span>
+                                    <span class="text-[10px] font-bold text-amber-600 dark:text-amber-400">{{ pending_total_price|floatformat:"-2"|intcomma }}৳</span>
                                     {% endif %}
                                     <span class="px-2 py-0.5 rounded-full text-[10px] font-black {% if status_filter == 'Pending' %}bg-amber-600 text-white shadow-xs{% else %}bg-amber-100/70 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300{% endif %}">{{ pending_count|default:"0" }}</span>
                                     {% if status_filter == 'Pending' %}<i class="fas fa-check text-amber-600 dark:text-amber-400 text-xs ml-0.5"></i>{% endif %}
@@ -166,7 +166,7 @@
                                 </div>
                                 <div class="flex items-center gap-1.5 flex-shrink-0">
                                     {% if role == 'Admin' or role == 'Storekeeper' %}
-                                    <span class="text-[10px] font-bold text-green-600 dark:text-green-400">{{ approved_total_price|floatformat:0|intcomma }}৳</span>
+                                    <span class="text-[10px] font-bold text-green-600 dark:text-green-400">{{ approved_total_price|floatformat:"-2"|intcomma }}৳</span>
                                     {% endif %}
                                     <span class="px-2 py-0.5 rounded-full text-[10px] font-black {% if status_filter == 'Approved' %}bg-green-600 text-white shadow-xs{% else %}bg-green-100/70 dark:bg-green-900/40 text-green-700 dark:text-green-300{% endif %}">{{ approved_count|default:"0" }}</span>
                                     {% if status_filter == 'Approved' %}<i class="fas fa-check text-green-600 dark:text-green-400 text-xs ml-0.5"></i>{% endif %}
@@ -185,7 +185,7 @@
                                 </div>
                                 <div class="flex items-center gap-1.5 flex-shrink-0">
                                     {% if role == 'Admin' or role == 'Storekeeper' %}
-                                    <span class="text-[10px] font-bold text-blue-600 dark:text-blue-400">{{ dispatched_total_price|floatformat:0|intcomma }}৳</span>
+                                    <span class="text-[10px] font-bold text-blue-600 dark:text-blue-400">{{ dispatched_total_price|floatformat:"-2"|intcomma }}৳</span>
                                     {% endif %}
                                     <span class="px-2 py-0.5 rounded-full text-[10px] font-black {% if status_filter == 'Dispatched' %}bg-blue-600 text-white shadow-xs{% else %}bg-blue-100/70 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300{% endif %}">{{ dispatched_count|default:"0" }}</span>
                                     {% if status_filter == 'Dispatched' %}<i class="fas fa-check text-blue-600 dark:text-blue-400 text-xs ml-0.5"></i>{% endif %}
@@ -204,7 +204,7 @@
                                 </div>
                                 <div class="flex items-center gap-1.5 flex-shrink-0">
                                     {% if role == 'Admin' or role == 'Storekeeper' %}
-                                    <span class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">{{ received_total_price|floatformat:0|intcomma }}৳</span>
+                                    <span class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">{{ received_total_price|floatformat:"-2"|intcomma }}৳</span>
                                     {% endif %}
                                     <span class="px-2 py-0.5 rounded-full text-[10px] font-black {% if status_filter == 'Received' %}bg-emerald-600 text-white shadow-xs{% else %}bg-emerald-100/70 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300{% endif %}">{{ received_count|default:"0" }}</span>
                                     {% if status_filter == 'Received' %}<i class="fas fa-check text-emerald-600 dark:text-emerald-400 text-xs ml-0.5"></i>{% endif %}
@@ -223,7 +223,7 @@
                                 </div>
                                 <div class="flex items-center gap-1.5 flex-shrink-0">
                                     {% if role == 'Admin' or role == 'Storekeeper' %}
-                                    <span class="text-[10px] font-bold text-rose-600 dark:text-rose-400">{{ rejected_total_price|floatformat:0|intcomma }}৳</span>
+                                    <span class="text-[10px] font-bold text-rose-600 dark:text-rose-400">{{ rejected_total_price|floatformat:"-2"|intcomma }}৳</span>
                                     {% endif %}
                                     <span class="px-2 py-0.5 rounded-full text-[10px] font-black {% if status_filter == 'Rejected' %}bg-rose-600 text-white shadow-xs{% else %}bg-rose-100/70 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300{% endif %}">{{ rejected_count|default:"0" }}</span>
                                     {% if status_filter == 'Rejected' %}<i class="fas fa-check text-rose-600 dark:text-rose-400 text-xs ml-0.5"></i>{% endif %}
@@ -705,7 +705,7 @@
 
     <script>
         // ── Ultra High Performance Searchable Material Select Logic for Request Modal ──
-        let materialOptionsCache = [];
+        let materialSearchTimeout = null;
 
         function escapeHtml(str) {
             if (!str) return '';
@@ -718,9 +718,8 @@
         }
 
         function initCustomMaterialSelect() {
-            loadMaterialOptionsCache();
             syncCustomMaterialSelect();
-            
+
             const list = document.getElementById('materialOptionsList');
             if (list && !list.dataset.delegated) {
                 list.dataset.delegated = 'true';
@@ -729,98 +728,87 @@
                     if (btn) {
                         e.preventDefault();
                         const val = btn.getAttribute('data-material-val');
-                        selectCustomMaterialOption(val);
+                        const label = btn.getAttribute('data-material-label') || btn.getAttribute('data-material-name') || '';
+                        selectCustomMaterialOption(val, label);
                     }
                 });
             }
         }
 
-        function loadMaterialOptionsCache() {
-            const select = document.getElementById('id_material');
-            if (!select) return;
-            materialOptionsCache = [];
-            const opts = select.options;
-            for (let i = 0; i < opts.length; i++) {
-                const opt = opts[i];
-                const val = opt.value;
-                if (!val) continue; // Skip blank placeholder
-                const text = opt.textContent.trim();
-                materialOptionsCache.push({
-                    value: val,
-                    text: text,
-                    lowerText: text.toLowerCase()
-                });
-            }
-        }
-
-        function filterAndRenderCustomMaterialOptions(searchQuery = null) {
-            const select = document.getElementById('id_material');
+        async function fetchMaterialSuggestions(query = '') {
             const list = document.getElementById('materialOptionsList');
-            const searchInput = document.getElementById('materialSearchInput');
             const emptyState = document.getElementById('materialOptionsEmptyState');
-            if (!list || !select) return;
+            if (!list) return;
 
-            let query = '';
-            if (searchQuery !== null) {
-                query = searchQuery.toLowerCase().trim();
-            } else if (searchInput) {
-                const selectedOpt = select.options[select.selectedIndex];
-                const selectedText = selectedOpt && selectedOpt.value ? selectedOpt.textContent.trim().toLowerCase() : '';
-                const currentInputText = searchInput.value.toLowerCase().trim();
-                if (currentInputText && currentInputText !== selectedText) {
-                    query = currentInputText;
+            try {
+                const res = await fetch(`/api/materials/search/?q=${encodeURIComponent(query)}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const items = data.results || [];
+                const select = document.getElementById('id_material');
+                const currentVal = select ? select.value : '';
+
+                if (items.length === 0) {
+                    list.innerHTML = '';
+                    if (emptyState) emptyState.classList.remove('hidden');
+                    return;
                 }
-            }
 
-            const currentVal = select.value;
-            const maxItems = 60;
-            let matchCount = 0;
-            let html = '';
+                if (emptyState) emptyState.classList.add('hidden');
 
-            for (let i = 0; i < materialOptionsCache.length; i++) {
-                const item = materialOptionsCache[i];
-                if (!query || item.lowerText.includes(query)) {
-                    matchCount++;
-                    if (matchCount <= maxItems) {
-                        const isSelected = (currentVal === item.value);
-                        html += `
-                            <button type="button"
-                                data-material-val="${item.value}"
-                                class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all text-left group cursor-pointer ${
-                                    isSelected
-                                        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800/60'
-                                        : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-midnight-800 hover:text-indigo-600 dark:hover:text-indigo-400'
-                                }">
-                                <div class="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
-                                    <div class="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
-                                        <i class="fas fa-box text-xs"></i>
-                                    </div>
-                                    <span class="truncate font-semibold text-gray-900 dark:text-white text-xs">${escapeHtml(item.text)}</span>
+                let html = '';
+                items.forEach(item => {
+                    const isSelected = (String(currentVal) === String(item.id));
+                    const label = item.category ? `${item.name} (${item.category})` : item.name;
+                    html += `
+                        <button type="button"
+                            data-material-val="${item.id}"
+                            data-material-name="${escapeHtml(item.name)}"
+                            data-material-label="${escapeHtml(label)}"
+                            class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all text-left group cursor-pointer ${
+                                isSelected
+                                    ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800/60'
+                                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-midnight-800 hover:text-indigo-600 dark:hover:text-indigo-400'
+                            }">
+                            <div class="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
+                                <div class="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
+                                    <i class="fas fa-box text-xs"></i>
                                 </div>
-                                ${isSelected ? '<i class="fas fa-check text-indigo-600 dark:text-indigo-400 text-xs ml-2 flex-shrink-0"></i>' : ''}
-                            </button>
-                        `;
-                    }
-                }
-            }
-
-            if (matchCount > maxItems) {
-                html += `<div class="px-3 py-1.5 text-center text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-50/50 dark:bg-midnight-950/50 rounded-md">Showing top ${maxItems} of ${matchCount} matches (type to narrow down)</div>`;
-            }
-
-            list.innerHTML = html;
-
-            if (emptyState) {
-                emptyState.classList.toggle('hidden', matchCount > 0);
+                                <span class="truncate font-semibold text-gray-900 dark:text-white text-xs">${escapeHtml(label)}</span>
+                            </div>
+                            ${isSelected ? '<i class="fas fa-check text-indigo-600 dark:text-indigo-400 text-xs ml-2 flex-shrink-0"></i>' : ''}
+                        </button>
+                    `;
+                });
+                list.innerHTML = html;
+            } catch (err) {
+                console.error("Error fetching materials:", err);
             }
         }
 
-        function selectCustomMaterialOption(val) {
+        function selectCustomMaterialOption(val, label = '') {
             const select = document.getElementById('id_material');
+            const searchInput = document.getElementById('materialSearchInput');
+            const clearBtn = document.getElementById('materialSearchClearBtn');
+            const icon = document.getElementById('materialSearchDropdownIcon');
             if (!select) return;
+
+            let opt = Array.from(select.options).find(o => o.value === String(val));
+            if (!opt) {
+                opt = document.createElement('option');
+                opt.value = val;
+                opt.textContent = label || val;
+                select.appendChild(opt);
+            }
             select.value = val;
             select.dispatchEvent(new Event('change'));
-            syncCustomMaterialSelect();
+
+            if (searchInput) {
+                searchInput.value = label || (opt ? opt.textContent.trim() : '');
+            }
+            if (clearBtn) clearBtn.classList.remove('hidden');
+            if (icon) icon.classList.add('hidden');
+
             closeMaterialSuggestions();
         }
 
@@ -844,12 +832,13 @@
         }
 
         function openMaterialSuggestions() {
-            loadMaterialOptionsCache();
             const dropdown = document.getElementById('materialSuggestionsDropdown');
             const icon = document.getElementById('materialSearchDropdownIcon');
+            const searchInput = document.getElementById('materialSearchInput');
             if (dropdown) dropdown.classList.remove('hidden');
             if (icon) icon.classList.add('rotate-180');
-            filterAndRenderCustomMaterialOptions();
+            const val = searchInput ? searchInput.value.trim() : '';
+            fetchMaterialSuggestions(val);
         }
 
         function closeMaterialSuggestions() {
@@ -879,7 +868,10 @@
                 icon.classList.toggle('hidden', val.length > 0);
             }
 
-            filterAndRenderCustomMaterialOptions(val);
+            clearTimeout(materialSearchTimeout);
+            materialSearchTimeout = setTimeout(() => {
+                fetchMaterialSuggestions(val);
+            }, 150);
         }
 
         function clearMaterialSearch(event) {
@@ -890,6 +882,7 @@
             const select = document.getElementById('id_material');
             if (select) {
                 select.value = '';
+                select.innerHTML = '';
                 select.dispatchEvent(new Event('change'));
             }
             const searchInput = document.getElementById('materialSearchInput');

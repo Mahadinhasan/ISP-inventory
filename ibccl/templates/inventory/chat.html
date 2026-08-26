@@ -4,9 +4,9 @@
 {% block title %}Messages | ISP Inventory{% endblock %}
 
 {% block content %}
-<div class="h-[calc(100vh-130px)] flex bg-white dark:bg-midnight-900 rounded-2xl shadow-sm overflow-hidden border border-slate-200/70 dark:border-midnight-800">
+<div class="chat-page-wrapper flex bg-white dark:bg-midnight-900 rounded-2xl shadow-sm overflow-hidden border border-slate-200/70 dark:border-midnight-800">
     <!-- Sidebar: User List -->
-    <div class="w-full md:w-[340px] flex-shrink-0 border-r border-slate-200/70 dark:border-midnight-800 flex flex-col h-full bg-white dark:bg-midnight-900">
+    <div class="w-full md:w-[340px] flex-shrink-0 border-r border-slate-200/70 dark:border-midnight-800 flex flex-col min-h-0 bg-white dark:bg-midnight-900">
         <!-- Sidebar Header -->
         <div class="p-4 bg-slate-50/70 dark:bg-midnight-950/50 border-b border-slate-200/70 dark:border-midnight-800 flex justify-between items-center">
             <h2 class="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2.5">
@@ -70,7 +70,7 @@
     </div>
 
     <!-- Main Chat Window -->
-    <div class="flex max-md:hidden flex-1 flex-col h-full bg-slate-50/10 dark:bg-midnight-950/20" id="chat-window-empty">
+    <div class="flex max-md:hidden flex-1 flex-col min-h-0 bg-slate-50/10 dark:bg-midnight-950/20" id="chat-window-empty">
         <div class="flex-1 flex flex-col items-center justify-center text-center p-10">
             <div class="w-24 h-24 bg-gradient-to-br from-indigo-100 to-violet-100 dark:from-indigo-900/40 dark:to-violet-900/30 rounded-2xl flex items-center justify-center mb-6 shadow-inner">
                 <i class="fas fa-paper-plane text-4xl text-indigo-600 dark:text-indigo-400"></i>
@@ -80,7 +80,7 @@
         </div>
     </div>
 
-    <div class="flex-1 hidden flex flex-col h-full bg-white dark:bg-midnight-950" id="chat-window-active">
+    <div class="flex-1 hidden flex flex-col min-h-0 bg-white dark:bg-midnight-950" id="chat-window-active">
         <!-- Chat Header -->
         <div class="p-4 bg-white/80 dark:bg-midnight-900/80 backdrop-blur-md border-b border-gray-100 dark:border-midnight-800 flex justify-between items-center shadow-sm z-10">
             <div class="flex items-center">
@@ -100,29 +100,127 @@
         </div>
 
         <!-- Messages Area -->
-        <div id="message-container" class="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-midnight-950 flex flex-col space-y-4 custom-scrollbar">
+        <div id="message-container" class="flex-1 min-h-0 overflow-y-auto p-6 bg-gray-50 dark:bg-midnight-950 flex flex-col space-y-4 custom-scrollbar">
             <!-- Messages go here -->
         </div>
 
         <!-- Input Area -->
         <div class="p-4 bg-white dark:bg-midnight-900 border-t border-gray-100 dark:border-midnight-800 shadow-[0_-5px_20px_-15px_rgba(0,0,0,0.1)]">
-            <form id="chat-form" class="flex items-center space-x-3 max-w-5xl mx-auto w-full">
-                <!-- Add button removed -->
+
+            <!-- Replying To Preview Banner -->
+            <div id="reply-preview-bar" class="hidden items-center justify-between px-3.5 py-2 mb-2 bg-indigo-50/90 dark:bg-indigo-950/60 border-l-4 border-indigo-600 rounded-r-xl text-xs animate-fade-in shadow-xs">
+                <div class="flex items-center gap-2 min-w-0 flex-1">
+                    <div class="w-6 h-6 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
+                        <i class="fas fa-reply text-xs"></i>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <span class="font-bold text-indigo-700 dark:text-indigo-300 block text-[11px]" id="reply-to-user">Replying to User</span>
+                        <p class="text-gray-600 dark:text-gray-400 truncate text-[11px]" id="reply-to-text">Message snippet...</p>
+                    </div>
+                </div>
+                <button type="button" onclick="cancelReply()" class="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-white transition rounded-lg hover:bg-indigo-100/50 dark:hover:bg-indigo-900/40" title="Cancel reply">
+                    <i class="fas fa-times text-xs"></i>
+                </button>
+            </div>
+
+            <form id="chat-form" class="flex items-center space-x-2.5 max-w-5xl mx-auto w-full">
+                <!-- Share Material Button -->
+                <button type="button" onclick="openShareMaterialModal()"
+                    class="h-11 px-3 bg-gray-100 hover:bg-indigo-50 dark:bg-midnight-950 dark:hover:bg-indigo-950/40 text-gray-700 hover:text-indigo-600 dark:text-gray-300 dark:hover:text-indigo-400 rounded-2xl flex items-center gap-1.5 text-xs font-semibold border border-gray-200 dark:border-midnight-800 transition shadow-xs flex-shrink-0"
+                    title="Share inventory material details">
+                    <i class="fas fa-box text-indigo-500"></i>
+                    <span class="hidden sm:inline">Share Item</span>
+                </button>
+
                 <div class="relative flex-1 group">
                     <input type="text" id="chat-message-input" autocomplete="off" placeholder="Write a message..."
                         class="w-full pl-4 pr-4 py-3 bg-gray-100/80 dark:bg-midnight-950/80 border-transparent focus:bg-white dark:focus:bg-midnight-950 border focus:border-indigo-500 text-sm rounded-2xl focus:ring-0 transition-all duration-200 outline-none dark:text-gray-300 shadow-sm">
-                    <!-- Sticker button removed -->
                 </div>
+
                 <button type="button" id="chat-send-btn" onclick="sendMessage()"
-                    class="h-12 w-12 bg-gradient-to-br from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/40 transition-all duration-200 transform hover:scale-105 active:scale-95 group">
-                    <i class="fas fa-paper-plane group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"></i>
+                    class="h-11 w-11 bg-gradient-to-br from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-600/30 transition-all duration-200 transform hover:scale-105 active:scale-95 group flex-shrink-0">
+                    <i class="fas fa-paper-plane text-xs group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"></i>
                 </button>
             </form>
         </div>
     </div>
 </div>
 
+<!-- Modal: Share Inventory Material Card -->
+<div id="shareMaterialModal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+    <div class="bg-white dark:bg-midnight-900 border border-gray-100 dark:border-midnight-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all">
+        <!-- Modal Header -->
+        <div class="p-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white flex justify-between items-center">
+            <div class="flex items-center gap-2.5">
+                <span class="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-xs">
+                    <i class="fas fa-box-open text-sm"></i>
+                </span>
+                <div>
+                    <h3 class="text-sm font-bold leading-tight">Share Material Stock</h3>
+                    <p class="text-[10px] text-white/80">Send live inventory info directly into chat</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeShareMaterialModal()" class="p-1.5 text-white/80 hover:text-white transition rounded-lg hover:bg-white/10">
+                <i class="fas fa-times text-sm"></i>
+            </button>
+        </div>
+
+        <!-- Search Input -->
+        <div class="p-4 border-b border-gray-100 dark:border-midnight-800 bg-gray-50/50 dark:bg-midnight-950/40">
+            <div class="relative">
+                <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                <input type="text" id="share-material-search" placeholder="Type material name or category..."
+                    oninput="onShareMaterialSearch(this.value)"
+                    class="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-midnight-950 border border-gray-200 dark:border-midnight-800 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white placeholder-gray-400">
+            </div>
+        </div>
+
+        <!-- Material Results List -->
+        <div id="share-material-list" class="max-h-72 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+            <!-- Populated dynamically via AJAX -->
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="p-3 bg-gray-50 dark:bg-midnight-950/60 border-t border-gray-100 dark:border-midnight-800 flex justify-end">
+            <button type="button" onclick="closeShareMaterialModal()"
+                class="px-4 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
+
 <style>
+    /* ── Chat Page: Fill available height without overflowing the base template ── */
+    /*
+        Offsets from base.html:
+          topbar h-16      = 64px
+          main py-6 top    = 24px
+          main py-6 bottom = 24px  (suppressed via :has selector below)
+          footer height    = ~57px (border + py-4)
+          footer mt-10     = 40px  (suppressed via :has selector below)
+        With bottom padding & footer margin suppressed → total = 64 + 24 + 57 = 145px
+    */
+    .chat-page-wrapper {
+        height: calc(100vh - 145px);
+        min-height: 400px;
+    }
+
+    /* Suppress footer gap and main bottom padding on chat page */
+    body:has(.chat-page-wrapper) main {
+        padding-bottom: 0 !important;
+    }
+    body:has(.chat-page-wrapper) footer {
+        margin-top: 0 !important;
+    }
+
+    .message-row {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+        position: relative;
+    }
+
     .message-bubble {
         max-width: 80%;
         padding: 10px 16px;
@@ -132,6 +230,20 @@
         box-shadow: 0 4px 15px -3px rgba(0, 0, 0, 0.07);
         animation: bubble-pop 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         line-height: 1.5;
+    }
+
+    .message-row:hover .msg-actions {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .msg-actions {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+        display: flex;
+        gap: 4px;
+        margin-bottom: 6px;
     }
     
     @keyframes bubble-pop {
@@ -161,6 +273,78 @@
         border: 1px solid #334155;
     }
 
+    /* Reply Quotes Styling */
+    .quote-box {
+        border-radius: 10px;
+        padding: 6px 10px;
+        margin-bottom: 6px;
+        font-size: 11px;
+        line-height: 1.35;
+        border-left-width: 3px;
+    }
+
+    .message-sent .quote-box {
+        background: rgba(255, 255, 255, 0.18);
+        border-left-color: #ffffff;
+        color: #f1f5f9;
+    }
+
+    .message-received .quote-box {
+        background: rgba(99, 102, 241, 0.08);
+        border-left-color: #6366f1;
+        color: #475569;
+    }
+
+    .dark .message-received .quote-box {
+        background: rgba(99, 102, 241, 0.15);
+        border-left-color: #818cf8;
+        color: #cbd5e1;
+    }
+
+    /* Material Share Card in Chat */
+    .chat-material-card {
+        border-radius: 14px;
+        padding: 10px 12px;
+        margin: 4px 0;
+        background: rgba(255, 255, 255, 0.95);
+        color: #1e293b;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        border: 1px solid rgba(226, 232, 240, 0.8);
+    }
+
+    .dark .chat-material-card {
+        background: #0f172a;
+        color: #f8fafc;
+        border-color: #334155;
+    }
+
+    /* Quick Reply Chips */
+    .quick-reply-chip {
+        padding: 4px 10px;
+        border-radius: 9999px;
+        background: rgba(99, 102, 241, 0.08);
+        color: #4f46e5;
+        font-weight: 600;
+        font-size: 11px;
+        white-space: nowrap;
+        border: 1px solid rgba(99, 102, 241, 0.2);
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+
+    .dark .quick-reply-chip {
+        background: rgba(99, 102, 241, 0.15);
+        color: #a5b4fc;
+        border-color: rgba(99, 102, 241, 0.3);
+    }
+
+    .quick-reply-chip:hover {
+        background: #6366f1;
+        color: white;
+        border-color: #6366f1;
+        transform: translateY(-1px);
+    }
+
     .user-item {
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
@@ -177,6 +361,7 @@
 
     .custom-scrollbar::-webkit-scrollbar {
         width: 5px;
+        height: 5px;
     }
     .custom-scrollbar::-webkit-scrollbar-track {
         background: transparent;
@@ -199,10 +384,21 @@
     let activeUserId = null;
     let chatSocket = null;
     let currentUser = parseInt("{{ user.id }}");
+    let currentReplyingTo = null; // { id, sender_name, content }
+    let shareMaterialDebounce = null;
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
 
     // WebSocket Setup with improved resilience
     const setupChatSocket = () => {
-        console.log('Attempting to establish WebSocket connection...');
         const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
         const host = window.location.host;
         
@@ -212,19 +408,16 @@
         
         const wsUrl = `${protocol}://${host}/ws/chat/?tab_id=${tabId}`;
         
-        console.log('WebSocket URL:', wsUrl);
-        
         try {
             chatSocket = new WebSocket(wsUrl);
 
             chatSocket.onopen = (e) => {
-                console.log('✅ Chat WebSocket connected successfully');
+                console.log('✅ Chat WebSocket connected');
             };
 
             chatSocket.onmessage = (e) => {
                 try {
                     const data = JSON.parse(e.data);
-                    console.log('📥 WebSocket message received:', data);
                     
                     if (data.type === 'chat_message') {
                         const msg = data.message;
@@ -232,66 +425,53 @@
                         const aId = activeUserId ? parseInt(activeUserId) : null;
                         const cId = parseInt(currentUser);
 
-                        console.log(`Checking match: Sender=${sId}, Active=${aId}, Me=${cId}`);
-                        
-                        // If this message belongs in the current active chat window
-                        // Either I sent it, or it's from the person I'm talking to
                         if (aId && (sId === aId || sId === cId)) {
-                            console.log('✅ Message matches active chat, appending...');
                             appendMessage(msg);
                             scrollToBottom();
                         } else {
-                            console.log('ℹ️ Message for background user, updating sidebar...');
                             updateSidebarNotification(msg);
                         }
                     } else if (data.type === 'status_update') {
                         updateUserStatusUI(data.payload);
                     }
                 } catch (err) {
-                    console.error('❌ Error parsing WebSocket message:', err, e.data);
+                    console.error('Error parsing WebSocket message:', err);
                 }
             };
 
             chatSocket.onclose = (e) => {
-                console.warn('⚠️ Chat WebSocket closed. Code:', e.code, 'Reason:', e.reason);
-                console.log('Reconnecting in 3 seconds...');
                 setTimeout(setupChatSocket, 3000);
             };
 
             chatSocket.onerror = (err) => {
-                console.error('❌ WebSocket error observed:', err);
+                console.error('WebSocket error:', err);
             };
         } catch (err) {
-            console.error('❌ Failed to initialize WebSocket:', err);
+            console.error('Failed to initialize WebSocket:', err);
         }
     };
 
-    // Initialize the socket
     setupChatSocket();
 
     const selectUser = async (userId, username, fullName, element) => {
         activeUserId = userId;
+        cancelReply();
         
-        // Mobile UI handle
         if (window.innerWidth < 768) {
             document.getElementById('chat-window-active').classList.remove('hidden');
         }
 
-        // UI Highlights
         document.querySelectorAll('.user-item').forEach(el => el.classList.remove('active'));
         element.classList.add('active');
         const badge = document.getElementById('unread-' + userId);
         if (badge) badge.classList.add('hidden');
 
-        // Toggle windows
         document.getElementById('chat-window-empty').classList.add('hidden');
         document.getElementById('chat-window-active').classList.remove('hidden');
 
-        // Header Update
         document.getElementById('active-user-name').innerText = fullName;
         document.getElementById('active-user-avatar').src = element.querySelector('img').src;
         
-        // Set data-status-id for header elements so global setStatusUI can target them
         const headerStatusIcon = document.getElementById('active-user-status-dot');
         const headerDot = document.getElementById('header-status-dot');
         const headerText = document.getElementById('header-status-text');
@@ -300,11 +480,10 @@
         headerDot.setAttribute('data-status-id', userId);
         headerText.setAttribute('data-status-text-id', userId);
         
-        // Sync header status dot color initially
         const sideDot = element.querySelector('.status-indicator-dot');
         const statusText = document.getElementById('header-status-text');
         
-        if (sideDot.classList.contains('status-online')) {
+        if (sideDot && sideDot.classList.contains('status-online')) {
             headerDot.className = 'status-indicator-dot w-2 h-2 rounded-full status-online mr-2';
             headerStatusIcon.className = 'status-indicator-dot absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full status-online border-2 border-white dark:border-midnight-900 shadow-sm';
             statusText.innerText = 'Online';
@@ -316,7 +495,6 @@
             statusText.className = 'status-text text-gray-400';
         }
 
-        // Load messages with tab_id for authentication
         const urlParams = new URLSearchParams(window.location.search);
         const tabId = urlParams.get('tab_id') || '';
         const response = await fetch(`/api/chat/${userId}/?tab_id=${tabId}`);
@@ -332,7 +510,7 @@
                         <div class="w-16 h-16 bg-gray-100 dark:bg-midnight-900 rounded-full flex items-center justify-center mb-3">
                              <i class="fas fa-hand-wave text-2xl text-yellow-500"></i>
                         </div>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Say hello to ${fullName}!</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Say hello to ${escapeHtml(fullName)}!</p>
                     </div>
                 `;
             } else {
@@ -347,23 +525,81 @@
     const appendMessage = (msg) => {
         const container = document.getElementById('message-container');
         
-        // Clear empty state if exists
         if (container.querySelector('.text-gray-500')) {
             container.innerHTML = '';
         }
 
-        const div = document.createElement('div');
         const isMe = msg.sender_id == currentUser || msg.is_me;
-        
-        div.className = `message-bubble ${isMe ? 'message-sent' : 'message-received'}`;
-        div.innerHTML = `
-            <div class="break-words">${msg.content}</div>
-            <div class="text-[9px] mt-1 opacity-70 text-right font-medium">${formatTime(msg.created_at)}</div>
+        const senderName = isMe ? 'You' : (document.getElementById('active-user-name').innerText || 'Team Member');
+        const metadata = msg.metadata || {};
+
+        const rowDiv = document.createElement('div');
+        rowDiv.className = `message-row ${isMe ? 'justify-end' : 'justify-start'}`;
+        rowDiv.id = `msg-row-${msg.id}`;
+
+        let innerContent = '';
+
+        // 1. Quoted Message snippet if replying to another message
+        if (metadata.reply_to) {
+            innerContent += `
+                <div class="quote-box">
+                    <span class="font-bold block text-[10px] opacity-90">${escapeHtml(metadata.reply_to.sender_name || 'Message')}</span>
+                    <p class="truncate opacity-80">${escapeHtml(metadata.reply_to.content || '')}</p>
+                </div>
+            `;
+        }
+
+        // 2. Material Stock Card if sharing inventory material
+        if (metadata.material_card) {
+            const m = metadata.material_card;
+            const statusClass = m.status === 'Normal' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300' :
+                               (m.status === 'Low Stock' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300');
+            innerContent += `
+                <div class="chat-material-card text-left">
+                    <div class="flex items-center justify-between gap-2 border-b border-gray-100 dark:border-midnight-800 pb-2 mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-6 h-6 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs">
+                                <i class="fas fa-box"></i>
+                            </span>
+                            <span class="font-bold text-xs text-gray-900 dark:text-white leading-tight">${escapeHtml(m.name)}</span>
+                        </div>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${statusClass}">
+                            ${escapeHtml(m.status || 'Normal')}
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-[11px] text-gray-600 dark:text-gray-300 mb-2">
+                        <div><span class="text-gray-400 text-[10px] block">Category:</span> <span class="font-semibold">${escapeHtml(m.category || 'General')}</span></div>
+                        <div><span class="text-gray-400 text-[10px] block">Available Stock:</span> <span class="font-black text-indigo-600 dark:text-indigo-400">${escapeHtml(m.quantity)} units</span></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Regular Text Content
+        innerContent += `<div class="break-words">${escapeHtml(msg.content)}</div>`;
+        innerContent += `<div class="text-[9px] mt-1 opacity-70 text-right font-medium">${formatTime(msg.created_at)}</div>`;
+
+        // Action hover buttons
+        const actionBtn = `
+            <div class="msg-actions ${isMe ? 'order-first' : 'order-last'}">
+                <button type="button" onclick="startReply(${msg.id}, '${escapeHtml(senderName)}', '${escapeHtml(msg.content)}')"
+                    class="w-7 h-7 rounded-full bg-white dark:bg-midnight-800 border border-gray-200 dark:border-midnight-700 text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 shadow-sm flex items-center justify-center text-xs transition transform hover:scale-110"
+                    title="Reply to this message">
+                    <i class="fas fa-reply"></i>
+                </button>
+            </div>
+        `;
+
+        rowDiv.innerHTML = `
+            ${isMe ? actionBtn : ''}
+            <div class="message-bubble ${isMe ? 'message-sent' : 'message-received'}">
+                ${innerContent}
+            </div>
+            ${!isMe ? actionBtn : ''}
         `;
         
-        container.appendChild(div);
+        container.appendChild(rowDiv);
         
-        // Update sidebar snippet
         const targetId = isMe ? activeUserId : msg.sender_id;
         const snippet = document.getElementById('snippet-' + targetId);
         if (snippet) snippet.innerText = msg.content;
@@ -381,6 +617,144 @@
         container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
     };
 
+    // ── Reply Feature Handlers ──
+    function startReply(msgId, senderName, content) {
+        currentReplyingTo = {
+            id: msgId,
+            sender_name: senderName,
+            content: content
+        };
+        const bar = document.getElementById('reply-preview-bar');
+        const userEl = document.getElementById('reply-to-user');
+        const textEl = document.getElementById('reply-to-text');
+        
+        if (bar && userEl && textEl) {
+            userEl.innerText = `Replying to ${senderName}`;
+            textEl.innerText = content;
+            bar.classList.remove('hidden');
+            bar.classList.add('flex');
+        }
+
+        const input = document.getElementById('chat-message-input');
+        if (input) input.focus();
+    }
+
+    function cancelReply() {
+        currentReplyingTo = null;
+        const bar = document.getElementById('reply-preview-bar');
+        if (bar) {
+            bar.classList.add('hidden');
+            bar.classList.remove('flex');
+        }
+    }
+
+    // ── Quick Reply Handler ──
+    function sendQuickReply(text) {
+        const input = document.getElementById('chat-message-input');
+        if (input) {
+            input.value = text;
+            window.sendMessage();
+        }
+    }
+
+    // ── Share Material Modal Logic ──
+    function openShareMaterialModal() {
+        if (!activeUserId) {
+            alert('Please select a user to chat with first.');
+            return;
+        }
+        const modal = document.getElementById('shareMaterialModal');
+        if (modal) modal.classList.remove('hidden');
+        const input = document.getElementById('share-material-search');
+        if (input) {
+            input.value = '';
+            input.focus();
+        }
+        fetchShareMaterials('');
+    }
+
+    function closeShareMaterialModal() {
+        const modal = document.getElementById('shareMaterialModal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    function onShareMaterialSearch(val) {
+        clearTimeout(shareMaterialDebounce);
+        shareMaterialDebounce = setTimeout(() => {
+            fetchShareMaterials(val);
+        }, 150);
+    }
+
+    async function fetchShareMaterials(query = '') {
+        const list = document.getElementById('share-material-list');
+        if (!list) return;
+
+        try {
+            list.innerHTML = `<div class="py-6 text-center text-xs text-gray-400"><i class="fas fa-spinner fa-spin mr-1"></i> Searching materials...</div>`;
+            const res = await fetch(`/api/materials/search/?q=${encodeURIComponent(query)}`);
+            if (!res.ok) return;
+            const data = await res.json();
+            const items = data.results || [];
+
+            if (items.length === 0) {
+                list.innerHTML = `<div class="py-6 text-center text-xs text-gray-400"><i class="fas fa-box-open text-base mb-1 block"></i> No materials found</div>`;
+                return;
+            }
+
+            let html = '';
+            items.forEach(m => {
+                const statusColor = m.status === 'Normal' ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40' :
+                                   (m.status === 'Low Stock' ? 'text-amber-600 bg-amber-50 dark:bg-amber-950/40' : 'text-rose-600 bg-rose-50 dark:bg-rose-950/40');
+                html += `
+                    <div class="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-midnight-800 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 transition group">
+                        <div class="min-w-0 flex-1 pr-3">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-xs text-gray-900 dark:text-white truncate">${escapeHtml(m.name)}</span>
+                                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor}">${escapeHtml(m.status)}</span>
+                            </div>
+                            <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Category: <span class="font-medium text-gray-700 dark:text-gray-300">${escapeHtml(m.category || 'General')}</span></p>
+                        </div>
+                        <button type="button" onclick="shareMaterialCard(${m.id}, '${escapeHtml(m.name)}', '${escapeHtml(m.category)}', '${escapeHtml(m.status)}')"
+                            class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm shadow-indigo-600/30 flex-shrink-0">
+                            <i class="fas fa-share text-[10px]"></i> Share
+                        </button>
+                    </div>
+                `;
+            });
+            list.innerHTML = html;
+        } catch (err) {
+            console.error('Error searching materials:', err);
+        }
+    }
+
+    function shareMaterialCard(id, name, category, status) {
+        closeShareMaterialModal();
+        
+        const metadata = {
+            material_card: {
+                id: id,
+                name: name,
+                category: category,
+                status: status
+            }
+        };
+
+        if (currentReplyingTo) {
+            metadata.reply_to = currentReplyingTo;
+            cancelReply();
+        }
+
+        if (chatSocket && chatSocket.readyState === WebSocket.OPEN && activeUserId) {
+            const payload = {
+                'type': 'chat_message',
+                'receiver_id': activeUserId,
+                'message': `📦 Shared Inventory Material: ${name}`,
+                'metadata': metadata
+            };
+            chatSocket.send(JSON.stringify(payload));
+        }
+    }
+
     const updateSidebarNotification = (msg) => {
         const senderId = msg.sender_id;
         const snippet = document.getElementById('snippet-' + senderId);
@@ -394,14 +768,12 @@
             badge.classList.remove('hidden');
         }
 
-        // Update time
         const timeEl = document.getElementById('time-' + senderId);
         if (timeEl) {
             const now = new Date();
             timeEl.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         }
 
-        // Optional: Re-order sidebar to put this user at top
         const userItem = document.querySelector(`.user-item[onclick*="selectUser(${senderId}"]`);
         if (userItem) {
             const list = document.getElementById('sidebar-user-list');
@@ -414,7 +786,6 @@
         const status = payload.status;
         const isOnline = (status === 'online');
 
-        // Update sidebar dots
         const sidebarDots = document.querySelectorAll(`.status-indicator-dot[data-status-id="${userId}"]`);
         sidebarDots.forEach(dot => {
             if (isOnline) {
@@ -424,7 +795,6 @@
             }
         });
 
-        // Update header if active
         if (activeUserId == userId) {
             const headerDot = document.getElementById('header-status-dot');
             const headerStatusIcon = document.getElementById('active-user-status-dot');
@@ -450,16 +820,10 @@
 
     // Global function to send messages
     window.sendMessage = () => {
-        console.log('sendMessage triggered');
         const input = document.getElementById('chat-message-input');
-        if (!input) {
-            console.error('Input field not found!');
-            return;
-        }
+        if (!input) return;
         
         const message = input.value.trim();
-        console.log('Message:', message, 'ActiveUser:', activeUserId);
-        
         if (!activeUserId) {
             alert('Please select a user to chat with first.');
             return;
@@ -467,16 +831,21 @@
 
         if (!message) return;
 
+        const metadata = {};
+        if (currentReplyingTo) {
+            metadata.reply_to = { ...currentReplyingTo };
+            cancelReply();
+        }
+
         if (chatSocket && chatSocket.readyState === WebSocket.OPEN) {
             const payload = {
                 'type': 'chat_message',
                 'receiver_id': activeUserId,
-                'message': message
+                'message': message,
+                'metadata': metadata
             };
-            console.log('Sending payload:', payload);
             chatSocket.send(JSON.stringify(payload));
             
-            // Update own sidebar for this receiver
             const snippet = document.getElementById('snippet-' + activeUserId);
             if (snippet) {
                 snippet.innerText = message;
@@ -487,7 +856,6 @@
                 const now = new Date();
                 timeEl.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             }
-            // Move to top
             const userItem = document.querySelector(`.user-item[onclick*="selectUser(${activeUserId}"]`);
             if (userItem) {
                 const list = document.getElementById('sidebar-user-list');
@@ -497,13 +865,10 @@
             input.value = '';
             input.focus();
         } else {
-            const state = chatSocket ? chatSocket.readyState : 'NOT_CREATED';
-            console.error('WebSocket is not ready. State:', state);
             alert('Chat connection is not active. Please refresh the page.');
         }
     };
 
-    // Attach form submit listener as backup
     const chatForm = document.getElementById('chat-form');
     if (chatForm) {
         chatForm.onsubmit = (e) => {
@@ -512,7 +877,6 @@
         };
     }
 
-    // Explicitly handle Enter key on the input
     const msgInput = document.getElementById('chat-message-input');
     if (msgInput) {
         msgInput.onkeydown = (e) => {
@@ -537,3 +901,4 @@
     };
 </script>
 {% endblock %}
+

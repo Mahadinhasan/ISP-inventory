@@ -425,11 +425,28 @@ class MaterialRequest(models.Model):
 
     @property
     def estimated_amount(self):
-        """Estimated amount = approved quantity × material rate."""
+        """Estimated amount = approved quantity × material rate (without trailing .00)."""
         try:
-            return self.quantity * (self.material.rate or 0)
+            amt = float(self.quantity) * float(self.rate if self.rate else (self.material.rate or 0))
+            return int(amt) if amt.is_integer() else round(amt, 2)
         except Exception:
             return 0
+
+    @property
+    def formatted_rate(self):
+        """Format rate without unnecessary .00"""
+        if self.rate is None:
+            return 0
+        r = float(self.rate)
+        return int(r) if r.is_integer() else round(r, 2)
+
+    @property
+    def formatted_total_price(self):
+        """Format total_price without unnecessary .00"""
+        if self.total_price is None:
+            return 0
+        tp = float(self.total_price)
+        return int(tp) if tp.is_integer() else round(tp, 2)
 
     def save(self, *args, **kwargs):
         if (not self.rate or self.rate == 0) and self.material:

@@ -345,12 +345,13 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         if msg_type == 'chat_message':
             receiver_id = content.get('receiver_id')
             message_text = content.get('message', '').strip()
+            metadata = content.get('metadata', {})
 
             if not receiver_id or not message_text:
                 return
 
             # Save to DB
-            saved_msg = await self.save_message(receiver_id, message_text)
+            saved_msg = await self.save_message(receiver_id, message_text, metadata)
             if not saved_msg:
                 return
 
@@ -365,11 +366,12 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                     'sender_username': self.user.username,
                     'content': message_text,
                     'created_at': saved_msg['created_at'],
+                    'metadata': saved_msg.get('metadata', {}),
                 }
             }
 
             await self.channel_layer.group_send(receiver_group, message_data)
-            
+
             # Send back to sender for confirmation/UI update
             await self.send_json(message_data)
 
@@ -382,7 +384,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         await self.send_json(event)
 
     @database_sync_to_async
-    def save_message(self, receiver_id, content):
+    def save_message(self, receiver_id, content, metadata=None):
         from .models import InternalMessage
         try:
             # Ensure receiver_id is an integer
@@ -391,11 +393,13 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             msg = InternalMessage.objects.create(
                 sender=self.user,
                 receiver=receiver,
-                content=content
+                content=content,
+                analysis_metadata=metadata if isinstance(metadata, dict) else {}
             )
             return {
                 'id': msg.id,
-                'created_at': msg.created_at.isoformat()
+                'created_at': msg.created_at.isoformat(),
+                'metadata': msg.analysis_metadata or {}
             }
         except (ValueError, User.DoesNotExist) as e:
             print(f"Chat error: Invalid receiver_id {receiver_id} or user not found. Details: {e}")
@@ -405,3 +409,4 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             import traceback
             traceback.print_exc()
             return None
+
