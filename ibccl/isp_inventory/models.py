@@ -300,18 +300,6 @@ class Material(models.Model):
             raise
         super().save(*args, **kwargs)
 
-# class Task(models.Model):
-#     STATUS_CHOICES = [('Pending', 'Pending'), ('In Progress', 'In Progress'), ('Completed', 'Completed')]
-#     title = models.CharField(max_length=200)
-#     customer = models.CharField(max_length=100)
-#     address = models.TextField()
-#     Branch = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tasks')
-#     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
-#     created_at = models.DateTimeField(auto_now_add=True)
-
-#     def __str__(self):
-#         return self.title
-
 
 class MaterialMonthlyCount(models.Model):
     """Track monthly quantity count for materials with auto-reset functionality."""

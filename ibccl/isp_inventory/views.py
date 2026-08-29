@@ -75,37 +75,6 @@ def process_month_end_reset():
     )
     return True
 
-# JWT authentication functions commented out in favor of session-based authentication
-# def _set_jwt_cookies(response, user, tab_id):
-#     """Generate JWT tokens for user and attach them as HttpOnly cookies."""
-#     refresh = RefreshToken.for_user(user)
-#     access = str(refresh.access_token)
-#     refresh_str = str(refresh)
-# 
-#     jwt_cfg = getattr(settings, 'SIMPLE_JWT', {})
-#     secure = jwt_cfg.get('AUTH_COOKIE_SECURE', False)
-#     samesite = jwt_cfg.get('AUTH_COOKIE_SAMESITE', 'Lax')
-#     access_lifetime = jwt_cfg.get('ACCESS_TOKEN_LIFETIME').total_seconds()
-#     refresh_lifetime = jwt_cfg.get('REFRESH_TOKEN_LIFETIME').total_seconds()
-# 
-#     response.set_cookie(
-#         f'jwt_access_{tab_id}',
-#         access,
-#         max_age=int(access_lifetime),
-#         httponly=True,
-#         secure=secure,
-#         samesite=samesite,
-#     )
-#     response.set_cookie(
-#         f'jwt_refresh_{tab_id}',
-#         refresh_str,
-#         max_age=int(refresh_lifetime),
-#         httponly=True,
-#         secure=secure,
-#         samesite=samesite,
-#     )
-#     return response
-
 def login_view(request):
     """Authenticate user and perform session-based login."""
     if request.user.is_authenticated:
@@ -131,11 +100,11 @@ def login_view(request):
             # Standard Django session-based login
             django_login(request, user)
 
-            # Session expiry: If "Remember me" checked -> 7 days; If unchecked -> 24 hours
+            # Session expiry: If "Remember me" -> 7 days; If unchecked -> 24 hours
             if remember_me:
-                request.session.set_expiry(7 * 24 * 60 * 60)  # 7 days (604,800 seconds)
+                request.session.set_expiry(7 * 24 * 60 * 60)  # 7 days
             else:
-                request.session.set_expiry(24 * 60 * 60)       # 24 hours (86,400 seconds)
+                request.session.set_expiry(24 * 60 * 60)       # 24 hours
 
             # Update profile activity status
             profile.is_active = True
@@ -1010,7 +979,7 @@ def materials_view(request):
 
 
 def materials_export_excel(request):
-    """Export all materials data to Excel with latest monthly updates."""
+    """Export all materials data to Excel with latest monthly updates (Optimized)."""
     # Check if user is authenticated via JWT
     if not hasattr(request, 'user') or not request.user.is_authenticated:
         return HttpResponse('Authentication required.', status=401)
@@ -1021,13 +990,9 @@ def materials_export_excel(request):
     if role not in ['Admin', 'Storekeeper']:
         return HttpResponse('Permission denied. Only Admin and Storekeeper can export materials data.', status=403)
 
-    # Get all materials with latest data
-    materials = Material.objects.all().select_related('created_by').order_by('category', 'name')
-
-    # Create Excel workbook
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = 'ISP-Inventory Materials Inventory'
+    ws.title = 'Materials Inventory'
 
     # Style definitions
     h_fill = PatternFill('solid', fgColor='4F46E5')
@@ -1041,7 +1006,7 @@ def materials_export_excel(request):
     )
 
     # Title
-    ws.merge_cells('A1:J1')
+    ws.merge_cells('A1:L1')
     title_cell = ws['A1']
     title_cell.value = f'Materials Inventory Report - {timezone.now().strftime("%B %Y")}'
     title_cell.font = Font(bold=True, size=14, color='1E1B4B')
@@ -1049,7 +1014,7 @@ def materials_export_excel(request):
     ws.row_dimensions[1].height = 30
 
     # Headers
-    headers = ['ID', 'Material Name', 'Category', 'Type', 'In Stock','Rate', 'Total Price', 'Remaining Stock', 'Min Stock Level', 'Status', 'Created By', 'Last Updated']
+    headers = ['ID', 'Material Name', 'Category', 'Type', 'In Stock', 'Rate', 'Total Price', 'Remaining Stock', 'Min Stock Level', 'Status', 'Created By', 'Last Updated']
     ws.append([])
     ws.append(headers)
 
@@ -1060,113 +1025,104 @@ def materials_export_excel(request):
         cell.font = h_font
         cell.alignment = h_align
         cell.border = thin
-        ws.column_dimensions[get_column_letter(col_idx)].width = 15
 
-    # Adjust specific column widths
-    ws.column_dimensions['B'].width = 25  # Material Name
-    ws.column_dimensions['C'].width = 15  # Category
-    ws.column_dimensions['I'].width = 20  # Created By
-    ws.column_dimensions['J'].width = 18  # Last Updated
+    col_widths = {
+        'A': 10, 'B': 30, 'C': 16, 'D': 12, 'E': 12,
+        'F': 12, 'G': 14, 'H': 16, 'I': 14, 'J': 14,
+        'K': 22, 'L': 16
+    }
+    for col_letter, width in col_widths.items():
+        ws.column_dimensions[col_letter].width = width
 
-    # Data rows
-    for material in materials:
-        # Get creator info with role
-        if material.created_by:
-            try:
-                role = material.created_by.userprofile.role
-                creator_info = f"{material.created_by.username} [{role}]"
-            except:
-                creator_info = material.created_by.username
-        else:
-            creator_info = 'Storekeeper'  # Default to Storekeeper if created_by is null
+    # Single fast values_list query with chunked iterator
+    materials_data = Material.objects.filter(is_deleted=False).values_list(
+        'id', 'name', 'category', 'Type', 'quantity', 'rate', 'total_price',
+        'Remaining_stock', 'min_stock_level', 'status',
+        'created_by__username', 'created_by__userprofile__role', 'updated_at'
+    ).order_by('category', 'name')
+
+    category_summary_map = {}
+
+    for (m_id, name, cat, m_type, qty, rate, tot_price, rem_stock, min_stock, status,
+         created_user, created_role, updated_at) in materials_data.iterator(chunk_size=3000):
         
-        row_data = [
-            material.id,
-            material.name,
-            material.category,
-            material.Type,
-            material.quantity,
-            material.rate,
-            material.total_price,
-            material.Remaining_stock,
-            material.min_stock_level,
-            material.status,
+        creator_info = f"{created_user} [{created_role}]" if (created_user and created_role) else (created_user or 'Storekeeper')
+        updated_str = updated_at.strftime('%Y-%m-%d') if updated_at else '-'
+        
+        ws.append([
+            m_id,
+            name or '-',
+            cat or '-',
+            m_type or 'Piece',
+            qty or 0,
+            rate or 0,
+            tot_price or 0,
+            rem_stock or 0,
+            min_stock or 0,
+            status or 'Normal',
             creator_info,
-            material.updated_at.strftime('%Y-%m-%d'),
-        ]
-        ws.append(row_data)
+            updated_str,
+        ])
 
-        # Style data row
-        for col_idx in range(1, len(row_data) + 1):
-            cell = ws.cell(row=ws.max_row, column=col_idx)
-            cell.border = thin
-            cell.alignment = Alignment(vertical='center')
+        # Track category statistics in a single pass
+        if cat not in category_summary_map:
+            category_summary_map[cat] = {'total': 0, 'normal': 0, 'low': 0, 'out': 0}
+        category_summary_map[cat]['total'] += 1
+        if status == 'Normal':
+            category_summary_map[cat]['normal'] += 1
+        elif status == 'Low Stock':
+            category_summary_map[cat]['low'] += 1
+        elif status == 'Out of Stock':
+            category_summary_map[cat]['out'] += 1
 
-            # Color coding for status
-            if col_idx == 9:  # Status column
-                if material.status == 'Normal':
-                    cell.fill = PatternFill('solid', fgColor='D1FAE5')
-                    cell.font = Font(bold=True, color='065F46')
-                elif material.status == 'Low Stock':
-                    cell.fill = PatternFill('solid', fgColor='FEF9C3')
-                    cell.font = Font(bold=True, color='78350F')
-                elif material.status == 'Out of Stock':
-                    cell.fill = PatternFill('solid', fgColor='FEE2E2')
-                    cell.font = Font(bold=True, color='991B1B')
+    ws.freeze_panes = 'A4'
 
     # Summary sheet
     ws_summary = wb.create_sheet('Summary by Category')
-    ws_summary.merge_cells('A1:D1')
+    ws_summary.merge_cells('A1:E1')
     summary_title = ws_summary['A1']
     summary_title.value = f'Materials Summary by Category - {timezone.now().strftime("%B %Y")}'
     summary_title.font = Font(bold=True, size=14, color='1E1B4B')
     summary_title.alignment = Alignment(horizontal='center', vertical='center')
     ws_summary.row_dimensions[1].height = 30
 
-    # Summary headers
-    summary_headers = ['Category', 'Total Materials', 'In Stock', 'Low Stock', 'Out of Stock']
+    summary_headers = ['Category', 'Total Materials', 'In Stock (Normal)', 'Low Stock', 'Out of Stock']
     ws_summary.append([])
     ws_summary.append(summary_headers)
 
-    # Style summary header row
     for col_idx, header in enumerate(summary_headers, 1):
         cell = ws_summary.cell(row=ws_summary.max_row, column=col_idx)
         cell.fill = h_fill
         cell.font = h_font
         cell.alignment = h_align
         cell.border = thin
-        ws_summary.column_dimensions[get_column_letter(col_idx)].width = 18
+        ws_summary.column_dimensions[get_column_letter(col_idx)].width = 22
 
-    # Summary data by category
-    category_summary = materials.values('category').annotate(
-        total_materials=Count('id'),
-        in_stock=Count(Case(When(status='Normal', then=1), output_field=IntegerField())),
-        low_stock=Count(Case(When(status='Low Stock', then=1), output_field=IntegerField())),
-        out_of_stock=Count(Case(When(status='Out of Stock', then=1), output_field=IntegerField())),
-    ).order_by('category')
-
-    for summary in category_summary:
+    for cat_name in sorted(category_summary_map.keys()):
+        stats = category_summary_map[cat_name]
         ws_summary.append([
-            summary['category'],
-            summary['total_materials'],
-            summary['in_stock'],
-            summary['low_stock'],
-            summary['out_of_stock'],
+            cat_name,
+            stats['total'],
+            stats['normal'],
+            stats['low'],
+            stats['out'],
         ])
-
-        # Style summary data row
         for col_idx in range(1, 6):
             cell = ws_summary.cell(row=ws_summary.max_row, column=col_idx)
             cell.border = thin
             cell.alignment = Alignment(vertical='center')
+
+    ws_summary.freeze_panes = 'A4'
 
     # Create response
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     filename = f'materials_inventory_{timezone.now().strftime("%Y_%m_%d")}.xlsx'
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
 
-    # Save workbook to response
-    wb.save(response)
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    response.write(buffer.read())
     return response
 
 
@@ -1215,61 +1171,6 @@ def material_search_api(request):
 
     results = list(qs.values('id', 'name', 'category', 'status')[:40])
     return JsonResponse({'results': results})
-
-#     profile = ensure_userprofile(request.user)
-#     role = profile.role if profile else 'Branch'
-
-#     if role == 'Branch':
-#         tasks = Task.objects.filter(technician=request.user).order_by('-created_at')
-#     else:
-#         tasks = Task.objects.all().order_by('-created_at')
-
-#     if request.method == 'POST':
-#         action = request.POST.get('action')
-        
-#         if action == 'create':
-#             if role == 'Branch':
-#                  messages.error(request, "Branch users cannot create tasks.")
-#                  return redirect('tasks')
-#             form = TaskForm(request.POST)
-#             if form.is_valid():
-#                 form.save()
-#                 messages.success(request, "Task created!")
-#                 return redirect('tasks')
-        
-#         elif action == 'update_status':
-#             task_id = request.POST.get('task_id')
-#             new_status = request.POST.get('status')
-#             try:
-#                 task = Task.objects.get(pk=task_id)
-#                 # Permission check
-#                 if role == 'Branch' and task.requester != request.user:
-#                     messages.error(request, "Permission denied.")
-#                 else:
-#                     task.status = new_status
-#                     task.save()
-#                     messages.success(request, f"Task status updated to {new_status}")
-#             except Task.DoesNotExist:
-#                 messages.error(request, "Task not found.")
-#             return redirect('tasks')
-
-#         elif action == 'delete':
-#             if role != 'Admin':
-#                 messages.error(request, "Only Admins can delete tasks.")
-#                 return redirect('tasks')
-#             task_id = request.POST.get('task_id')
-#             try:
-#                 task = Task.objects.get(pk=task_id)
-#                 task.delete()
-#                 messages.success(request, "Task deleted.")
-#             except Task.DoesNotExist:
-#                 messages.error(request, "Task not found.")
-#             return redirect('tasks')
-
-#     else:
-#         form = TaskForm()
-        
-#     return render(request, 'inventory/tasks.html', {'tasks': tasks.order_by('-created_at'), 'form': form, 'role': role})
 
 @login_required
 def requests_view(request):
@@ -2094,367 +1995,32 @@ def reports_view(request):
 
 
 def _generate_branch_excel_report(request, requests_qs, start, end, from_date, to_date):
-    """Generate Excel report for Branch users with separate sheets for each status."""
-    import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-    from openpyxl.utils import get_column_letter
-    import io
-    
-    # Get used materials data
-    used_qs = UsedMaterial.objects.filter(
-        technician=request.user,
-        added_at__date__gte=start,
-        added_at__date__lte=end
-    ).select_related('material', 'technician').order_by('-added_at')
-    
-    wb = openpyxl.Workbook()
-    # Remove the default active sheet if it exists
-    if wb.active:
-        wb.remove(wb.active)
-    
-    # Style definitions
-    h_fill   = PatternFill('solid', fgColor='4F46E5')
-    h_font   = Font(color='FFFFFF', bold=True, size=11)
-    h_align  = Alignment(horizontal='center', vertical='center')
-    thin     = Border(
-        left=Side(style='thin', color='D1D5DB'),
-        right=Side(style='thin', color='D1D5DB'),
-        top=Side(style='thin', color='D1D5DB'),
-        bottom=Side(style='thin', color='D1D5DB'),
-    )
-    green  = PatternFill('solid', fgColor='D1FAE5')
-    yellow = PatternFill('solid', fgColor='FEF9C3')
-    red    = PatternFill('solid', fgColor='FEE2E2')
-    
-    def style_header_row(ws, headers, col_widths):
-        ws.append(headers)
-        for col_idx, width in enumerate(col_widths, 1):
-            cell = ws.cell(row=ws.max_row, column=col_idx)
-            cell.fill    = h_fill
-            cell.font    = h_font
-            cell.alignment = h_align
-            cell.border  = thin
-            ws.column_dimensions[get_column_letter(col_idx)].width = width
-    
-    def style_data_rows(ws, start_row):
-        for row_idx, row in enumerate(ws.iter_rows(min_row=start_row, max_row=ws.max_row), 1):
-            fill = PatternFill('solid', fgColor='F5F3FF') if row_idx % 2 == 0 else PatternFill('solid', fgColor='FFFFFF')
-            for cell in row:
-                cell.border    = thin
-                cell.fill      = fill
-                cell.alignment = Alignment(vertical='center')
-    
-    # ── MATERIAL REQUESTS SHEETS ──────────────────────────────────────────────
-    
-    # Sheet 1: Pending Requests
-    ws_req_pending = wb.create_sheet('Requests - Pending')
-    ws_req_pending.row_dimensions[1].height = 22
-    ws_req_pending.merge_cells('A1:G1')
-    title = ws_req_pending['A1']
-    title.value = f'Material Requests - PENDING ({from_date} → {to_date})'
-    title.font = Font(bold=True, size=13, color='1E1B4B')
-    title.alignment = Alignment(horizontal='center', vertical='center')
-    ws_req_pending.row_dimensions[1].height = 28
-    ws_req_pending.append([])
-    
-    pending_requests = requests_qs.filter(status='Pending').order_by('-requested_at')
-    headers = ['Date', 'Material', 'Category', 'Qty', 'Type', 'Notes', 'Status']
-    widths  = [14, 28, 16, 8, 12, 30, 12]
-    style_header_row(ws_req_pending, headers, widths)
-    
-    for req in pending_requests:
-        ws_req_pending.append([
-            req.requested_at.strftime('%Y-%m-%d'),
-            req.material.name,
-            req.material.category,
-            req.quantity,
-            req.request_type,
-            req.notes or '',
-            'Pending',
-        ])
-    style_data_rows(ws_req_pending, start_row=4)
-    
-    for row in ws_req_pending.iter_rows(min_row=4, max_row=ws_req_pending.max_row):
-        row[6].fill = yellow
-        row[6].font = Font(bold=True, color='78350F')
-    
-    # Sheet 2: Approved Requests
-    ws_req_approved = wb.create_sheet('Requests - Approved')
-    ws_req_approved.row_dimensions[1].height = 22
-    ws_req_approved.merge_cells('A1:G1')
-    title = ws_req_approved['A1']
-    title.value = f'Material Requests - APPROVED ({from_date} → {to_date})'
-    title.font = Font(bold=True, size=13, color='1E1B4B')
-    title.alignment = Alignment(horizontal='center', vertical='center')
-    ws_req_approved.row_dimensions[1].height = 28
-    ws_req_approved.append([])
-    
-    approved_requests = requests_qs.filter(status='Received').order_by('-requested_at')
-    style_header_row(ws_req_approved, headers, widths)
-    
-    for req in approved_requests:
-        ws_req_approved.append([
-            req.requested_at.strftime('%Y-%m-%d'),
-            req.material.name,
-            req.material.category,
-            req.quantity,
-            req.request_type,
-            req.notes or '',
-            'Approved',
-        ])
-    style_data_rows(ws_req_approved, start_row=4)
-    
-    for row in ws_req_approved.iter_rows(min_row=4, max_row=ws_req_approved.max_row):
-        row[6].fill = green
-        row[6].font = Font(bold=True, color='065F46')
-    
-    # Sheet 3: Rejected Requests
-    ws_req_rejected = wb.create_sheet('Requests - Rejected')
-    ws_req_rejected.row_dimensions[1].height = 22
-    ws_req_rejected.merge_cells('A1:G1')
-    title = ws_req_rejected['A1']
-    title.value = f'Material Requests - REJECTED ({from_date} → {to_date})'
-    title.font = Font(bold=True, size=13, color='1E1B4B')
-    title.alignment = Alignment(horizontal='center', vertical='center')
-    ws_req_rejected.row_dimensions[1].height = 28
-    ws_req_rejected.append([])
-    
-    rejected_requests = requests_qs.filter(status='Rejected').order_by('-requested_at')
-    style_header_row(ws_req_rejected, headers, widths)
-    
-    for req in rejected_requests:
-        ws_req_rejected.append([
-            req.requested_at.strftime('%Y-%m-%d'),
-            req.material.name,
-            req.material.category,
-            req.quantity,
-            req.request_type,
-            req.notes or '',
-            'Rejected',
-        ])
-    style_data_rows(ws_req_rejected, start_row=4)
-    
-    for row in ws_req_rejected.iter_rows(min_row=4, max_row=ws_req_rejected.max_row):
-        row[6].fill = red
-        row[6].font = Font(bold=True, color='991B1B')
-    
-    # ── USED MATERIALS SHEETS ────
-    
-    # Sheet 4: Pending Used Materials
-    ws_um_pending = wb.create_sheet('Used Materials - Pending')
-    ws_um_pending.row_dimensions[1].height = 22
-    ws_um_pending.merge_cells('A1:F1')
-    title = ws_um_pending['A1']
-    title.value = f'Used Materials - PENDING ({from_date} → {to_date})'
-    title.font = Font(bold=True, size=13, color='1E1B4B')
-    title.alignment = Alignment(horizontal='center', vertical='center')
-    ws_um_pending.row_dimensions[1].height = 28
-    ws_um_pending.append([])
-    
-    um_pending = used_qs.filter(status='Pending').order_by('-added_at')
-    um_headers = ['Date', 'Material', 'Category', 'Qty Used', 'Notes', 'Status']
-    um_widths  = [14, 28, 16, 12, 30, 12]
-    style_header_row(ws_um_pending, um_headers, um_widths)
-    
-    for um in um_pending:
-        ws_um_pending.append([
-            um.added_at.strftime('%Y-%m-%d'),
-            um.material.name,
-            um.material.category,
-            um.quantity,
-            um.issue or '',
-            'Pending',
-        ])
-    style_data_rows(ws_um_pending, start_row=4)
-    
-    for row in ws_um_pending.iter_rows(min_row=4, max_row=ws_um_pending.max_row):
-        row[5].fill = yellow
-        row[5].font = Font(bold=True, color='78350F')
-    
-    # Sheet 5: Accepted Used Materials
-    ws_um_accepted = wb.create_sheet('Used Materials - Accepted')
-    ws_um_accepted.row_dimensions[1].height = 22
-    ws_um_accepted.merge_cells('A1:F1')
-    title = ws_um_accepted['A1']
-    title.value = f'Used Materials - ACCEPTED ({from_date} → {to_date})'
-    title.font = Font(bold=True, size=13, color='1E1B4B')
-    title.alignment = Alignment(horizontal='center', vertical='center')
-    ws_um_accepted.row_dimensions[1].height = 28
-    ws_um_accepted.append([])
-    
-    um_accepted = used_qs.filter(status='Accepted').order_by('-added_at')
-    style_header_row(ws_um_accepted, um_headers, um_widths)
-    
-    for um in um_accepted:
-        ws_um_accepted.append([
-            um.added_at.strftime('%Y-%m-%d'),
-            um.material.name,
-            um.material.category,
-            um.quantity,
-            um.issue or '',
-            'Accepted',
-        ])
-    style_data_rows(ws_um_accepted, start_row=4)
-    
-    for row in ws_um_accepted.iter_rows(min_row=4, max_row=ws_um_accepted.max_row):
-        row[5].fill = green
-        row[5].font = Font(bold=True, color='065F46')
-    
-    # Sheet 6: Rejected Used Materials
-    ws_um_rejected = wb.create_sheet('Used Materials - Rejected')
-    ws_um_rejected.row_dimensions[1].height = 22
-    ws_um_rejected.merge_cells('A1:F1')
-    title = ws_um_rejected['A1']
-    title.value = f'Used Materials - REJECTED ({from_date} → {to_date})'
-    title.font = Font(bold=True, size=13, color='1E1B4B')
-    title.alignment = Alignment(horizontal='center', vertical='center')
-    ws_um_rejected.row_dimensions[1].height = 28
-    ws_um_rejected.append([])
-    
-    um_rejected = used_qs.filter(status='Rejected').order_by('-added_at')
-    style_header_row(ws_um_rejected, um_headers, um_widths)
-    
-    for um in um_rejected:
-        ws_um_rejected.append([
-            um.added_at.strftime('%Y-%m-%d'),
-            um.material.name,
-            um.material.category,
-            um.quantity,
-            um.issue or '',
-            'Rejected',
-        ])
-    style_data_rows(ws_um_rejected, start_row=4)
-    
-    for row in ws_um_rejected.iter_rows(min_row=4, max_row=ws_um_rejected.max_row):
-        row[5].fill = red
-        row[5].font = Font(bold=True, color='991B1B')
-
-    # Sheet 7: Damaged Materials
-    ws_damaged = wb.create_sheet('Damaged Materials')
-    ws_damaged.row_dimensions[1].height = 22
-    ws_damaged.merge_cells('A1:F1')
-    title = ws_damaged['A1']
-    title.value = f'Confirmed Damaged Materials ({from_date} → {to_date})'
-    title.font = Font(bold=True, size=13, color='1E1B4B')
-    title.alignment = Alignment(horizontal='center', vertical='center')
-    ws_damaged.row_dimensions[1].height = 28
-    ws_damaged.append([])
-    
-    dmg_headers = ['Date', 'Material', 'Category', 'Qty', 'Reason', 'Status']
-    dmg_widths  = [14, 28, 16, 12, 30, 12]
-    style_header_row(ws_damaged, dmg_headers, dmg_widths)
-    
-    branch_dmg = DamageMaterial.objects.filter(
-        branch_user=request.user,
-        added_at__date__gte=start,
-        added_at__date__lte=end,
-        status='Confirmed'
-    ).select_related('material').order_by('-added_at')
-    
-    for dmg in branch_dmg:
-        ws_damaged.append([
-            dmg.added_at.strftime('%Y-%m-%d'),
-            dmg.material.name,
-            dmg.material.category,
-            dmg.quantity,
-            dmg.damage_reason or '',
-            'Confirmed',
-        ])
-    style_data_rows(ws_damaged, start_row=4)
-    
-    for row in ws_damaged.iter_rows(min_row=4, max_row=ws_damaged.max_row):
-        row[5].fill = green
-        row[5].font = Font(bold=True, color='065F46')
-    
-    # ── Summary Sheet ─────────────────────────────────────────────────────────
-    ws_summary = wb.create_sheet('Summary', 0)  # Insert at beginning
-    ws_summary.row_dimensions[1].height = 28
-    ws_summary.merge_cells('A1:D1')
-    title = ws_summary['A1']
-    title.value = f'Report Summary ({from_date} → {to_date})'
-    title.font = Font(bold=True, size=14, color='1E1B4B')
-    title.alignment = Alignment(horizontal='center', vertical='center')
-    
-    ws_summary.append([])
-    
-    # Summary statistics
-    req_pending_count = pending_requests.count()
-    req_approved_count = approved_requests.count()
-    req_rejected_count = rejected_requests.count()
-    um_pending_count = um_pending.count()
-    um_accepted_count = um_accepted.count()
-    um_rejected_count = um_rejected.count()
-    dmg_count = branch_dmg.count()
-    
-    req_approved_qty = approved_requests.aggregate(total=Sum('quantity'))['total'] or 0
-    um_accepted_qty = um_accepted.aggregate(total=Sum('quantity'))['total'] or 0
-    dmg_qty = branch_dmg.aggregate(total=Sum('quantity'))['total'] or 0
-    
-    summary_data = [
-        [],
-        ['Material Requests', ''],
-        ['Status', 'Count', 'Qty'],
-        ['Pending', req_pending_count, '-'],
-        ['Approved', req_approved_count, req_approved_qty],
-        ['Rejected', req_rejected_count, '-'],
-        [],
-        ['Used Materials', ''],
-        ['Status', 'Count', 'Qty'],
-        ['Pending', um_pending_count, '-'],
-        ['Accepted', um_accepted_count, um_accepted_qty],
-        ['Rejected', um_rejected_count, '-'],
-        [],
-        ['Damaged Materials', ''],
-        ['Status', 'Count', 'Qty'],
-        ['Confirmed', dmg_count, dmg_qty],
-    ]
-    
-    for row_data in summary_data:
-        ws_summary.append(row_data)
-    
-    # Style summary sheet
-    ws_summary.column_dimensions['A'].width = 20
-    ws_summary.column_dimensions['B'].width = 15
-    ws_summary.column_dimensions['C'].width = 15
-    
-    for row in ws_summary.iter_rows(min_row=3, max_row=5):
-        for cell in row:
-            cell.fill = PatternFill('solid', fgColor='E0E7FF')
-            cell.font = Font(bold=True)
-            cell.border = thin
-    
-    for row in ws_summary.iter_rows(min_row=8, max_row=11):
-        for cell in row:
-            cell.fill = PatternFill('solid', fgColor='E0E7FF')
-            cell.font = Font(bold=True)
-            cell.border = thin
-
-    for row in ws_summary.iter_rows(min_row=14, max_row=16):
-        for cell in row:
-            cell.fill = PatternFill('solid', fgColor='E0E7FF')
-            cell.font = Font(bold=True)
-            cell.border = thin
-    
-    # Freeze panes
-    for ws in [ws_summary, ws_req_pending, ws_req_approved, ws_req_rejected, ws_um_pending, ws_um_accepted, ws_um_rejected, ws_damaged]:
-        ws.freeze_panes = 'A4'
-    
-    # Save and return
-    buffer = io.BytesIO()
-    wb.save(buffer)
-    buffer.seek(0)
-    
-    filename = f"branch_report_{from_date}_to_{to_date}.xlsx"
-    response = HttpResponse(
-        buffer.read(),
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    return response
+    """Delegate branch excel generation to the unified comprehensive report generator."""
+    return reports_export_excel(request, *(), **{})
 
 
 @login_required
 def reports_export_excel(request):
+    """
+    Comprehensive, high-performance multi-sheet Excel report exporter.
+    Includes:
+      1. Summary (KPIs, Top Materials by Approved Qty, Per-User Activity Breakdown)
+      2. Materials [ID, Material Name, Category, Type, In Stock, Rate, Total Price, Remaining Stock, Min Stock Level, Status, Created By, Last Updated]
+      3. Request Material (Approved/Received) [Date, Branch, Material, Est. Amount, Category, Qty, Type, Created By, Received By, Send By, Admin Note, Status]
+      4. Pending Request [all headers]
+      5. Reject Request [all headers]
+      6. Used Materials [Date, Branch/Technician, Material, Category, Qty Used, Client Name, Client Address, Client Phone, Dispatched To, Issue/Notes, Status, Admin Note]
+      7. Refundable Materials [ID, Branch User, Material Name, Mac/Serial, Total Qty, Available Qty, Added Date, Last Updated]
+      8. Refundable Used Materials [Date, Used By, Material Name, Qty Used, Client Name, Client Address, Client Phone, Dispatched To, Issue/Notes]
+      9. Damaged Materials [Date, Branch User, Material, Category, Qty, Damage Reason, Mac/Serial, Status, Admin Note, Confirmed By]
+      10. Used Materials Graph (Daily table + Embedded OpenPyXL Visual Chart)
+    """
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from openpyxl.chart import BarChart, Reference
+    import io
+
     profile = ensure_userprofile(request.user)
     role = profile.role if profile else 'Branch'
 
@@ -2467,291 +2033,553 @@ def reports_export_excel(request):
         start = (timezone.now() - timezone.timedelta(days=30)).date()
         end   = timezone.now().date()
 
-    # Determine querysets based on role
+    # ── 1. Role-based Querysets Setup ─────────────────────────────────────────
     if role == 'Branch':
+        materials_qs = Material.objects.filter(is_deleted=False).order_by('category', 'name')
         requests_qs = MaterialRequest.objects.filter(
             requested_at__date__gte=start,
             requested_at__date__lte=end,
             requester=request.user
-        ).select_related('material', 'requester').order_by('-requested_at')
-        return _generate_branch_excel_report(request, requests_qs, start, end, from_date, to_date)
+        )
+        used_qs = UsedMaterial.objects.filter(
+            technician=request.user,
+            added_at__date__gte=start,
+            added_at__date__lte=end
+        )
+        refundable_qs = RefundableMaterial.objects.filter(branch_user=request.user).order_by('-added_at')
+        refundable_usage_qs = RefundableMaterialUsage.objects.filter(
+            used_by=request.user,
+            used_at__date__gte=start,
+            used_at__date__lte=end
+        ).order_by('-used_at')
+        damaged_qs = DamageMaterial.objects.filter(
+            branch_user=request.user,
+            added_at__date__gte=start,
+            added_at__date__lte=end
+        ).order_by('-added_at')
 
     elif role == 'NOC':
-        noc_materials_qs = Material.objects.filter(category='Internet', created_by=request.user)
+        materials_qs = Material.objects.filter(category='Internet', created_by=request.user, is_deleted=False).order_by('status', 'name')
         requests_qs = MaterialRequest.objects.filter(
-            material__in=noc_materials_qs,
+            material__in=materials_qs,
             requested_at__date__gte=start,
             requested_at__date__lte=end,
             is_hidden_by_noc=False
-        ).select_related('material', 'requester').order_by('-requested_at')
-
+        )
         used_qs = UsedMaterial.objects.filter(
-            material__in=noc_materials_qs,
+            material__in=materials_qs,
             added_at__date__gte=start,
             added_at__date__lte=end
-        ).select_related('material', 'technician').order_by('-added_at')
-
+        )
+        refundable_qs = RefundableMaterial.objects.none()
+        refundable_usage_qs = RefundableMaterialUsage.objects.none()
         damaged_qs = DamageMaterial.objects.filter(
-            material__in=noc_materials_qs,
+            material__in=materials_qs,
             added_at__date__gte=start,
             added_at__date__lte=end
-        ).select_related('material', 'branch_user', 'confirmed_by').order_by('-added_at')
-
-        stock_qs = noc_materials_qs.order_by('status', 'name')
+        ).order_by('-added_at')
 
     else:  # Admin or Storekeeper
+        materials_qs = Material.objects.filter(is_deleted=False).order_by('category', 'name')
         requests_qs = MaterialRequest.objects.filter(
             requested_at__date__gte=start,
             requested_at__date__lte=end
-        ).select_related('material', 'requester').order_by('-requested_at')
-
+        )
         used_qs = UsedMaterial.objects.filter(
             added_at__date__gte=start,
             added_at__date__lte=end
-        ).select_related('material', 'technician').order_by('-added_at')
-
+        )
+        refundable_qs = RefundableMaterial.objects.all().order_by('-added_at')
+        refundable_usage_qs = RefundableMaterialUsage.objects.filter(
+            used_at__date__gte=start,
+            used_at__date__lte=end
+        ).order_by('-used_at')
         damaged_qs = DamageMaterial.objects.filter(
             added_at__date__gte=start,
             added_at__date__lte=end
-        ).select_related('material', 'branch_user', 'confirmed_by').order_by('-added_at')
+        ).order_by('-added_at')
 
-        stock_qs = Material.objects.order_by('status', 'name')
-
+    # ── 2. Create Workbook & Helper Styles ───────────────────────────────────
     wb = openpyxl.Workbook()
-    # Remove the default active sheet if it exists
     if wb.active:
         wb.remove(wb.active)
 
-    # ── Helper styles ─────────────────────────────────────────────────────────
     h_fill   = PatternFill('solid', fgColor='4F46E5')
     h_font   = Font(color='FFFFFF', bold=True, size=11)
     h_align  = Alignment(horizontal='center', vertical='center')
-    thin     = Border(
+    sec_fill = PatternFill('solid', fgColor='E0E7FF')
+    sec_font = Font(bold=True, color='1E1B4B', size=11)
+    
+    thin = Border(
         left=Side(style='thin', color='D1D5DB'),
         right=Side(style='thin', color='D1D5DB'),
         top=Side(style='thin', color='D1D5DB'),
         bottom=Side(style='thin', color='D1D5DB'),
     )
-    green  = PatternFill('solid', fgColor='D1FAE5')
-    yellow = PatternFill('solid', fgColor='FEF9C3')
-    red    = PatternFill('solid', fgColor='FEE2E2')
 
-    def style_header_row(ws, headers, col_widths):
+    def init_sheet(title_text, sheet_name, headers, widths):
+        ws = wb.create_sheet(sheet_name)
+        ws.row_dimensions[1].height = 28
+        last_col_letter = get_column_letter(len(headers))
+        ws.merge_cells(f'A1:{last_col_letter}1')
+        title_cell = ws['A1']
+        title_cell.value = title_text
+        title_cell.font = Font(bold=True, size=13, color='1E1B4B')
+        title_cell.alignment = Alignment(horizontal='center', vertical='center')
+        ws.append([])
         ws.append(headers)
-        for col_idx, width in enumerate(col_widths, 1):
+        for col_idx, width in enumerate(widths, 1):
             cell = ws.cell(row=ws.max_row, column=col_idx)
-            cell.fill    = h_fill
-            cell.font    = h_font
+            cell.fill = h_fill
+            cell.font = h_font
             cell.alignment = h_align
-            cell.border  = thin
+            cell.border = thin
             ws.column_dimensions[get_column_letter(col_idx)].width = width
+        ws.freeze_panes = 'A4'
+        return ws
 
-    def style_data_rows(ws, start_row):
-        for row_idx, row in enumerate(ws.iter_rows(min_row=start_row, max_row=ws.max_row), 1):
-            fill = PatternFill('solid', fgColor='F5F3FF') if row_idx % 2 == 0 else PatternFill('solid', fgColor='FFFFFF')
-            for cell in row:
-                cell.border    = thin
-                cell.fill      = fill
-                cell.alignment = Alignment(vertical='center')
+    # ── 3. Initialize Target Worksheets ───────────────────────────────────────
+    # Sheet 2: Materials
+    headers_mat = ['ID', 'Material Name', 'Category', 'Type', 'In Stock', 'Rate (৳)', 'Total Price (৳)', 'Remaining Stock', 'Min Stock Level', 'Status', 'Created By', 'Last Updated']
+    widths_mat  = [10, 32, 16, 12, 12, 12, 16, 16, 14, 14, 22, 16]
+    ws_mat = init_sheet(f'Materials Inventory Master List - ({from_date} → {to_date})', 'Materials', headers_mat, widths_mat)
 
-    # ── Sheet 1: Summary ──────────────────────────────────────────────────────
-    ws_summary = wb.create_sheet('Summary')
-    ws_summary.row_dimensions[1].height = 28
-    ws_summary.merge_cells('A1:D1')
-    title = ws_summary['A1']
-    title.value = f'Report Summary ({from_date} → {to_date})'
-    title.font = Font(bold=True, size=14, color='1E1B4B')
-    title.alignment = Alignment(horizontal='center', vertical='center')
+    # Sheet 3: Request Material (Approved/Received)
+    headers_req = ['Date', 'Branch', 'Material', 'Est. Amount (৳)', 'Category', 'Qty', 'Type', 'Created By', 'Received By', 'Send By', 'Admin Note', 'Status']
+    widths_req  = [14, 20, 32, 16, 16, 10, 12, 20, 20, 24, 28, 14]
+    ws_req_app = init_sheet(f'Request Materials (Approved & Received) - ({from_date} → {to_date})', 'Request Material', headers_req, widths_req)
 
+    # Sheet 4: Pending Requests
+    ws_req_pend = init_sheet(f'Pending Material Requests - ({from_date} → {to_date})', 'Pending Requests', headers_req, widths_req)
+
+    # Sheet 5: Rejected Requests
+    ws_req_rej = init_sheet(f'Rejected Material Requests - ({from_date} → {to_date})', 'Rejected Requests', headers_req, widths_req)
+
+    # Sheet 6: Used Materials
+    headers_um = ['Date', 'Branch / Technician', 'Material', 'Category', 'Qty Used', 'Client Name', 'Client Address', 'Client Phone', 'Dispatched To', 'Issue / Notes', 'Status', 'Admin Note']
+    widths_um  = [14, 22, 32, 16, 12, 22, 28, 16, 24, 30, 12, 24]
+    ws_um = init_sheet(f'Used Materials Records - ({from_date} → {to_date})', 'Used Materials', headers_um, widths_um)
+
+    # Sheet 7: Refundable Materials
+    headers_ref = ['ID', 'Branch User', 'Material Name', 'Mac/Serial', 'Total Quantity', 'Available Quantity', 'Added Date', 'Last Updated']
+    widths_ref  = [10, 22, 32, 22, 14, 16, 16, 16]
+    ws_ref = init_sheet('Refundable Materials Inventory', 'Refundable Materials', headers_ref, widths_ref)
+
+    # Sheet 8: Refundable Used Materials
+    headers_ref_u = ['Date', 'Used By', 'Material Name', 'Qty Used', 'Client Name', 'Client Address', 'Client Phone', 'Dispatched To', 'Issue / Notes']
+    widths_ref_u  = [14, 22, 32, 12, 22, 28, 16, 24, 30]
+    ws_ref_u = init_sheet(f'Refundable Material Usages - ({from_date} → {to_date})', 'Refundable Used Materials', headers_ref_u, widths_ref_u)
+
+    # Sheet 9: Damaged Materials
+    headers_dmg = ['Date', 'Branch User', 'Material', 'Category', 'Qty', 'Damage Reason', 'Mac/Serial', 'Status', 'Admin Note', 'Confirmed By']
+    widths_dmg  = [14, 22, 32, 16, 10, 30, 20, 12, 24, 20]
+    ws_dmg = init_sheet(f'Damaged Materials Log - ({from_date} → {to_date})', 'Damaged Materials', headers_dmg, widths_dmg)
+
+    # ── 4. In-Memory Tracking Structures for Fast Analytics ───────────────────
+    # Summary KPI accumulators
+    req_total_count = 0
+    req_approved_count = 0
+    req_pending_count = 0
+    req_rejected_count = 0
+    req_approved_qty = 0
+    req_total_est_amount = 0.0
+
+    um_total_count = 0
+    um_accepted_count = 0
+    um_pending_count = 0
+    um_rejected_count = 0
+    um_accepted_qty = 0
+
+    stock_normal = 0
+    stock_low = 0
+    stock_out = 0
+    stock_total = 0
+
+    ref_total_items = 0
+    ref_total_qty = 0
+    ref_avail_qty = 0
+
+    ref_usage_count = 0
+    ref_usage_qty = 0
+
+    dmg_total_count = 0
+    dmg_total_qty = 0
+
+    # Top Materials ranking map: mat_name -> {'cat': cat, 'count': c, 'qty': q, 'amount': a}
+    top_materials_map = {}
+    # Per-User breakdown map: username -> {'name': name, 'role': role, 'req_c': 0, 'app_qty': 0, 'est_amt': 0.0, 'um_c': 0, 'um_qty': 0, 'dmg_qty': 0}
+    per_user_map = {}
+    # Daily used graph timeline map: date_str -> {'accepted': 0, 'pending': 0, 'rejected': 0, 'total': 0}
+    daily_used_map = {}
+
+    def ensure_user_entry(u_name, display_name, role_name='Branch'):
+        if u_name not in per_user_map:
+            per_user_map[u_name] = {
+                'name': display_name or u_name,
+                'role': role_name,
+                'req_c': 0,
+                'app_qty': 0,
+                'est_amt': 0.0,
+                'um_c': 0,
+                'um_qty': 0,
+                'dmg_qty': 0,
+            }
+
+    # ── 5. Stream Materials ──────────────────────────────────────────────────
+    mat_rows = materials_qs.values_list(
+        'id', 'name', 'category', 'Type', 'quantity', 'rate', 'total_price',
+        'Remaining_stock', 'min_stock_level', 'status',
+        'created_by__username', 'created_by__userprofile__role', 'updated_at'
+    )
+    for m_id, name, cat, m_type, qty, rate, tot_price, rem_stock, min_stock, status, c_user, c_role, u_at in mat_rows.iterator(chunk_size=3000):
+        stock_total += 1
+        if status == 'Normal':
+            stock_normal += 1
+        elif status == 'Low Stock':
+            stock_low += 1
+        elif status == 'Out of Stock':
+            stock_out += 1
+        
+        creator_info = f"{c_user} [{c_role}]" if (c_user and c_role) else (c_user or 'Storekeeper')
+        u_str = u_at.strftime('%Y-%m-%d') if u_at else '-'
+        ws_mat.append([
+            m_id, name or '-', cat or '-', m_type or 'Piece', qty or 0,
+            rate or 0, tot_price or 0, rem_stock or 0, min_stock or 0,
+            status or 'Normal', creator_info, u_str
+        ])
+
+    # ── 6. Stream Material Requests (Approved, Pending, Rejected) ─────────────
+    req_rows = requests_qs.values_list(
+        'requested_at', 'requester__username', 'requester__first_name', 'requester__last_name',
+        'requester__userprofile__role', 'material__name', 'material__category', 'quantity', 'rate',
+        'total_price', 'request_type', 'send_by', 'received_by', 'pass_on', 'admin_note', 'status'
+    ).order_by('-requested_at')
+
+    for r_at, u_name, f_name, l_name, u_role, m_name, m_cat, qty, rate, tot_price, r_type, s_by, rec_by, pass_on, a_note, status in req_rows.iterator(chunk_size=3000):
+        req_total_count += 1
+        branch_display = f"{f_name} {l_name}".strip() or u_name or 'Branch'
+        ensure_user_entry(u_name, branch_display, u_role or 'Branch')
+        per_user_map[u_name]['req_c'] += 1
+
+        qty_val = qty or 0
+        rate_val = rate or 0.0
+        est_amt = tot_price if tot_price else (qty_val * rate_val)
+        dt_str = r_at.strftime('%Y-%m-%d') if r_at else '-'
+        send_info = pass_on if pass_on else (s_by or '-')
+        
+        row_data = [
+            dt_str, branch_display, m_name or '-', est_amt, m_cat or '-', qty_val,
+            r_type or 'Regular', branch_display, rec_by or '-', send_info, a_note or '', status or '-'
+        ]
+
+        if status in ('Received', 'Approved'):
+            req_approved_count += 1
+            req_approved_qty += qty_val
+            req_total_est_amount += est_amt
+            per_user_map[u_name]['app_qty'] += qty_val
+            per_user_map[u_name]['est_amt'] += est_amt
+            ws_req_app.append(row_data)
+
+            # Accumulate for Top Materials
+            mat_key = m_name or 'Unknown Material'
+            if mat_key not in top_materials_map:
+                top_materials_map[mat_key] = {'cat': m_cat or '-', 'count': 0, 'qty': 0, 'amount': 0.0}
+            top_materials_map[mat_key]['count'] += 1
+            top_materials_map[mat_key]['qty'] += qty_val
+            top_materials_map[mat_key]['amount'] += est_amt
+
+        elif status == 'Pending':
+            req_pending_count += 1
+            ws_req_pend.append(row_data)
+
+        elif status == 'Rejected':
+            req_rejected_count += 1
+            ws_req_rej.append(row_data)
+
+    # ── 7. Stream Used Materials ──────────────────────────────────────────────
+    um_rows = used_qs.values_list(
+        'added_at', 'technician__username', 'technician__first_name', 'technician__last_name',
+        'technician__userprofile__role', 'material__name', 'material__category', 'quantity',
+        'client_name', 'client_address', 'client_phone', 'dispatched_to', 'issue', 'status', 'admin_note'
+    ).order_by('-added_at')
+
+    for u_at, u_name, f_name, l_name, u_role, m_name, m_cat, qty, c_name, c_addr, c_phone, disp_to, issue, status, a_note in um_rows.iterator(chunk_size=3000):
+        um_total_count += 1
+        qty_val = qty or 0
+        tech_display = f"{f_name} {l_name}".strip() or u_name or 'Technician'
+        ensure_user_entry(u_name, tech_display, u_role or 'Branch')
+        per_user_map[u_name]['um_c'] += 1
+
+        dt_str = u_at.strftime('%Y-%m-%d') if u_at else '-'
+        
+        # Timeline tracking for graph
+        if dt_str not in daily_used_map:
+            daily_used_map[dt_str] = {'accepted': 0, 'pending': 0, 'rejected': 0, 'total': 0}
+        daily_used_map[dt_str]['total'] += qty_val
+
+        if status == 'Accepted':
+            um_accepted_count += 1
+            um_accepted_qty += qty_val
+            per_user_map[u_name]['um_qty'] += qty_val
+            daily_used_map[dt_str]['accepted'] += qty_val
+        elif status == 'Pending':
+            um_pending_count += 1
+            daily_used_map[dt_str]['pending'] += qty_val
+        elif status == 'Rejected':
+            um_rejected_count += 1
+            daily_used_map[dt_str]['rejected'] += qty_val
+
+        ws_um.append([
+            dt_str, tech_display, m_name or '-', m_cat or '-', qty_val,
+            c_name or '-', c_addr or '-', c_phone or '-', disp_to or '-',
+            issue or '-', status or '-', a_note or ''
+        ])
+
+    # ── 8. Stream Refundable Materials & Refundable Usages ─────────────────────
+    ref_rows = refundable_qs.values_list(
+        'id', 'branch_user__username', 'branch_user__first_name', 'branch_user__last_name',
+        'material_name', 'mac_serial', 'quantity', 'added_at', 'updated_at'
+    )
+    for r_id, u_name, f_name, l_name, m_name, mac, qty, a_at, u_at in ref_rows.iterator(chunk_size=3000):
+        ref_total_items += 1
+        qty_val = qty or 0
+        ref_total_qty += qty_val
+        b_display = f"{f_name} {l_name}".strip() or u_name or 'Branch'
+        a_str = a_at.strftime('%Y-%m-%d') if a_at else '-'
+        u_str = u_at.strftime('%Y-%m-%d') if u_at else '-'
+        ws_ref.append([
+            r_id, b_display, m_name or '-', mac or '-', qty_val, qty_val, a_str, u_str
+        ])
+
+    ref_u_rows = refundable_usage_qs.values_list(
+        'used_at', 'used_by__username', 'used_by__first_name', 'used_by__last_name',
+        'refundable_material__material_name', 'materials_quantity',
+        'client_name', 'client_address', 'client_phone', 'dispatched_to', 'issue'
+    )
+    for u_at, u_name, f_name, l_name, m_name, qty, c_name, c_addr, c_phone, disp_to, issue in ref_u_rows.iterator(chunk_size=3000):
+        ref_usage_count += 1
+        qty_val = qty or 0
+        ref_usage_qty += qty_val
+        u_display = f"{f_name} {l_name}".strip() or u_name or 'User'
+        dt_str = u_at.strftime('%Y-%m-%d') if u_at else '-'
+        ws_ref_u.append([
+            dt_str, u_display, m_name or '-', qty_val, c_name or '-', c_addr or '-', c_phone or '-', disp_to or '-', issue or '-'
+        ])
+
+    ref_avail_qty = max(0, ref_total_qty - ref_usage_qty)
+
+    # ── 9. Stream Damaged Materials ───────────────────────────────────────────
+    dmg_rows = damaged_qs.values_list(
+        'added_at', 'branch_user__username', 'branch_user__first_name', 'branch_user__last_name',
+        'branch_user__userprofile__role', 'material__name', 'material__category', 'quantity',
+        'damage_reason', 'mac_serial__mac_serial', 'status', 'admin_note',
+        'confirmed_by__first_name', 'confirmed_by__last_name', 'confirmed_by__username'
+    )
+    for d_at, u_name, f_name, l_name, u_role, m_name, m_cat, qty, reason, mac, status, a_note, cf_f, cf_l, cf_u in dmg_rows.iterator(chunk_size=3000):
+        qty_val = qty or 0
+        if status == 'Confirmed':
+            dmg_total_count += 1
+            dmg_total_qty += qty_val
+            b_display = f"{f_name} {l_name}".strip() or u_name or 'Branch'
+            ensure_user_entry(u_name, b_display, u_role or 'Branch')
+            per_user_map[u_name]['dmg_qty'] += qty_val
+
+        dt_str = d_at.strftime('%Y-%m-%d') if d_at else '-'
+        b_display = f"{f_name} {l_name}".strip() or u_name or 'Branch'
+        conf_display = f"{cf_f} {cf_l}".strip() or cf_u or '-'
+        ws_dmg.append([
+            dt_str, b_display, m_name or '-', m_cat or '-', qty_val,
+            reason or '', mac or '-', status or 'Pending', a_note or '', conf_display
+        ])
+
+    # ── 10. Sheet 10: Used Materials Graph (Data Table + Embedded Chart) ─────
+    ws_graph = wb.create_sheet('Used Materials Graph')
+    ws_graph.row_dimensions[1].height = 28
+    ws_graph.merge_cells('A1:E1')
+    g_title = ws_graph['A1']
+    g_title.value = f'Daily Used Materials Activity Trend ({from_date} → {to_date})'
+    g_title.font = Font(bold=True, size=13, color='1E1B4B')
+    g_title.alignment = Alignment(horizontal='center', vertical='center')
+    
+    ws_graph.append([])
+    graph_headers = ['Date', 'Accepted (Units)', 'Pending (Units)', 'Rejected (Units)', 'Total Used (Units)']
+    ws_graph.append(graph_headers)
+    for col_idx, header in enumerate(graph_headers, 1):
+        cell = ws_graph.cell(row=ws_graph.max_row, column=col_idx)
+        cell.fill = h_fill
+        cell.font = h_font
+        cell.alignment = h_align
+        cell.border = thin
+        ws_graph.column_dimensions[get_column_letter(col_idx)].width = 18
+
+    # Populate daily rows sorted by date
+    sorted_dates = sorted(daily_used_map.keys())
+    for d_str in sorted_dates:
+        d_val = daily_used_map[d_str]
+        ws_graph.append([
+            d_str, d_val['accepted'], d_val['pending'], d_val['rejected'], d_val['total']
+        ])
+        for col_idx in range(1, 6):
+            cell = ws_graph.cell(row=ws_graph.max_row, column=col_idx)
+            cell.border = thin
+            cell.alignment = Alignment(horizontal='center' if col_idx == 1 else 'right', vertical='center')
+
+    # Create and add openpyxl BarChart
+    if sorted_dates:
+        chart = BarChart()
+        chart.type = "col"
+        chart.style = 10
+        chart.title = "Daily Used Materials Activity Trend"
+        chart.y_axis.title = "Quantity (Units)"
+        chart.x_axis.title = "Date"
+        chart.width = 22
+        chart.height = 13
+
+        data_ref = Reference(ws_graph, min_col=2, min_row=3, max_col=4, max_row=ws_graph.max_row)
+        cats_ref = Reference(ws_graph, min_col=1, min_row=4, max_row=ws_graph.max_row)
+        chart.add_data(data_ref, titles_from_data=True)
+        chart.set_categories(cats_ref)
+        ws_graph.add_chart(chart, "G3")
+
+    ws_graph.freeze_panes = 'A4'
+
+    # ── 11. Sheet 1: Summary (KPIs, Top Materials, Per-User Breakdown) ────────
+    ws_summary = wb.create_sheet('Summary', 0)
+    ws_summary.row_dimensions[1].height = 30
+    ws_summary.merge_cells('A1:H1')
+    s_title = ws_summary['A1']
+    s_title.value = f'📊 Comprehensive Inventory & Operations Report Summary ({from_date} → {to_date})'
+    s_title.font = Font(bold=True, size=14, color='1E1B4B')
+    s_title.alignment = Alignment(horizontal='center', vertical='center')
     ws_summary.append([])
 
-    # Metrics calculation
-    req_total_count = requests_qs.count()
-    req_approved_count = requests_qs.filter(status__in=['Received', 'Approved']).count()
-    req_pending_count = requests_qs.filter(status='Pending').count()
-    req_rejected_count = requests_qs.filter(status='Rejected').count()
-    req_approved_qty = requests_qs.filter(status__in=['Received', 'Approved']).aggregate(total=Sum('quantity'))['total'] or 0
+    # Helper for styled section headers on Summary
+    def add_summary_section_header(title_str, max_col=8):
+        ws_summary.append([])
+        ws_summary.append([title_str] + [''] * (max_col - 1))
+        r = ws_summary.max_row
+        ws_summary.merge_cells(start_row=r, start_column=1, end_row=r, end_column=max_col)
+        cell = ws_summary.cell(row=r, column=1)
+        cell.fill = sec_fill
+        cell.font = sec_font
+        cell.alignment = Alignment(horizontal='left', vertical='center', indent=1)
+        cell.border = thin
 
-    um_total_count = used_qs.count()
-    um_accepted_count = used_qs.filter(status='Accepted').count()
-    um_pending_count = used_qs.filter(status='Pending').count()
-    um_rejected_count = used_qs.filter(status='Rejected').count()
-    um_accepted_qty = used_qs.filter(status='Accepted').aggregate(total=Sum('quantity'))['total'] or 0
+    # Section 1: KPI Overview Tables
+    add_summary_section_header('📌 1. KEY PERFORMANCE INDICATORS & INVENTORY STATUS OVERVIEW', 8)
+    
+    kpi_headers = ['Metric Category', 'Status / Metric', 'Count / Items', 'Total Quantity', 'Est. Total Value (৳)', '', '', '']
+    ws_summary.append(kpi_headers[:5])
+    for col_idx in range(1, 6):
+        c = ws_summary.cell(row=ws_summary.max_row, column=col_idx)
+        c.fill = h_fill
+        c.font = h_font
+        c.alignment = h_align
+        c.border = thin
 
-    branch_dmg = damaged_qs.filter(status='Confirmed')
-    dmg_count = branch_dmg.count()
-    dmg_qty = branch_dmg.aggregate(total=Sum('quantity'))['total'] or 0
-
-    stock_normal = stock_qs.filter(status='Normal').count()
-    stock_low = stock_qs.filter(status='Low Stock').count()
-    stock_out = stock_qs.filter(status='Out of Stock').count()
-
-    summary_data = [
-        [],
-        ['Material Requests', ''],
-        ['Status', 'Count', 'Qty'],
-        ['Pending', req_pending_count, '-'],
-        ['Approved/Received', req_approved_count, req_approved_qty],
-        ['Rejected', req_rejected_count, '-'],
-        [],
-        ['Used Materials', ''],
-        ['Status', 'Count', 'Qty'],
-        ['Pending', um_pending_count, '-'],
-        ['Accepted', um_accepted_count, um_accepted_qty],
-        ['Rejected', um_rejected_count, '-'],
-        [],
-        ['Damaged Materials', ''],
-        ['Status', 'Count', 'Qty'],
-        ['Confirmed', dmg_count, dmg_qty],
-        [],
-        ['Stock status', ''],
-        ['Status', 'Items count', ''],
-        ['Normal', stock_normal, ''],
-        ['Low Stock', stock_low, ''],
-        ['Out of Stock', stock_out, ''],
+    kpi_data = [
+        ['Material Requests', 'Approved & Received', req_approved_count, req_approved_qty, f"{req_total_est_amount:,.2f}"],
+        ['Material Requests', 'Pending Action', req_pending_count, '-', '-'],
+        ['Material Requests', 'Rejected Requests', req_rejected_count, '-', '-'],
+        ['Material Requests', 'Total Requests Logged', req_total_count, req_approved_qty, f"{req_total_est_amount:,.2f}"],
+        ['Used Materials', 'Accepted Usages', um_accepted_count, um_accepted_qty, '-'],
+        ['Used Materials', 'Pending Verification', um_pending_count, '-', '-'],
+        ['Used Materials', 'Rejected Usages', um_rejected_count, '-', '-'],
+        ['Used Materials', 'Total Used Records', um_total_count, um_accepted_qty, '-'],
+        ['Inventory Stock', 'Normal In-Stock Materials', stock_normal, '-', '-'],
+        ['Inventory Stock', 'Low Stock Warning', stock_low, '-', '-'],
+        ['Inventory Stock', 'Out of Stock Alert', stock_out, '-', '-'],
+        ['Inventory Stock', 'Total Active Materials in DB', stock_total, '-', '-'],
+        ['Refundable Items', 'Total Refundable Items', ref_total_items, ref_total_qty, '-'],
+        ['Refundable Items', 'Available Remaining Stock', '-', ref_avail_qty, '-'],
+        ['Refundable Items', 'Total Deployed / Used', ref_usage_count, ref_usage_qty, '-'],
+        ['Damaged Materials', 'Confirmed Damaged Incidents', dmg_total_count, dmg_total_qty, '-'],
     ]
 
-    for row_data in summary_data:
-        ws_summary.append(row_data)
+    for row_val in kpi_data:
+        ws_summary.append(row_val)
+        for col_idx in range(1, 6):
+            c = ws_summary.cell(row=ws_summary.max_row, column=col_idx)
+            c.border = thin
+            c.alignment = Alignment(horizontal='center' if col_idx in (2, 3) else ('right' if col_idx in (4, 5) else 'left'), vertical='center')
 
-    # Style summary sheet
-    ws_summary.column_dimensions['A'].width = 20
-    ws_summary.column_dimensions['B'].width = 15
-    ws_summary.column_dimensions['C'].width = 15
+    # Section 2: Top Materials (Approved Quantity)
+    add_summary_section_header('🏆 2. TOP MATERIALS (RANKED BY APPROVED REQUEST QUANTITY)', 6)
+    top_headers = ['Rank', 'Material Name', 'Category', 'Approved Requests Count', 'Total Approved Quantity', 'Est. Total Amount (৳)']
+    ws_summary.append(top_headers)
+    for col_idx in range(1, 7):
+        c = ws_summary.cell(row=ws_summary.max_row, column=col_idx)
+        c.fill = h_fill
+        c.font = h_font
+        c.alignment = h_align
+        c.border = thin
 
-    for min_r, max_r in [(3, 5), (8, 11), (14, 16), (19, 21)]:
-        for row in ws_summary.iter_rows(min_row=min_r, max_row=max_r):
-            for cell in row:
-                cell.fill = PatternFill('solid', fgColor='E0E7FF')
-                cell.font = Font(bold=True)
-                cell.border = thin
+    sorted_top_materials = sorted(top_materials_map.items(), key=lambda x: x[1]['qty'], reverse=True)[:15]
+    if sorted_top_materials:
+        for rank, (mat_name, m_stats) in enumerate(sorted_top_materials, 1):
+            ws_summary.append([
+                rank,
+                mat_name,
+                m_stats['cat'],
+                m_stats['count'],
+                m_stats['qty'],
+                f"{m_stats['amount']:,.2f}"
+            ])
+            for col_idx in range(1, 7):
+                c = ws_summary.cell(row=ws_summary.max_row, column=col_idx)
+                c.border = thin
+                c.alignment = Alignment(horizontal='center' if col_idx in (1, 3, 4) else ('right' if col_idx in (5, 6) else 'left'), vertical='center')
+    else:
+        ws_summary.append(['-', 'No approved requests data in this period', '-', 0, 0, '0.00'])
 
-    # ── Sheet 2: Material Requests Log ────────────────────────────────────────
-    ws1 = wb.create_sheet('Material Requests')
-    ws1.row_dimensions[1].height = 22
-    ws1.merge_cells('A1:G1')
-    title_cell = ws1['A1']
-    title_cell.value     = f'Material Requests Report ({from_date} → {to_date})'
-    title_cell.font      = Font(bold=True, size=13, color='1E1B4B')
-    title_cell.alignment = Alignment(horizontal='center', vertical='center')
-    ws1.row_dimensions[1].height = 28
-    ws1.append([])
+    # Section 3: Per-User / Branch Activity Breakdown
+    add_summary_section_header('👥 3. PER-USER & BRANCH ACTIVITY SUMMARY BREAKDOWN', 8)
+    user_headers = ['Branch / User', 'Role', 'Total Requests', 'Approved Qty', 'Est. Amount (৳)', 'Used Records', 'Used Qty', 'Damaged Qty']
+    ws_summary.append(user_headers)
+    for col_idx in range(1, 9):
+        c = ws_summary.cell(row=ws_summary.max_row, column=col_idx)
+        c.fill = h_fill
+        c.font = h_font
+        c.alignment = h_align
+        c.border = thin
 
-    headers = ['Date', 'Requester', 'Material', 'Category', 'Qty', 'Type', 'Status']
-    widths  = [14, 22, 28, 16, 8, 12, 12]
-    style_header_row(ws1, headers, widths)
+    sorted_users = sorted(per_user_map.values(), key=lambda x: x['app_qty'], reverse=True)
+    if sorted_users:
+        for u_item in sorted_users:
+            ws_summary.append([
+                u_item['name'],
+                u_item['role'],
+                u_item['req_c'],
+                u_item['app_qty'],
+                f"{u_item['est_amt']:,.2f}",
+                u_item['um_c'],
+                u_item['um_qty'],
+                u_item['dmg_qty']
+            ])
+            for col_idx in range(1, 9):
+                c = ws_summary.cell(row=ws_summary.max_row, column=col_idx)
+                c.border = thin
+                c.alignment = Alignment(horizontal='center' if col_idx in (2, 3, 6) else ('right' if col_idx in (4, 5, 7, 8) else 'left'), vertical='center')
+    else:
+        ws_summary.append(['-', '-', 0, 0, '0.00', 0, 0, 0])
 
-    for req in requests_qs:
-        ws1.append([
-            req.requested_at.strftime('%Y-%m-%d'),
-            req.requester.get_full_name() or req.requester.username,
-            req.material.name,
-            req.material.category,
-            req.quantity,
-            req.request_type,
-            req.status,
-        ])
-    style_data_rows(ws1, start_row=4)
-    for row in ws1.iter_rows(min_row=4, max_row=ws1.max_row):
-        status_cell = row[6]
-        if status_cell.value in ['Approved', 'Received']:
-            status_cell.fill = green; status_cell.font = Font(bold=True, color='065F46')
-        elif status_cell.value == 'Pending':
-            status_cell.fill = yellow; status_cell.font = Font(bold=True, color='78350F')
-        elif status_cell.value == 'Rejected':
-            status_cell.fill = red; status_cell.font = Font(bold=True, color='991B1B')
+    ws_summary.column_dimensions['A'].width = 24
+    ws_summary.column_dimensions['B'].width = 30
+    ws_summary.column_dimensions['C'].width = 18
+    ws_summary.column_dimensions['D'].width = 22
+    ws_summary.column_dimensions['E'].width = 22
+    ws_summary.column_dimensions['F'].width = 16
+    ws_summary.column_dimensions['G'].width = 16
+    ws_summary.column_dimensions['H'].width = 16
 
-    # ── Sheet 3: Used Materials Log ───────────────────────────────────────────
-    ws2 = wb.create_sheet('Used Materials')
-    ws2.row_dimensions[1].height = 22
-    ws2.merge_cells('A1:F1')
-    title_cell = ws2['A1']
-    title_cell.value     = f'Used Materials Report ({from_date} → {to_date})'
-    title_cell.font      = Font(bold=True, size=13, color='1E1B4B')
-    title_cell.alignment = Alignment(horizontal='center', vertical='center')
-    ws2.row_dimensions[1].height = 28
-    ws2.append([])
+    ws_summary.freeze_panes = 'A4'
 
-    headers_um = ['Date', 'Technician', 'Material', 'Category', 'Qty Used', 'Status']
-    widths_um  = [14, 22, 28, 16, 12, 12]
-    style_header_row(ws2, headers_um, widths_um)
-
-    for um in used_qs:
-        ws2.append([
-            um.added_at.strftime('%Y-%m-%d'),
-            um.technician.get_full_name() or um.technician.username,
-            um.material.name,
-            um.material.category,
-            um.quantity,
-            um.status,
-        ])
-    style_data_rows(ws2, start_row=4)
-    for row in ws2.iter_rows(min_row=4, max_row=ws2.max_row):
-        sc = row[5]
-        if sc.value == 'Accepted':
-            sc.fill = green; sc.font = Font(bold=True, color='065F46')
-        elif sc.value == 'Pending':
-            sc.fill = yellow; sc.font = Font(bold=True, color='78350F')
-        elif sc.value == 'Rejected':
-            sc.fill = red; sc.font = Font(bold=True, color='991B1B')
-
-    # ── Sheet 4: Damaged Materials Log ────────────────────────────────────────
-    ws3 = wb.create_sheet('Damaged Materials')
-    ws3.row_dimensions[1].height = 22
-    ws3.merge_cells('A1:F1')
-    title_cell = ws3['A1']
-    title_cell.value     = f'Damaged Materials Report ({from_date} → {to_date})'
-    title_cell.font      = Font(bold=True, size=13, color='1E1B4B')
-    title_cell.alignment = Alignment(horizontal='center', vertical='center')
-    ws3.row_dimensions[1].height = 28
-    ws3.append([])
-
-    headers_dmg = ['Date', 'Branch User', 'Material', 'Category', 'Qty', 'Reason']
-    widths_dmg  = [14, 22, 28, 16, 10, 30]
-    style_header_row(ws3, headers_dmg, widths_dmg)
-
-    for dmg in branch_dmg:
-        ws3.append([
-            dmg.added_at.strftime('%Y-%m-%d'),
-            dmg.branch_user.get_full_name() or dmg.branch_user.username,
-            dmg.material.name,
-            dmg.material.category,
-            dmg.quantity,
-            dmg.damage_reason or '',
-        ])
-    style_data_rows(ws3, start_row=4)
-
-    # ── Sheet 5: Stock Status ─────────────────────────────────────────────────
-    ws4 = wb.create_sheet('Stock Status')
-    ws4.merge_cells('A1:D1')
-    ws4['A1'].value = 'Current Stock Status'
-    ws4['A1'].font  = Font(bold=True, size=12, color='1E1B4B')
-    ws4['A1'].alignment = Alignment(horizontal='center')
-    ws4.row_dimensions[1].height = 24
-    ws4.append([])
-    style_header_row(ws4, ['Material', 'Category', 'Quantity', 'Status'], [30, 18, 12, 14])
-
-    for mat in stock_qs:
-        ws4.append([mat.name, mat.category, mat.quantity, mat.status])
-    style_data_rows(ws4, start_row=4)
-    for row in ws4.iter_rows(min_row=4, max_row=ws4.max_row):
-        sc = row[3]
-        if sc.value == 'Normal':
-            sc.fill = green;  sc.font = Font(bold=True, color='065F46')
-        elif sc.value == 'Low Stock':
-            sc.fill = yellow; sc.font = Font(bold=True, color='78350F')
-        elif sc.value == 'Out of Stock':
-            sc.fill = red;    sc.font = Font(bold=True, color='991B1B')
-
-    # ── Freeze top rows & return ──────────────────────────────────────────────
-    for ws in [ws_summary, ws1, ws2, ws3, ws4]:
-        ws.freeze_panes = 'A4'
-
+    # ── 12. Save Workbook & Return Response ──────────────────────────────────
     buffer = io.BytesIO()
     wb.save(buffer)
     buffer.seek(0)
 
-    filename = f"{role.lower()}_report_{from_date}_to_{to_date}.xlsx"
+    filename = f"{role.lower()}_comprehensive_report_{from_date}_to_{to_date}.xlsx"
     response = HttpResponse(
         buffer.read(),
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -6045,4 +5873,3 @@ class MaterialSearchApiView(LoginRequiredMixin, View):
 
     def get(self, request, *args, **kwargs):
         return material_search_api(request, *args, **kwargs)
-

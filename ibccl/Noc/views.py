@@ -867,8 +867,18 @@ def noc_reports(request):
         from_date = start.strftime('%Y-%m-%d')
         to_date   = end.strftime('%Y-%m-%d')
 
+    # ── Branch Filter Setup ────────
+    branch_list = User.objects.filter(userprofile__role='Branch').only('id', 'username', 'first_name', 'last_name').order_by('username')
+    selected_user_id = request.GET.get('branch_user', '').strip()
+    selected_user = None
+    if selected_user_id:
+        try:
+            selected_user = User.objects.get(id=int(selected_user_id))
+        except (User.DoesNotExist, ValueError):
+            selected_user = None
+
     # ── Base queryset (NOC specific) ────────
-    noc_materials_qs = Material.objects.filter(category='Internet')
+    noc_materials_qs = Material.objects.filter(category='Internet', is_deleted=False)
     
     requests_qs = MaterialRequest.objects.filter(
         material__in=noc_materials_qs,
@@ -877,13 +887,30 @@ def noc_reports(request):
         is_hidden_by_noc=False
     ).select_related('material', 'requester')
 
+    used_qs = UsedMaterial.objects.filter(
+        material__in=noc_materials_qs,
+        added_at__date__gte=start,
+        added_at__date__lte=end
+    ).select_related('material', 'technician')
+
+    damaged_qs = DamageMaterial.objects.filter(
+        material__in=noc_materials_qs,
+        added_at__date__gte=start,
+        added_at__date__lte=end
+    ).select_related('material', 'branch_user', 'confirmed_by')
+
+    if selected_user:
+        requests_qs = requests_qs.filter(requester=selected_user)
+        used_qs = used_qs.filter(technician=selected_user)
+        damaged_qs = damaged_qs.filter(branch_user=selected_user)
+
     # ── Summary Stats (Single-pass aggregations) ────────
     req_stats = requests_qs.aggregate(
         total_requests=Count('id'),
-        approved_count=Count(Case(When(status='Approved', then=1))),
+        approved_count=Count(Case(When(status__in=['Approved', 'Received'], then=1))),
         pending_count=Count(Case(When(status='Pending', then=1))),
         rejected_count=Count(Case(When(status='Rejected', then=1))),
-        total_qty_issued=Sum(Case(When(status='Approved', then='quantity'), default=0)),
+        total_qty_issued=Sum(Case(When(status__in=['Approved', 'Received'], then='quantity'), default=0)),
         advance_count=Count(Case(When(request_type='Advance', then=1)))
     )
     total_requests   = req_stats['total_requests'] or 0
@@ -906,21 +933,16 @@ def noc_reports(request):
     normal_stock     = mat_summary['normal_stock'] or 0
 
     # Used materials in period (Single-pass aggregation)
-    used_qs = UsedMaterial.objects.filter(
-        material__in=noc_materials_qs,
-        added_at__date__gte=start,
-        added_at__date__lte=end
-    )
     used_summary = used_qs.aggregate(
         total_used_records=Count('id'),
-        total_used_qty=Sum('quantity')
+        total_used_qty=Sum(Case(When(status='Accepted', then='quantity'), default=0))
     )
     total_used_records = used_summary['total_used_records'] or 0
     total_used_qty     = used_summary['total_used_qty'] or 0
 
     # ── Top materials by approved quantity - Paginated at 10 per page ────────
     top_materials_qs = (
-        requests_qs.filter(status='Approved')
+        requests_qs.filter(status__in=['Approved', 'Received'])
         .values('material__name')
         .annotate(total_qty=Sum('quantity'), req_count=Count('id'))
         .order_by('-total_qty')
@@ -934,13 +956,36 @@ def noc_reports(request):
         del top_qty_gp['top_qty_page']
     top_qty_query_string = top_qty_gp.urlencode()
 
+    # ── Per-User / Branch Activity Breakdown - Paginated at 10 per page ──────
+    user_breakdown_qs = []
+    if not selected_user:
+        user_breakdown_qs = (
+            requests_qs
+            .values('requester__username', 'requester__first_name', 'requester__last_name')
+            .annotate(
+                total_req=Count('id'),
+                approved=Count('id', filter=Q(status__in=['Approved', 'Received'])),
+                pending=Count('id', filter=Q(status='Pending')),
+                rejected=Count('id', filter=Q(status='Rejected')),
+                qty_issued=Sum('quantity', filter=Q(status__in=['Approved', 'Received']))
+            ).order_by('-approved')
+        )
+    user_summary_paginator = Paginator(user_breakdown_qs, 10)
+    user_summary_page_obj = user_summary_paginator.get_page(request.GET.get('user_summary_page'))
+    user_breakdown = user_summary_page_obj.object_list
+
+    user_summary_gp = request.GET.copy()
+    if 'user_summary_page' in user_summary_gp:
+        del user_summary_gp['user_summary_page']
+    user_summary_query_string = user_summary_gp.urlencode()
+
     # ── Chart data: daily request counts ────────
     daily_data = (
         requests_qs
         .annotate(day=TruncDate('requested_at'))
         .values('day')
         .annotate(
-            approved=Count('id', filter=Q(status='Approved')),
+            approved=Count('id', filter=Q(status__in=['Approved', 'Received'])),
             pending=Count('id', filter=Q(status='Pending')),
             rejected=Count('id', filter=Q(status='Rejected')),
         )
@@ -968,24 +1013,30 @@ def noc_reports(request):
     used_chart_pending  = [d['pending']  for d in used_daily_data]
     used_chart_rejected = [d['rejected'] for d in used_daily_data]
 
-    # Confirmed / Accepted Damaged Materials calculations (NOC Specific)
-    damaged_qs = DamageMaterial.objects.filter(
-        material__in=noc_materials_qs,
-        added_at__date__gte=start,
-        added_at__date__lte=end
-    ).select_related('material', 'branch_user', 'confirmed_by')
-
+    # Confirmed Damaged Materials calculations (NOC Specific)
     daily_damaged_qs = damaged_qs.filter(status='Confirmed')
-    daily_damaged_summary = (
-        daily_damaged_qs
-        .values('branch_user__username')
-        .annotate(total=Sum('quantity'))
-        .order_by('-total')
-    )
-    daily_damaged_materials = [
-        {'branch_name': item['branch_user__username'], 'damaged_materials': item['total']}
-        for item in daily_damaged_summary
-    ]
+    if selected_user:
+        daily_damaged_summary = (
+            daily_damaged_qs
+            .values('material__name')
+            .annotate(total=Sum('quantity'))
+            .order_by('-total')
+        )
+        daily_damaged_materials = [
+            {'branch_name': item['material__name'], 'damaged_materials': item['total']}
+            for item in daily_damaged_summary
+        ]
+    else:
+        daily_damaged_summary = (
+            daily_damaged_qs
+            .values('branch_user__username')
+            .annotate(total=Sum('quantity'))
+            .order_by('-total')
+        )
+        daily_damaged_materials = [
+            {'branch_name': item['branch_user__username'], 'damaged_materials': item['total']}
+            for item in daily_damaged_summary
+        ]
 
     damage_paginator = Paginator(daily_damaged_materials, 5)
     damage_page_obj = damage_paginator.get_page(request.GET.get('damage_page'))
@@ -1006,9 +1057,9 @@ def noc_reports(request):
     damaged_chart_labels = [str(d['day']) for d in damaged_daily_data]
     damaged_chart_values = [d['total'] for d in damaged_daily_data]
 
-    # Material category breakdown (For NOC, usually all Internet, but we show by individual material names for better visualization)
+    # Material category breakdown (Individual material names for NOC visualization)
     category_data = (
-        requests_qs.filter(status='Approved')
+        requests_qs.filter(status__in=['Approved', 'Received'])
         .values('material__name')
         .annotate(qty=Sum('quantity'))
         .order_by('-qty')
@@ -1043,12 +1094,14 @@ def noc_reports(request):
     low_stock_query_string = low_stock_get_params.urlencode()
 
     context = {
-        # Date range
-        'from_date':   from_date,
-        'to_date':     to_date,
-        'preset':      preset,
-        'report_type': report_type,
-        'role':        role,
+        # Date range & Filters
+        'from_date':       from_date,
+        'to_date':         to_date,
+        'preset':          preset,
+        'report_type':     report_type,
+        'role':            role,
+        'branch_list':     branch_list,
+        'selected_user':   selected_user,
         # Summary
         'total_requests':   total_requests,
         'approved_count':   approved_count,
@@ -1064,22 +1117,26 @@ def noc_reports(request):
         'out_of_stock':    out_of_stock,
         'normal_stock':    normal_stock,
         # Tables with 10-item pagination
-        'top_materials':    top_materials,
-        'top_qty_page_obj': top_qty_page_obj,
+        'top_materials':        top_materials,
+        'top_qty_page_obj':     top_qty_page_obj,
         'top_qty_query_string': top_qty_query_string,
+
+        'user_breakdown':            user_breakdown,
+        'user_summary_page_obj':     user_summary_page_obj,
+        'user_summary_query_string': user_summary_query_string,
 
         'recent_requests':  recent_requests,
         'page_obj':         page_obj,
         'query_string':     query_string,
 
-        'low_stock_list':   low_stock_list_display,
-        'low_stock_page_obj': low_stock_page_obj,
-        'low_stock_query_string': low_stock_query_string,
+        'low_stock_list':           low_stock_list_display,
+        'low_stock_page_obj':       low_stock_page_obj,
+        'low_stock_query_string':   low_stock_query_string,
 
         # Damaged materials
         'daily_damaged_materials': daily_damaged_materials_display,
-        'damage_page_obj': damage_page_obj,
-        'damage_query_string': damage_query_string,
+        'damage_page_obj':         damage_page_obj,
+        'damage_query_string':     damage_query_string,
         # Chart data (serialised for JS)
         'chart_labels_json':   _json.dumps(chart_labels),
         'chart_approved_json': _json.dumps(chart_approved),

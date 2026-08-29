@@ -1,7 +1,3 @@
-"""
-Logging configuration module for ISP Inventory system.
-Provides dynamic logging setup based on LogSettings model.
-"""
 
 import os
 import logging

@@ -108,11 +108,6 @@ class MaterialForm(forms.ModelForm):
                     self.fields['name'].help_text = "Name cannot be changed by Storekeeper."
                 # Status is auto-calculated by Material.save()
 
-# class TaskForm(forms.ModelForm):
-#     class Meta:
-#         model = Task
-#         fields = ['title', 'customer', 'address', 'Branch']
-
 class RequestForm(forms.ModelForm):
     class Meta:
         model = MaterialRequest
