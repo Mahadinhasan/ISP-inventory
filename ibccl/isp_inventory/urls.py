@@ -44,4 +44,6 @@ urlpatterns = [
     path('api/monitoring-users/', views.MonitoringUsersApiView.as_view(), name='get_monitoring_users_api'),
     path('api/recent-used-materials/', views.RecentUsedMaterialsApiView.as_view(), name='get_recent_used_materials_api'),
     path('api/materials/search/', views.MaterialSearchApiView.as_view(), name='material_search_api'),
+    path('api/used-materials/search/', views.UsedMaterialSearchApiView.as_view(), name='used_material_search_api'),
+    path('api/dashboard/approved-materials/', views.DashboardApprovedMaterialsApiView.as_view(), name='dashboard_approved_materials_api'),
 ]

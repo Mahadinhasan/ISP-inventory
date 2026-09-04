@@ -22,11 +22,11 @@
         </div>
         <!-- Export buttons -->
         <div class="flex flex-wrap gap-2 items-center">
-            <a href="{% url 'reports_export_excel' %}?from_date={{ from_date }}&to_date={{ to_date }}"
+            <a href="{% url 'reports_export_excel' %}?from_date={{ from_date }}&to_date={{ to_date }}{% if is_self %}&branch_user=self{% elif selected_user %}&branch_user={{ selected_user.id }}{% endif %}"
                 class="btn-export btn-excel" id="btn-export-excel" title="Download Excel report">
                 <i class="fas fa-file-excel"></i> Excel
             </a>
-            <a href="{% url 'reports_export_pdf' %}?from_date={{ from_date }}&to_date={{ to_date }}"
+            <a href="{% url 'reports_export_pdf' %}?from_date={{ from_date }}&to_date={{ to_date }}{% if is_self %}&branch_user=self{% elif selected_user %}&branch_user={{ selected_user.id }}{% endif %}"
                 class="btn-export btn-pdf" id="btn-export-pdf" title="Download PDF report">
                 <i class="fas fa-file-pdf"></i> PDF
             </a>
@@ -38,15 +38,15 @@
         <!-- Quick presets -->
         <div class="flex flex-wrap gap-2 mb-4">
             <span class="text-xs font-semibold text-gray-500 self-center mr-1">Quick Range:</span>
-            <a href="?preset=today" class="preset-btn {% if preset == 'today'  %}active{% endif %}">Today</a>
-            <a href="?preset=week" class="preset-btn {% if preset == 'week'   %}active{% endif %}">This Week</a>
-            <a href="?preset=month" class="preset-btn {% if preset == 'month'  %}active{% endif %}">This Month</a>
-            <a href="?preset=last30" class="preset-btn {% if preset == 'last30' %}active{% endif %}">Last 30 Days</a>
-            <a href="?preset=last90" class="preset-btn {% if preset == 'last90' %}active{% endif %}">Last 90 Days</a>
+            <a href="?preset=today{% if is_self %}&branch_user=self{% elif selected_user %}&branch_user={{ selected_user.id }}{% endif %}" class="preset-btn {% if preset == 'today'  %}active{% endif %}">Today</a>
+            <a href="?preset=week{% if is_self %}&branch_user=self{% elif selected_user %}&branch_user={{ selected_user.id }}{% endif %}" class="preset-btn {% if preset == 'week'   %}active{% endif %}">This Week</a>
+            <a href="?preset=month{% if is_self %}&branch_user=self{% elif selected_user %}&branch_user={{ selected_user.id }}{% endif %}" class="preset-btn {% if preset == 'month'  %}active{% endif %}">This Month</a>
+            <a href="?preset=last30{% if is_self %}&branch_user=self{% elif selected_user %}&branch_user={{ selected_user.id }}{% endif %}" class="preset-btn {% if preset == 'last30' %}active{% endif %}">Last 30 Days</a>
+            <a href="?preset=last90{% if is_self %}&branch_user=self{% elif selected_user %}&branch_user={{ selected_user.id }}{% endif %}" class="preset-btn {% if preset == 'last90' %}active{% endif %}">Last 90 Days</a>
         </div>
 
-        <!-- Custom range + type -->
-        <form method="get" id="report-form" class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <!-- Custom range + type + branch / self scope filter -->
+        <form method="get" id="report-form" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
             <div>
                 <label class="block text-xs font-semibold text-gray-600 mb-1">From Date</label>
                 <input type="date" name="from_date" value="{{ from_date }}" required
@@ -56,6 +56,19 @@
                 <label class="block text-xs font-semibold text-gray-600 mb-1">To Date</label>
                 <input type="date" name="to_date" value="{{ to_date }}" required
                     class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:bg-gray-800 dark:border-gray-600 dark:text-white">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Data Scope / Branch</label>
+                <select name="branch_user"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white">
+                    <option value="" {% if not selected_user and not is_self %}selected{% endif %}>All Branches</option>
+                    <option value="self" {% if is_self %}selected{% endif %}>Self Data (NOC Internal)</option>
+                    {% for b in branch_list %}
+                    <option value="{{ b.id }}" {% if selected_user and selected_user.id == b.id and not is_self %}selected{% endif %}>
+                        {{ b.get_full_name|default:b.username }}
+                    </option>
+                    {% endfor %}
+                </select>
             </div>
             <div>
                 <label class="block text-xs font-semibold text-gray-600 mb-1">Report Type</label>
@@ -71,7 +84,7 @@
             <div class="flex items-end">
                 <button type="submit"
                     class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold py-2.5 px-4 rounded-lg text-sm transition shadow-md flex items-center justify-center gap-2">
-                    <i class="fas fa-sync-alt"></i> Generate Report
+                    <i class="fas fa-sync-alt"></i> Filter
                 </button>
             </div>
         </form>

@@ -704,9 +704,6 @@
     {% endif %}
 
     <script>
-        // ── Ultra High Performance Searchable Material Select Logic for Request Modal ──
-        let materialSearchTimeout = null;
-
         function escapeHtml(str) {
             if (!str) return '';
             return String(str)
@@ -715,6 +712,115 @@
                 .replace(/>/g, "&gt;")
                 .replace(/"/g, "&quot;")
                 .replace(/'/g, "&#039;");
+        }
+
+        // ── Ultra High Performance Searchable Material Select Logic with Levenshtein & Fuzzy Search ──
+        let materialsListCache = [];
+        let materialSearchTimeout = null;
+
+        function levenshteinDistance(a, b) {
+            if (a === b) return 0;
+            if (!a.length) return b.length;
+            if (!b.length) return a.length;
+            const matrix = [];
+            for (let i = 0; i <= b.length; i++) { matrix[i] = [i]; }
+            for (let j = 0; j <= a.length; j++) { matrix[0][j] = j; }
+            for (let i = 1; i <= b.length; i++) {
+                for (let j = 1; j <= a.length; j++) {
+                    if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                        matrix[i][j] = matrix[i - 1][j - 1];
+                    } else {
+                        matrix[i][j] = Math.min(
+                            matrix[i - 1][j - 1] + 1,
+                            matrix[i][j - 1] + 1,
+                            matrix[i - 1][j] + 1
+                        );
+                    }
+                }
+            }
+            return matrix[b.length][a.length];
+        }
+
+        function hasCloseWordMatch(fullText, queryWord) {
+            const words = fullText.split(/[\s\-_#(:/),]+/).filter(w => w.length >= 2);
+            const qLen = queryWord.length;
+            for (const w of words) {
+                if (w.includes(queryWord) || queryWord.includes(w)) return true;
+                if (Math.abs(w.length - qLen) <= 2 && qLen >= 3) {
+                    if (levenshteinDistance(w.substring(0, qLen + 1), queryWord) <= 1) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function getMatchScore(itemText, query) {
+            if (!query) return 100;
+            const text = itemText.toLowerCase();
+            const q = query.toLowerCase().trim();
+            if (!q) return 100;
+
+            // 1. Exact match / prefix match
+            if (text === q) return 1000;
+            if (text.startsWith(q)) return 800;
+
+            // 2. Direct substring match
+            const subIdx = text.indexOf(q);
+            if (subIdx !== -1) {
+                const prevChar = subIdx > 0 ? text[subIdx - 1] : ' ';
+                return (/[\s\-_#(:/]/.test(prevChar)) ? 600 : 450;
+            }
+
+            // 3. Multi-token match (all words match in any order)
+            const tokens = q.split(/\s+/).filter(Boolean);
+            if (tokens.length > 1) {
+                let allFound = true;
+                let score = 350;
+                for (const token of tokens) {
+                    if (!text.includes(token)) {
+                        if (!hasCloseWordMatch(text, token)) {
+                            allFound = false;
+                            break;
+                        }
+                        score -= 25;
+                    }
+                }
+                if (allFound) return score;
+            }
+
+            // 4. Single token close/typo match (e.g. spliter -> splitter, transciver -> transceiver)
+            if (tokens.length === 1 && tokens[0].length >= 3) {
+                if (hasCloseWordMatch(text, tokens[0])) {
+                    return 300;
+                }
+            }
+
+            // 5. Acronym / First letters match
+            const words = text.split(/[\s\-_#(:/),]+/).filter(w => w.length >= 1);
+            const acronym = words.map(w => w[0]).join('');
+            if (q.length >= 2 && acronym.includes(q)) {
+                return 200;
+            }
+
+            // 6. Subsequence match for characters in sequence
+            if (q.length >= 3) {
+                let tIdx = 0;
+                let matchedChars = 0;
+                for (let i = 0; i < q.length; i++) {
+                    const char = q[i];
+                    if (char === ' ') continue;
+                    const foundIdx = text.indexOf(char, tIdx);
+                    if (foundIdx === -1) return 0;
+                    tIdx = foundIdx + 1;
+                    matchedChars++;
+                }
+                if (matchedChars >= 3) {
+                    return 120;
+                }
+            }
+
+            return 0;
         }
 
         function initCustomMaterialSelect() {
@@ -735,52 +841,93 @@
             }
         }
 
-        async function fetchMaterialSuggestions(query = '') {
+        function renderMaterialSuggestions(query = '') {
             const list = document.getElementById('materialOptionsList');
             const emptyState = document.getElementById('materialOptionsEmptyState');
+            const select = document.getElementById('id_material');
             if (!list) return;
 
+            const currentVal = select ? select.value : '';
+            const maxItems = 60;
+
+            let scoredItems = [];
+            if (!query) {
+                scoredItems = materialsListCache.slice(0, maxItems).map(it => ({ item: it, score: 100 }));
+            } else {
+                for (let i = 0; i < materialsListCache.length; i++) {
+                    const it = materialsListCache[i];
+                    const score = getMatchScore(it.label, query);
+                    if (score > 0) {
+                        scoredItems.push({ item: it, score: score });
+                    }
+                }
+                scoredItems.sort((a, b) => b.score - a.score);
+            }
+
+            const totalMatches = scoredItems.length;
+            const displayed = scoredItems.slice(0, maxItems).map(s => s.item);
+
+            if (displayed.length === 0) {
+                list.innerHTML = '';
+                if (emptyState) emptyState.classList.remove('hidden');
+                return;
+            }
+
+            if (emptyState) emptyState.classList.add('hidden');
+
+            let html = '';
+            displayed.forEach(item => {
+                const isSelected = (String(currentVal) === String(item.id));
+                html += `
+                    <button type="button"
+                        data-material-val="${item.id}"
+                        data-material-name="${escapeHtml(item.name)}"
+                        data-material-label="${escapeHtml(item.label)}"
+                        class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all text-left group cursor-pointer ${
+                            isSelected
+                                ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800/60'
+                                : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-midnight-800 hover:text-indigo-600 dark:hover:text-indigo-400'
+                        }">
+                        <div class="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
+                            <div class="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
+                                <i class="fas fa-box text-xs"></i>
+                            </div>
+                            <span class="truncate font-semibold text-gray-900 dark:text-white text-xs">${escapeHtml(item.label)}</span>
+                        </div>
+                        ${isSelected ? '<i class="fas fa-check text-indigo-600 dark:text-indigo-400 text-xs ml-2 flex-shrink-0"></i>' : ''}
+                    </button>
+                `;
+            });
+
+            if (totalMatches > maxItems) {
+                html += `<div class="px-3 py-1.5 text-center text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-50/50 dark:bg-midnight-950/50 rounded-md">Showing top ${maxItems} of ${totalMatches} matches</div>`;
+            }
+
+            list.innerHTML = html;
+        }
+
+        async function fetchMaterialSuggestions(query = '') {
             try {
                 const res = await fetch(`/api/materials/search/?q=${encodeURIComponent(query)}`);
                 if (!res.ok) return;
                 const data = await res.json();
                 const items = data.results || [];
-                const select = document.getElementById('id_material');
-                const currentVal = select ? select.value : '';
-
-                if (items.length === 0) {
-                    list.innerHTML = '';
-                    if (emptyState) emptyState.classList.remove('hidden');
-                    return;
-                }
-
-                if (emptyState) emptyState.classList.add('hidden');
-
-                let html = '';
-                items.forEach(item => {
-                    const isSelected = (String(currentVal) === String(item.id));
-                    const label = item.category ? `${item.name} (${item.category})` : item.name;
-                    html += `
-                        <button type="button"
-                            data-material-val="${item.id}"
-                            data-material-name="${escapeHtml(item.name)}"
-                            data-material-label="${escapeHtml(label)}"
-                            class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all text-left group cursor-pointer ${
-                                isSelected
-                                    ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800/60'
-                                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-midnight-800 hover:text-indigo-600 dark:hover:text-indigo-400'
-                            }">
-                            <div class="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
-                                <div class="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
-                                    <i class="fas fa-box text-xs"></i>
-                                </div>
-                                <span class="truncate font-semibold text-gray-900 dark:text-white text-xs">${escapeHtml(label)}</span>
-                            </div>
-                            ${isSelected ? '<i class="fas fa-check text-indigo-600 dark:text-indigo-400 text-xs ml-2 flex-shrink-0"></i>' : ''}
-                        </button>
-                    `;
+                
+                const existingIds = new Set(materialsListCache.map(i => String(i.id)));
+                items.forEach(it => {
+                    const label = it.category ? `${it.name} (${it.category})` : it.name;
+                    if (!existingIds.has(String(it.id))) {
+                        materialsListCache.push({
+                            id: it.id,
+                            name: it.name,
+                            category: it.category,
+                            label: label
+                        });
+                        existingIds.add(String(it.id));
+                    }
                 });
-                list.innerHTML = html;
+
+                renderMaterialSuggestions(query);
             } catch (err) {
                 console.error("Error fetching materials:", err);
             }
@@ -838,6 +985,7 @@
             if (dropdown) dropdown.classList.remove('hidden');
             if (icon) icon.classList.add('rotate-180');
             const val = searchInput ? searchInput.value.trim() : '';
+            renderMaterialSuggestions(val);
             fetchMaterialSuggestions(val);
         }
 
@@ -868,6 +1016,10 @@
                 icon.classList.toggle('hidden', val.length > 0);
             }
 
+            // 1. Instant local fuzzy filter using levenshteinDistance (0ms latency)
+            renderMaterialSuggestions(val);
+
+            // 2. Debounced API fetch to query across full database
             clearTimeout(materialSearchTimeout);
             materialSearchTimeout = setTimeout(() => {
                 fetchMaterialSuggestions(val);

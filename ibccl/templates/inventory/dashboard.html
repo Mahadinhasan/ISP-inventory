@@ -61,7 +61,7 @@
             </div>
         </div>
         {% else %}
-        <div onclick="document.getElementById('materialsModal').classList.remove('hidden')"
+        <div onclick="openMaterialsModal()"
             class="group relative overflow-hidden bg-white dark:bg-midnight-900/50 rounded-2xl p-6 border border-slate-200/70 dark:border-midnight-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
             <div class="flex items-center">
                 <div class="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full">
@@ -332,7 +332,7 @@
                 {% endif %}
             </h3>
             <div class="flex items-center gap-3 ml-auto">
-                <input type="text" placeholder="Search..." onkeyup="filterTable(this, 'materialsTable')"
+                <input type="text" id="materialsTableSearchInput" placeholder="Search..." oninput="onMaterialsTableSearch(this.value)"
                     class="border rounded px-2 py-1 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                 <button onclick="toggleModalSize('materialsModalContent', 'btnToggleMaterialsSize')" id="btnToggleMaterialsSize"
                     class="text-gray-500 hover:text-gray-700 transition-colors" title="Toggle Size">
@@ -422,7 +422,8 @@
                     {% endif %}
                 </tbody>
             </table>
-            <!--Pagination add-->
+            <!-- Dynamic 30K In-Stock Materials Pagination -->
+            <div id="materialsTablePaginationContainer" class="flex items-center justify-between border-t border-gray-100 dark:border-midnight-800 bg-white dark:bg-transparent px-6 py-4 mt-4"></div>
 
         </div>
     </div>
@@ -2135,15 +2136,183 @@
         });
     }
     
+    // ── Dynamic 30K In-Stock Materials Modal Pagination & Search ──
+    let currentMaterialsPage = 1;
+    let currentMaterialsSearch = '';
+    let materialsSearchDebounceTimer = null;
+    const isBranchUserRole = "{{ user.userprofile.role }}" === "Branch";
+
+    function escapeMaterialsHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function openMaterialsModal() {
+        const modal = document.getElementById('materialsModal');
+        if (modal) modal.classList.remove('hidden');
+        loadMaterialsTablePage(1, currentMaterialsSearch);
+    }
+
+    function onMaterialsTableSearch(query) {
+        currentMaterialsSearch = (query || '').trim();
+        if (materialsSearchDebounceTimer) clearTimeout(materialsSearchDebounceTimer);
+        materialsSearchDebounceTimer = setTimeout(() => {
+            loadMaterialsTablePage(1, currentMaterialsSearch);
+        }, 250);
+    }
+
+    function loadMaterialsTablePage(page = 1, searchQuery = '') {
+        currentMaterialsPage = page;
+        const tbody = document.querySelector('#materialsTable tbody');
+        const paginationContainer = document.getElementById('materialsTablePaginationContainer');
+        if (!tbody) return;
+
+        tbody.style.opacity = '0.5';
+
+        fetch(`/api/dashboard/approved-materials/?page=${page}&page_size=10&search=${encodeURIComponent(searchQuery)}`)
+            .then(res => res.json())
+            .then(data => {
+                tbody.style.opacity = '1';
+                const items = data.results || [];
+                const totalCount = data.total_count || 0;
+                const totalPages = data.total_pages || 1;
+                const currentPage = data.page || page;
+                const pageSize = data.page_size || 10;
+
+                if (items.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="${isBranchUserRole ? '6' : '4'}" class="px-6 py-8 text-center text-gray-500">
+                                <i class="fas fa-inbox text-4xl mb-2 text-gray-300"></i><br>
+                                No matching in-stock materials found
+                            </td>
+                        </tr>
+                    `;
+                } else {
+                    let html = '';
+                    items.forEach(req => {
+                        let stockBadgeClass = 'bg-yellow-100 text-yellow-800';
+                        if (req.stock_status === 'Normal') {
+                            stockBadgeClass = 'bg-green-100 text-green-800';
+                        } else if (req.stock_status === 'Out of Stock') {
+                            stockBadgeClass = 'bg-red-100 text-red-800';
+                        }
+
+                        let extraColsHtml = '';
+                        if (isBranchUserRole) {
+                            const serialDisplay = req.serials_display || 'N/A';
+                            const serialArg = req.is_serialized && req.serials_display_id ? req.serials_display_id : '';
+                            if (req.available_quantity > 0) {
+                                extraColsHtml = `
+                                    <td class="px-6 py-4 text-sm text-gray-500 font-mono">${escapeMaterialsHtml(serialDisplay)}</td>
+                                    <td class="px-6 py-4 text-sm">
+                                        <button onclick="reportDamageAuto('${req.material_id}', '${escapeMaterialsHtml(req.material_name)}', '${serialArg}')"
+                                                class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 dark:bg-midnight-800 dark:hover:bg-midnight-700 dark:text-red-300 text-xs font-bold rounded-lg border border-red-100 dark:border-midnight-800 transition flex items-center gap-1">
+                                            <i class="fas fa-hammer"></i> Damage
+                                        </button>
+                                    </td>
+                                `;
+                            } else {
+                                extraColsHtml = `
+                                    <td class="px-6 py-4 text-sm text-gray-500 font-mono">${escapeMaterialsHtml(serialDisplay)}</td>
+                                    <td class="px-6 py-4 text-sm">
+                                        <span class="text-xs text-gray-400 italic">No Stock</span>
+                                    </td>
+                                `;
+                            }
+                        }
+
+                        html += `
+                            <tr>
+                                <td class="px-6 py-4 text-sm font-medium text-gray-900">${escapeMaterialsHtml(req.material_name)}</td>
+                                <td class="px-6 py-4 text-sm text-gray-900 font-bold">${req.available_quantity}</td>
+                                <td class="px-6 py-4 text-sm text-gray-500">${escapeMaterialsHtml(req.requested_at)}</td>
+                                <td class="px-6 py-4 text-sm">
+                                    <span class="px-2 py-1 rounded-full text-xs font-semibold ${stockBadgeClass}">
+                                        ${escapeMaterialsHtml(req.stock_status)}
+                                    </span>
+                                </td>
+                                ${extraColsHtml}
+                            </tr>
+                        `;
+                    });
+                    tbody.innerHTML = html;
+                }
+
+                // Render pagination bar: Showing X to Y of Z entries
+                if (paginationContainer) {
+                    let start = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+                    let end = Math.min(currentPage * pageSize, totalCount);
+
+                    let pagHtml = `
+                        <div class="text-sm text-gray-500 dark:text-gray-400">
+                            Showing <span class="font-semibold text-gray-900 dark:text-white">${start}</span> to <span class="font-semibold text-gray-900 dark:text-white">${end}</span> of <span class="font-semibold text-gray-900 dark:text-white">${totalCount.toLocaleString()}</span> entries
+                        </div>
+                    `;
+
+                    if (totalPages > 1) {
+                        pagHtml += `
+                            <nav class="inline-flex gap-1 bg-white dark:bg-midnight-950 p-1.5 rounded-lg border border-gray-200 dark:border-midnight-800 shadow-sm">
+                        `;
+
+                        if (currentPage > 1) {
+                            pagHtml += `
+                                <button type="button" onclick="loadMaterialsTablePage(${currentPage - 1}, currentMaterialsSearch)" class="px-2.5 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-midnight-800 rounded-md transition-all">
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                            `;
+                        }
+
+                        for (let i = 1; i <= totalPages; i++) {
+                            if (i === currentPage) {
+                                pagHtml += `
+                                    <span class="px-2.5 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-md shadow-sm">${i}</span>
+                                `;
+                            } else if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+                                pagHtml += `
+                                    <button type="button" onclick="loadMaterialsTablePage(${i}, currentMaterialsSearch)" class="px-2.5 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-midnight-800 rounded-md transition-all">${i}</button>
+                                `;
+                            } else if (i === currentPage - 3 || i === currentPage + 3) {
+                                pagHtml += `<span class="px-1.5 py-1.5 text-xs text-gray-400">...</span>`;
+                            }
+                        }
+
+                        if (currentPage < totalPages) {
+                            pagHtml += `
+                                <button type="button" onclick="loadMaterialsTablePage(${currentPage + 1}, currentMaterialsSearch)" class="px-2.5 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-midnight-800 rounded-md transition-all">
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                            `;
+                        }
+
+                        pagHtml += `</nav>`;
+                    }
+
+                    paginationContainer.innerHTML = pagHtml;
+                }
+            })
+            .catch(err => {
+                tbody.style.opacity = '1';
+                console.error('Error loading materials:', err);
+            });
+    }
+
     // Update time display on page load and every 30 seconds
     document.addEventListener('DOMContentLoaded', () => {
         updateTimeAgoDisplay();
         setInterval(updateTimeAgoDisplay, 30000); // Update every 30 seconds
         
-        // Initialize dynamic client-side pagination on modal tables
+        // Initialize dynamic 30K materials table
+        loadMaterialsTablePage(1, '');
+
+        // Initialize dynamic client-side pagination on modal tables (materialsTable excluded as it has server pagination)
         const tablesToPaginate = [
             'usersTable',
-            'materialsTable',
             'advanceMaterialsTable',
             'requestsTable',
             'usedMaterialsTable',

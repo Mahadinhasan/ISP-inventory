@@ -141,7 +141,7 @@ class Material(models.Model):
     ]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Normal')
     added_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField(default=timezone.now)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_materials')
     is_deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -270,11 +270,14 @@ class Material(models.Model):
             # Calculate total price
             if self.rate is None:
                 self.rate = 0
-            self.total_price = self.quantity * self.rate
+            self.total_price = round(self.quantity * self.rate, 2)
 
-            if self.quantity <= 0:
+            min_stock = self.min_stock_level or 0
+            qty = self.quantity or 0
+
+            if qty <= 0:
                 self.status = 'Out of Stock'
-            elif (self.min_stock_level or 0) > 0 and self.quantity < (self.min_stock_level or 0):
+            elif min_stock > 0 and qty <= min_stock:
                 self.status = 'Low Stock'
             else:
                 if self.status not in ('Reserved', 'Deprecated'):
@@ -284,7 +287,7 @@ class Material(models.Model):
 
         # NOC role: Remaining_stock always stays 0 (no carryover, no monthly reset)
         try:
-            if self.created_by and hasattr(self.created_by, 'userprofile') and self.created_by.userprofile.role == 'NOC':
+            if (self.category == 'Internet') or (self.created_by and hasattr(self.created_by, 'userprofile') and self.created_by.userprofile.role == 'NOC'):
                 self.Remaining_stock = 0
         except Exception:
             pass

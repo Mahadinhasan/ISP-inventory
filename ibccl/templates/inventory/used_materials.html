@@ -811,6 +811,8 @@
 
     // ── Ultra High Performance Searchable Material Select Logic ──
     let materialOptionsCache = [];
+    let materialSearchDebounce = null;
+    let initialOptionsLoaded = false;
 
     function escapeHtml(str) {
         if (!str) return '';
@@ -820,6 +822,111 @@
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
+    }
+
+    function levenshteinDistance(a, b) {
+        if (a === b) return 0;
+        if (!a.length) return b.length;
+        if (!b.length) return a.length;
+        const matrix = [];
+        for (let i = 0; i <= b.length; i++) { matrix[i] = [i]; }
+        for (let j = 0; j <= a.length; j++) { matrix[0][j] = j; }
+        for (let i = 1; i <= b.length; i++) {
+            for (let j = 1; j <= a.length; j++) {
+                if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                    matrix[i][j] = matrix[i - 1][j - 1];
+                } else {
+                    matrix[i][j] = Math.min(
+                        matrix[i - 1][j - 1] + 1,
+                        matrix[i][j - 1] + 1,
+                        matrix[i - 1][j] + 1
+                    );
+                }
+            }
+        }
+        return matrix[b.length][a.length];
+    }
+
+    function hasCloseWordMatch(fullText, queryWord) {
+        const words = fullText.split(/[\s\-_#(:/),]+/).filter(w => w.length >= 2);
+        const qLen = queryWord.length;
+        for (const w of words) {
+            if (w.includes(queryWord) || queryWord.includes(w)) return true;
+            if (Math.abs(w.length - qLen) <= 2 && qLen >= 3) {
+                if (levenshteinDistance(w.substring(0, qLen + 1), queryWord) <= 1) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    function getMatchScore(itemText, query) {
+        if (!query) return 100;
+        const text = itemText.toLowerCase();
+        const q = query.toLowerCase().trim();
+        if (!q) return 100;
+
+        // 1. Exact match / prefix match
+        if (text === q) return 1000;
+        if (text.startsWith(q)) return 800;
+
+        // 2. Direct substring match
+        const subIdx = text.indexOf(q);
+        if (subIdx !== -1) {
+            const prevChar = subIdx > 0 ? text[subIdx - 1] : ' ';
+            return (/[\s\-_#(:/]/.test(prevChar)) ? 600 : 450;
+        }
+
+        // 3. Multi-token match (all words match in any order)
+        const tokens = q.split(/\s+/).filter(Boolean);
+        if (tokens.length > 1) {
+            let allFound = true;
+            let score = 350;
+            for (const token of tokens) {
+                if (!text.includes(token)) {
+                    if (!hasCloseWordMatch(text, token)) {
+                        allFound = false;
+                        break;
+                    }
+                    score -= 25;
+                }
+            }
+            if (allFound) return score;
+        }
+
+        // 4. Single token close/typo match (e.g. spliter -> splitter, transciver -> transceiver)
+        if (tokens.length === 1 && tokens[0].length >= 3) {
+            if (hasCloseWordMatch(text, tokens[0])) {
+                return 300;
+            }
+        }
+
+        // 5. Acronym / First letters match (e.g. "sfpt" -> "SFP Transceiver", "cs" -> "Cassette Splitter")
+        const words = text.split(/[\s\-_#(:/),]+/).filter(w => w.length >= 1);
+        const acronym = words.map(w => w[0]).join('');
+        if (q.length >= 2 && acronym.includes(q)) {
+            return 200;
+        }
+
+        // 6. Subsequence match for characters in sequence
+        if (q.length >= 3) {
+            let tIdx = 0;
+            let matchedChars = 0;
+            for (let i = 0; i < q.length; i++) {
+                const char = q[i];
+                if (char === ' ') continue;
+                const foundIdx = text.indexOf(char, tIdx);
+                if (foundIdx === -1) return 0;
+                tIdx = foundIdx + 1;
+                matchedChars++;
+            }
+            if (matchedChars >= 3) {
+                return 120;
+            }
+        }
+
+        return 0;
     }
 
     function initCustomMaterialSelect() {
@@ -835,7 +942,8 @@
                 if (btn) {
                     e.preventDefault();
                     const val = btn.getAttribute('data-material-val');
-                    selectCustomMaterialOption(val);
+                    const text = btn.getAttribute('data-material-text') || btn.textContent.trim();
+                    selectCustomMaterialOption(val, text);
                 }
             });
         }
@@ -844,12 +952,13 @@
     function loadMaterialOptionsCache() {
         const select = document.getElementById('id_material_selection');
         if (!select) return;
-        materialOptionsCache = [];
         const opts = select.options;
+        const existingMap = new Map(materialOptionsCache.map(i => [i.value, true]));
         for (let i = 0; i < opts.length; i++) {
             const opt = opts[i];
             const val = opt.value;
             if (!val) continue; // Skip blank placeholder
+            if (existingMap.has(val)) continue;
             const text = opt.textContent.trim();
             materialOptionsCache.push({
                 value: val,
@@ -857,7 +966,69 @@
                 lowerText: text.toLowerCase(),
                 isSerial: val.startsWith('s:')
             });
+            existingMap.set(val, true);
         }
+    }
+
+    function renderMaterialListHtml(items, currentVal) {
+        let html = '';
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const isSelected = (currentVal === item.value);
+
+            let titleHtml = '';
+            if (item.isSerial) {
+                const dashIdx = item.text.indexOf(' - ');
+                let matName = item.text;
+                let serialText = '';
+                if (dashIdx !== -1) {
+                    matName = item.text.substring(0, dashIdx);
+                    serialText = item.text.substring(dashIdx + 3);
+                }
+                titleHtml = `
+                    <div class="flex flex-col min-w-0 flex-1 pr-2">
+                        <span class="truncate font-semibold text-gray-900 dark:text-white text-xs">${escapeHtml(matName)}</span>
+                        <span class="text-[11px] font-mono font-medium text-amber-600 dark:text-amber-400 truncate flex items-center gap-1.5 mt-0.5">
+                            <i class="fas fa-barcode text-[10px]"></i> ${escapeHtml(serialText || item.text)}
+                        </span>
+                    </div>
+                `;
+            } else {
+                let matName = item.text;
+                let qtyText = '';
+                const matchQty = item.text.match(/^(.*?)\s*\((.*?available.*?|\d+.*?)\)$/i);
+                if (matchQty) {
+                    matName = matchQty[1];
+                    qtyText = matchQty[2];
+                }
+                titleHtml = `
+                    <div class="flex flex-col min-w-0 flex-1 pr-2">
+                        <span class="truncate font-semibold text-gray-900 dark:text-white text-xs">${escapeHtml(matName)}</span>
+                        ${qtyText ? `<span class="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 truncate flex items-center gap-1.5 mt-0.5"><i class="fas fa-cubes text-[10px]"></i> ${escapeHtml(qtyText)}</span>` : ''}
+                    </div>
+                `;
+            }
+
+            html += `
+                <button type="button"
+                    data-material-val="${escapeHtml(item.value)}"
+                    data-material-text="${escapeHtml(item.text)}"
+                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all text-left group cursor-pointer ${
+                        isSelected
+                            ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800/60 shadow-xs'
+                            : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-midnight-800 hover:text-indigo-600 dark:hover:text-indigo-400'
+                    }">
+                    <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                        <div class="w-7 h-7 rounded-lg ${item.isSerial ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400' : 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400'} flex items-center justify-center flex-shrink-0">
+                            <i class="fas ${item.isSerial ? 'fa-barcode' : 'fa-box'} text-xs"></i>
+                        </div>
+                        ${titleHtml}
+                    </div>
+                    ${isSelected ? '<i class="fas fa-check text-indigo-600 dark:text-indigo-400 text-xs ml-2 flex-shrink-0"></i>' : ''}
+                </button>
+            `;
+        }
+        return html;
     }
 
     function filterAndRenderCustomMaterialOptions(searchQuery = null) {
@@ -880,87 +1051,84 @@
         }
 
         const currentVal = select.value;
-        const maxItems = 60;
-        let matchCount = 0;
-        let html = '';
+        const maxItems = 60; // Strictly show at most 60 items
 
-        for (let i = 0; i < materialOptionsCache.length; i++) {
-            const item = materialOptionsCache[i];
-            if (!query || item.lowerText.includes(query)) {
-                matchCount++;
-                if (matchCount <= maxItems) {
-                    const isSelected = (currentVal === item.value);
+        let displayedItems = [];
+        let totalMatches = 0;
 
-                    let titleHtml = '';
-                    if (item.isSerial) {
-                        // Extract Material Name & MAC/Serial
-                        const dashIdx = item.text.indexOf(' - ');
-                        let matName = item.text;
-                        let serialText = '';
-                        if (dashIdx !== -1) {
-                            matName = item.text.substring(0, dashIdx);
-                            serialText = item.text.substring(dashIdx + 3);
-                        }
-                        titleHtml = `
-                            <div class="flex flex-col min-w-0 flex-1 pr-2">
-                                <span class="truncate font-semibold text-gray-900 dark:text-white text-xs">${escapeHtml(matName)}</span>
-                                <span class="text-[11px] font-mono font-medium text-amber-600 dark:text-amber-400 truncate flex items-center gap-1.5 mt-0.5">
-                                    <i class="fas fa-barcode text-[10px]"></i> ${escapeHtml(serialText || item.text)}
-                                </span>
-                            </div>
-                        `;
-                    } else {
-                        // Non-serialized item with quantity
-                        let matName = item.text;
-                        let qtyText = '';
-                        const matchQty = item.text.match(/^(.*?)\s*\((.*?available.*?|\d+.*?)\)$/i);
-                        if (matchQty) {
-                            matName = matchQty[1];
-                            qtyText = matchQty[2];
-                        }
-                        titleHtml = `
-                            <div class="flex flex-col min-w-0 flex-1 pr-2">
-                                <span class="truncate font-semibold text-gray-900 dark:text-white text-xs">${escapeHtml(matName)}</span>
-                                ${qtyText ? `<span class="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 truncate flex items-center gap-1.5 mt-0.5"><i class="fas fa-cubes text-[10px]"></i> ${escapeHtml(qtyText)}</span>` : ''}
-                            </div>
-                        `;
-                    }
-
-                    html += `
-                        <button type="button"
-                            data-material-val="${item.value}"
-                            class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all text-left group cursor-pointer ${
-                                isSelected
-                                    ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800/60 shadow-xs'
-                                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-midnight-800 hover:text-indigo-600 dark:hover:text-indigo-400'
-                            }">
-                            <div class="flex items-center gap-2.5 min-w-0 flex-1">
-                                <div class="w-7 h-7 rounded-lg ${item.isSerial ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400' : 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400'} flex items-center justify-center flex-shrink-0">
-                                    <i class="fas ${item.isSerial ? 'fa-barcode' : 'fa-box'} text-xs"></i>
-                                </div>
-                                ${titleHtml}
-                            </div>
-                            ${isSelected ? '<i class="fas fa-check text-indigo-600 dark:text-indigo-400 text-xs ml-2 flex-shrink-0"></i>' : ''}
-                        </button>
-                    `;
+        if (!query) {
+            // Default / empty search: show top 60 items
+            totalMatches = materialOptionsCache.length;
+            displayedItems = materialOptionsCache.slice(0, maxItems);
+        } else {
+            // User typed search query: score items with fuzzy / close-letter logic
+            const scoredItems = [];
+            for (let i = 0; i < materialOptionsCache.length; i++) {
+                const item = materialOptionsCache[i];
+                const score = getMatchScore(item.text, query);
+                if (score > 0) {
+                    scoredItems.push({ item: item, score: score });
                 }
             }
+
+            // Sort matches by relevance score (highest score first)
+            scoredItems.sort((a, b) => b.score - a.score);
+            totalMatches = scoredItems.length;
+            displayedItems = scoredItems.slice(0, maxItems).map(s => s.item);
         }
 
-        if (matchCount > maxItems) {
-            html += `<div class="px-3 py-1.5 text-center text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-50/50 dark:bg-midnight-950/50 rounded-md">Showing top ${maxItems} of ${matchCount} matches (type to narrow down)</div>`;
+        let html = renderMaterialListHtml(displayedItems, currentVal);
+
+        if (totalMatches > maxItems) {
+            html += `<div class="px-3 py-1.5 text-center text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-50/50 dark:bg-midnight-950/50 rounded-md">Showing top ${maxItems} of ${totalMatches} items</div>`;
         }
 
         list.innerHTML = html;
 
         if (emptyState) {
-            emptyState.classList.toggle('hidden', matchCount > 0);
+            emptyState.classList.toggle('hidden', totalMatches > 0);
         }
     }
 
-    function selectCustomMaterialOption(val) {
+    async function fetchUsedMaterialSuggestions(query = '') {
+        const q = (query || '').trim();
+        try {
+            const res = await fetch(`/api/used-materials/search/?q=${encodeURIComponent(q)}`);
+            if (!res.ok) return;
+            const data = await res.json();
+            const results = data.results || [];
+            
+            const existingKeys = new Set(materialOptionsCache.map(i => i.value));
+            for (const r of results) {
+                if (!existingKeys.has(r.value)) {
+                    materialOptionsCache.push({
+                        value: r.value,
+                        text: r.text || r.label || r.name,
+                        lowerText: (r.text || r.label || r.name).toLowerCase(),
+                        isSerial: Boolean(r.is_serial)
+                    });
+                    existingKeys.add(r.value);
+                }
+            }
+            filterAndRenderCustomMaterialOptions(q);
+        } catch (err) {
+            console.error('Error searching used materials:', err);
+        }
+    }
+
+    function selectCustomMaterialOption(val, text = '') {
         const select = document.getElementById('id_material_selection');
         if (!select) return;
+
+        // Ensure option exists in select element so form submission works
+        let opt = Array.from(select.options).find(o => o.value === String(val));
+        if (!opt) {
+            opt = document.createElement('option');
+            opt.value = val;
+            opt.textContent = text || val;
+            select.appendChild(opt);
+        }
+
         select.value = val;
         select.dispatchEvent(new Event('change'));
         syncCustomMaterialSelect();
@@ -993,6 +1161,12 @@
         if (dropdown) dropdown.classList.remove('hidden');
         if (icon) icon.classList.add('rotate-180');
         filterAndRenderCustomMaterialOptions();
+        
+        // Also fetch from API if we haven't loaded initially
+        if (!initialOptionsLoaded) {
+            initialOptionsLoaded = true;
+            fetchUsedMaterialSuggestions('');
+        }
     }
 
     function closeMaterialSuggestions() {
@@ -1022,7 +1196,14 @@
             icon.classList.toggle('hidden', val.length > 0);
         }
 
+        // 1. Instant local fuzzy filter (0ms latency)
         filterAndRenderCustomMaterialOptions(val);
+
+        // 2. Debounced API search to fetch items from entire database
+        if (materialSearchDebounce) clearTimeout(materialSearchDebounce);
+        materialSearchDebounce = setTimeout(() => {
+            fetchUsedMaterialSuggestions(val);
+        }, 200);
     }
 
     function clearMaterialSearch(event) {
@@ -1041,7 +1222,9 @@
             searchInput.focus();
         }
         syncCustomMaterialSelect();
-        openMaterialSuggestions();
+        filterAndRenderCustomMaterialOptions('');
+        const dropdown = document.getElementById('materialSuggestionsDropdown');
+        if (dropdown) dropdown.classList.remove('hidden');
     }
 
     // Close suggestions on outside click

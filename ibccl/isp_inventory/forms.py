@@ -271,66 +271,76 @@ class UsedMaterialForm(forms.ModelForm):
             try:
                 profile = ensure_userprofile(user)
                 if profile and profile.role == 'Branch':
-                    # 1. Add Serialized Items (assigned to this user and Active, top 50)
+                    # 1. Add Serialized Items (assigned to this user and Active, top 60)
                     active_serials = MacSerialNumber.objects.filter(
                         assigned_to=user,
                         status='Active'
-                    ).select_related('material')[:50]
+                    ).select_related('material')[:60]
                     for s in active_serials:
                         choices.append((f"s:{s.id}", f"{s.material.name} - {s.mac_serial}"))
+                        if len(choices) >= 61:
+                            break
 
-                    # 2. Add Non-Serialized Items (approved for this branch, top 50)
-                    approved_materials = MaterialRequest.objects.filter(
-                        requester=user,
-                        status='Received',
-                        is_archived=False
-                    ).values(
-                        'material_id', 'material__name'
-                    ).annotate(total_received=Sum('quantity'))[:50]
+                    # 2. Add Non-Serialized Items (approved for this branch, top 60)
+                    remaining_slots = 61 - len(choices)
+                    if remaining_slots > 0:
+                        approved_materials = MaterialRequest.objects.filter(
+                            requester=user,
+                            status='Received',
+                            is_archived=False
+                        ).values(
+                            'material_id', 'material__name'
+                        ).annotate(total_received=Sum('quantity')).order_by('material__name')[:remaining_slots + 40]
 
-                    mat_ids = [item['material_id'] for item in approved_materials]
-                    if mat_ids:
-                        used_query = UsedMaterial.objects.filter(
-                            technician=user,
-                            material_id__in=mat_ids
-                        ).exclude(status='Rejected')
-                        if self.instance and self.instance.pk:
-                            used_query = used_query.exclude(pk=self.instance.pk)
-                        used_totals = used_query.values('material_id').annotate(total_used=Sum('quantity'))
-                        used_by_material = {u['material_id']: u['total_used'] or 0 for u in used_totals}
+                        mat_ids = [item['material_id'] for item in approved_materials]
+                        if mat_ids:
+                            used_query = UsedMaterial.objects.filter(
+                                technician=user,
+                                material_id__in=mat_ids
+                            ).exclude(status='Rejected')
+                            if self.instance and self.instance.pk:
+                                used_query = used_query.exclude(pk=self.instance.pk)
+                            used_totals = used_query.values('material_id').annotate(total_used=Sum('quantity'))
+                            used_by_material = {u['material_id']: u['total_used'] or 0 for u in used_totals}
 
-                        damaged_totals = DamageMaterial.objects.filter(
-                            branch_user=user,
-                            material_id__in=mat_ids,
-                            status__in=['Pending', 'Confirmed']
-                        ).values('material_id').annotate(total_damaged=Sum('quantity'))
-                        damaged_by_material = {d['material_id']: d['total_damaged'] or 0 for d in damaged_totals}
+                            damaged_totals = DamageMaterial.objects.filter(
+                                branch_user=user,
+                                material_id__in=mat_ids,
+                                status__in=['Pending', 'Confirmed']
+                            ).values('material_id').annotate(total_damaged=Sum('quantity'))
+                            damaged_by_material = {d['material_id']: d['total_damaged'] or 0 for d in damaged_totals}
 
-                        for item in approved_materials:
-                            mat_id = item['material_id']
-                            mat_name = item['material__name']
-                            used_qty = used_by_material.get(mat_id, 0)
-                            damaged_qty = damaged_by_material.get(mat_id, 0)
-                            available = item['total_received'] - used_qty - damaged_qty
-                            if available > 0:
-                                choices.append((
-                                    f"m:{mat_id}",
-                                    f"{mat_name} ({available} available)"
-                                ))
+                            for item in approved_materials:
+                                mat_id = item['material_id']
+                                mat_name = item['material__name']
+                                used_qty = used_by_material.get(mat_id, 0)
+                                damaged_qty = damaged_by_material.get(mat_id, 0)
+                                available = item['total_received'] - used_qty - damaged_qty
+                                if available > 0:
+                                    choices.append((
+                                        f"m:{mat_id}",
+                                        f"{mat_name} ({available} available)"
+                                    ))
+                                    if len(choices) >= 61:
+                                        break
 
                     if len(choices) == 1:
                         choices = [('', 'No approved in-stock materials available')]
                 else:
-                    # Admin/Storekeeper can see top available materials
+                    # Admin/Storekeeper can see top available materials (max 60)
                     active_serials = MacSerialNumber.objects.filter(
                         status='Active'
-                    ).select_related('material').only('id', 'mac_serial', 'material__name')[:50]
+                    ).select_related('material').only('id', 'mac_serial', 'material__name')[:60]
                     for s in active_serials:
                         choices.append((f"s:{s.id}", f"{s.material.name} - {s.mac_serial}"))
+                        if len(choices) >= 61:
+                            break
 
-                    all_mats = Material.objects.only('id', 'name', 'quantity').order_by('name')[:50]
-                    for m in all_mats:
-                        choices.append((f"m:{m.id}", f"{m.name} ({m.quantity} available)"))
+                    remaining_slots = 61 - len(choices)
+                    if remaining_slots > 0:
+                        all_mats = Material.objects.only('id', 'name', 'quantity').order_by('name')[:remaining_slots]
+                        for m in all_mats:
+                            choices.append((f"m:{m.id}", f"{m.name} ({m.quantity} available)"))
 
                 # When EDITING an existing record, pre-select the current material/serial
                 if self.instance and self.instance.pk:
@@ -351,7 +361,8 @@ class UsedMaterialForm(forms.ModelForm):
                             choices.insert(1, (mat_key, f"{self.instance.material.name} (current)"))
                         self.fields['material_selection'].initial = mat_key
 
-                self.fields['material_selection'].choices = choices
+                # Strictly cap at 1 blank option + 60 item options = 61
+                self.fields['material_selection'].choices = choices[:61]
             except Exception:
                 self.fields['material_selection'].choices = [('', 'No materials available')]
         else:

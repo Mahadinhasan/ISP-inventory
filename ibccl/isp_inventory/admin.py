@@ -64,8 +64,12 @@ class materialAdmin(admin.ModelAdmin):
     list_display = ['id', 'name', 'category', 'Type','quantity','Remaining_stock', 'min_stock_level', 'status', 'updated_at','rate','total_price']
     list_filter = ['category', 'status']
     list_select_related = ['created_by', 'created_by__userprofile']
-    search_fields = ['name', 'category']
     show_full_result_count = False
+
+    def save_model(self, request, obj, form, change):
+        if change:
+            obj.updated_at = timezone.now()
+        super().save_model(request, obj, form, change)
 admin.site.register(Material, materialAdmin)
 admin.site.register(MaterialRequest, MaterialRequestAdmin)
 class UserProfileAdmin(admin.ModelAdmin):

@@ -123,7 +123,6 @@ def noc_dashboard(request):
                     messages.success(request, f"Request for {mat_request.material.name} rejected.")
             return redirect('noc:dashboard')
 
-    process_month_end_reset()
     now = timezone.now()
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     today = now.date()
@@ -548,8 +547,9 @@ def noc_requests(request):
     already_archived = _SysSetting.objects.filter(key=noc_archive_key).exists()
     if not already_archived:
         with transaction.atomic():
-            # Archive all requests from months BEFORE the current month
+            # Archive all requests from months BEFORE the current month (for this NOC user only)
             old_requests_qs = MaterialRequest.objects.filter(
+                requester=request.user,
                 material__category='Internet',
                 is_archived=False,
             ).exclude(
@@ -867,11 +867,18 @@ def noc_reports(request):
         from_date = start.strftime('%Y-%m-%d')
         to_date   = end.strftime('%Y-%m-%d')
 
-    # ── Branch Filter Setup ────────
+    start_dt = timezone.make_aware(datetime.combine(start, datetime.min.time()))
+    end_dt   = timezone.make_aware(datetime.combine(end,   datetime.max.time()))
+
+    # ── Branch / Self Filter Setup ────────
     branch_list = User.objects.filter(userprofile__role='Branch').only('id', 'username', 'first_name', 'last_name').order_by('username')
-    selected_user_id = request.GET.get('branch_user', '').strip()
+    selected_user_id = request.GET.get('branch_user', '').strip() or request.GET.get('user_id', '').strip()
     selected_user = None
-    if selected_user_id:
+    is_self = False
+    if selected_user_id == 'self':
+        is_self = True
+        selected_user = request.user
+    elif selected_user_id:
         try:
             selected_user = User.objects.get(id=int(selected_user_id))
         except (User.DoesNotExist, ValueError):
@@ -882,21 +889,18 @@ def noc_reports(request):
     
     requests_qs = MaterialRequest.objects.filter(
         material__in=noc_materials_qs,
-        requested_at__date__gte=start,
-        requested_at__date__lte=end,
+        requested_at__range=(start_dt, end_dt),
         is_hidden_by_noc=False
     ).select_related('material', 'requester')
 
     used_qs = UsedMaterial.objects.filter(
         material__in=noc_materials_qs,
-        added_at__date__gte=start,
-        added_at__date__lte=end
+        added_at__range=(start_dt, end_dt)
     ).select_related('material', 'technician')
 
     damaged_qs = DamageMaterial.objects.filter(
         material__in=noc_materials_qs,
-        added_at__date__gte=start,
-        added_at__date__lte=end
+        added_at__range=(start_dt, end_dt)
     ).select_related('material', 'branch_user', 'confirmed_by')
 
     if selected_user:
@@ -1102,6 +1106,8 @@ def noc_reports(request):
         'role':            role,
         'branch_list':     branch_list,
         'selected_user':   selected_user,
+        'is_self':         is_self,
+        'selected_user_id': selected_user_id,
         # Summary
         'total_requests':   total_requests,
         'approved_count':   approved_count,
